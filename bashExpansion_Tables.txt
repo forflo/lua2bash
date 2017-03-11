@@ -1,0 +1,21 @@
+t = {1, 2, 3}
+t.foo = "bar"
+t.moo = {"a", "b", "c"}
+t[0] = {1,2,3}
+-- => t = {{1,2,3},2,3,["foo"]="bar",["moo"]={"a", "b", "c"}}
+
+TBL_t=("TBL", "")
+TBL_t_1=("INT" "1")
+TBL_t_2=("INT" "2")
+TBL_t_3=("INT" "3")
+
+TBL_t_foo=("STR", "bar")
+
+TBL_t__moo_1=("STR", "a")
+TBL_t__moo_2=("STR", "b")
+TBL_t__moo_3=("STR", "c")
+
+TBL_t_1=("TBL", "")
+TBL_t_1_1=("INT", 1)
+TBL_t_1_2=("INT", 2)
+TBL_t_1_3=("INT", 3)
