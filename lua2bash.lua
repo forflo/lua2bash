@@ -20,24 +20,46 @@ function dumpLines(lines)
     print("end ld")
 end
 
+imap = function(tbl, func)
+    local result = {}
+    for k,v in ipairs(tbl) do
+        result[#result + 1] = func(v)
+    end
+
+    return result
+end
+
+join = function(strings, char)
+    local result = strings[1]
+    if #strings == 1 then return strings[1] end
+    for i=2, #strings do
+            result = result .. char .. strings[i]
+    end
+    return result
+end
+
 function derefLocation(location)
     return string.format("${!%s[1]}", location)
 end
 
-globalIdCount = 0
 
-function getUniqueId()
-    globalIdCount = globalIdCount + 1
-    return globalIdCount
+function getUniqueId(env)
+    env.globalIdCount = env.globalIdCount + 1
+    return env.globalIdCount
 end
 
 -- todo: refactor name to getScopePath
-function h_getNamePrefix(ast, env)
-    result = ""
---    for k,scope in ipairs(env.scopeStack) do
---        result = result .. scope .. "_"
---    end
-    return result
+function getScopePath(ast, env)
+    local scopeNames = {}
+
+    for i = 1, #env.scopeStack do
+        scopeNames[#scopeNames + 1] = env.scopeStack[i].name
+    end
+
+    print(join(scopeNames, '_'))
+
+    --result must be string
+    return ""
 end
 
 function zipI(left, right)
@@ -79,8 +101,14 @@ function tableSlice(tbl, first, last, step)
 end
 
 function emitBlock(ast, env, lines)
-    local scopeNumber = getUniqueId()
-    local scopeName = "scope_" .. scopeNumber
+    local scopeNumber = getUniqueId(env)
+    local scopeName
+
+    if #env.scopeStack ~= 0 then
+        scopeName = "scope_" .. scopeNumber
+    else
+        scopeName = "G"
+    end
 
     -- push new scope on top
     env.scopeStack[#env.scopeStack + 1] =
@@ -106,7 +134,7 @@ end
 function emitFornum(ast, env, lines)
     -- push new scope only for the loop counter
     env.scopeStack[#env.scopeStack + 1] =
-        {name = "loop_" .. getUniqueId(), scope = {[ast[1][1]] = nil}}
+        {name = "loop_" .. getUniqueId(env), scope = {[ast[1][1]] = nil}}
 
     -- build syntax tree for set instruction
     local tempAST = {
@@ -196,7 +224,25 @@ function emitIf(ast, env, lines)
 end
 
 function emitLocal(ast, env, lines)
-    -- TODO:
+    local currentScope = env.scopeStack[#env.scopeStack]
+
+    local tempVarlistAST = {
+        tag = "VarList",
+        pos = -1
+    }
+    local tempSetAST = {
+        tag = "Set",
+        pos = -1,
+        tempVarlistAST,
+        ast[2]
+    }
+
+    for i = 1, #ast[1] do
+        tempVarlistAST[i] = ast[1][i]
+    end
+
+    lines = emitSet(tempSetAST, env, lines, true)
+    -- true means make assignment local
 
     return lines
 end
@@ -230,7 +276,7 @@ function emitStatement(ast, env, lines)
         return lines
     elseif ast.tag == "Fornum" then
         return emitFornum(ast, env, lines)
-    elseif ast.tag == "LOCAL" then
+    elseif ast.tag == "Local" then
         return emitLocal(ast, env, lines)
     elseif ast.tag == "ForIn" then
         return emitForIn(ast, env, lines)
@@ -246,7 +292,10 @@ function emitStatement(ast, env, lines)
     elseif ast.tag == "Do" then
         return emitBlock(ast[1], env, lines)
     elseif ast.tag == "Set" then
-        return emitSet(ast, env, lines)
+        return emitSet(ast, env, lines, false)
+        -- false means that emitSet commits
+        -- the assignment into global scope
+        -- this is by default required by lua
     end
 end
 
@@ -257,7 +306,7 @@ function getIdLvalue(ast, env, lines)
         os.exit(1)
     end
 
-    return env.varPrefix .. "_" .. h_getNamePrefix(ast, env) .. ast[1]
+    return env.varPrefix .. "_" .. getScopePath(ast, env) .. ast[1]
 end
 
 function emitId(ast, env, lines, lvalContext)
@@ -269,16 +318,16 @@ function emitId(ast, env, lines, lvalContext)
     if lvalContext == true then
         lines[#lines + 1] =
             string.format("%s_%s%s=(\"%s\", 'VAL_%s_%s%s')",
-                          env.varPrefix, h_getNamePrefix(ast, env),
+                          env.varPrefix, getScopePath(ast, env),
                           ast[1], ast.tag, env.varPrefix,
-                          h_getNamePrefix(ast,env), ast[1])
+                          getScopePath(ast,env), ast[1])
     end
 
     return getIdLvalue(ast, env, lines), lines
 end
 
 function makeLhs(env)
-    return env.erg .. "_" .. getUniqueId()
+    return env.erg .. "_" .. getUniqueId(env)
 end
 
 function emitNumber(ast, env, lines)
@@ -354,7 +403,7 @@ function emitExplist(ast, env, lines)
     end
 
     for k,expression in ipairs(ast) do
-
+        local location
         location, lines = emitExpression(expression, env, lines)
 
         lines[#lines + 1] = string.format("RHS_%s=(\"VAR\" 'RHS_%s_VAL')",
@@ -399,15 +448,6 @@ function emitPrefixexpAsRval(ast, env, lines, locationAccu)
             local result = {}
             for i=#tab,1,-1 do
                 result[#result + 1] = tab[i]
-            end
-            return result
-        end
-
-        local join = function(strings, char)
-            local result = strings[1]
-            if #strings == 1 then return strings[1] end
-            for i=2,#strings do
-                    result = result .. char .. strings[i]
             end
             return result
         end
@@ -465,7 +505,7 @@ function emitTable(ast, env, lines, tableId)
     end
 
     if tableId == nil then
-        tableId = getUniqueId()
+        tableId = getUniqueId(env)
     end
 
     lines[#lines + 1] = string.format("%s_%s=(\"TBL\" 'VAL_%s_%s')",
@@ -519,7 +559,8 @@ end
 function emitFunction(ast, env, lines)
     local namelist = ast[1]
     local block = ast[2]
-    local functionId = getUniqueId()
+    local functionId = getUniqueId(env)
+
 
     -- first make environment
     lines[#lines + 1] =
@@ -551,7 +592,7 @@ function emitFunction(ast, env, lines)
                       env.functionPrefix, functionId)
 
     -- recurse into the function body
-    lines = emitBlock(ast, env, lines) -- TODO: Think return!!
+    lines = emitBlock(ast[2], env, lines) -- TODO: Think return!!
 
     -- end of function definition
     lines[#lines + 1] = string.format("}")
@@ -559,6 +600,7 @@ function emitFunction(ast, env, lines)
     return string.format("%s_%s", env.functionPrefix, functionId), lines
 end
 
+-- always returns a location "string" and the lines table
 function emitExpression(ast, env, lines)
     if ast.tag == "Op" then return emitOp(ast, env, lines)
     elseif ast.tag == "Id" then return emitId(ast, env, lines)
@@ -608,7 +650,7 @@ end
 
 function emitUnop(ast, env, lines)
     right, lines = emitExpression(ast[2], env, lines)
-    id = getUniqueId()
+    id = getUniqueId(env)
 
     lines[#lines + 1] =
         string.format("%s_%s=\"$((%s${%s[1]}))\"",
@@ -620,7 +662,7 @@ end
 
 
 function emitBinop(ast, env, lines)
-    local ergId1 = getUniqueId()
+    local ergId1 = getUniqueId(env)
 
     lines[#lines + 1] = string.format("%s_%s=(\"VAR\" 'VAL_%s_%s')",
                                       env.erg, ergId1, env.erg, ergId1)
@@ -638,7 +680,8 @@ function emitBinop(ast, env, lines)
     return env.erg .. "_" .. ergId1, lines
 end
 
-function emitVarlist(ast, env, lines)
+-- TODO: implement local
+function emitVarlist(ast, env, lines, emitLocal)
     for k, lvalexp in ipairs(ast) do
         env.currentRval = k
         _, l1 = emitPrefixexp(lvalexp, env, {}, true) -- run in lval context
@@ -648,9 +691,10 @@ function emitVarlist(ast, env, lines)
     return lines
 end
 
-function emitSet(ast, env, lines)
-    lines = tableIAdd(lines, emitExplist(ast[2], env, {}))
-    lines = tableIAdd(lines, emitVarlist(ast[1], env, {}))
+-- if emitLocal is set => emit to local scope
+function emitSet(ast, env, lines, emitLocal)
+    lines = emitExplist(ast[2], env, lines)
+    lines = emitVarlist(ast[1], env, lines, emitLocal)
     return lines
 end
 
@@ -709,8 +753,9 @@ sample.ergCnt = 0
 sample.tablePrefix = "ATBL"
 sample.varPrefix = "VAR"
 sample.tablePath = ""
-sample.scopeStack = {} --{{name = "global", scope = {}}}
+sample.scopeStack = {}
 sample.funcArglist = {}
+sample.globalIdCount = 0
 
 -- scopeStack = {{name = "global", scope = {<varname> = "<location>"}},
 --               {name = "anon1", scope = {}}, ...}
