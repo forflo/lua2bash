@@ -62,7 +62,8 @@ end
 
 function emitStatement(ast, env, lines)
     if ast.tag == "Call" then
-
+        _, lines = emitCall(ast, env, lines)
+        return lines
     elseif ast.tag == "Fornum" then
 
     elseif ast.tag == "ForIn" then
@@ -224,7 +225,7 @@ end
 
 function emitPrefixexpAsLval(ast, env, lines)
     if ast.tag == "Id" then
-        location, lines = emitId(ast, env, lines, lvalContext)
+        local location, lines = emitId(ast, env, lines, lvalContext)
         lines[#lines + 1] =
             string.format("%s[1]=\"${%s[1]}\"",
                           location, "RHS_" .. env.currentRval)
@@ -264,7 +265,6 @@ function emitPrefixexpAsRval(ast, env, lines, locationAccu)
         return recEndHelper(location, lines)
     elseif ast.tag == "Paren" then
         location, lines = emitExpression(ast[1], env, lines)
-        print(location)
 
         return recEndHelper(location, lines)
     elseif ast.tag == "Call"  then
@@ -303,7 +303,6 @@ function emitTable(ast, env, lines, tableId)
                                       tableId)
 
     for k,v in ipairs(ast) do
-
         if (v.tag ~= "Table") then
             location, lines = emitExpression(ast[k], env, lines)
 
@@ -329,6 +328,16 @@ function emitTable(ast, env, lines, tableId)
     end
 
     return env.tablePrefix .. "_" .. tableId, lines
+end
+
+function emitCall(ast, env, lines)
+    if ast[1][1] == "print" then
+        local location, lines = emitExpression(ast[2], env, lines)
+        lines[#lines + 1] =
+            string.format("echo ${%s[1]}", location)
+
+        return nil, lines
+    end
 end
 
 function emitExpression(ast, env, lines)
@@ -381,7 +390,7 @@ function emitUnop(ast, env, lines)
     right, lines = emitExpression(ast[2], env, lines)
     id = getUniqueId()
 
-    lines[#lines+1] =
+    lines[#lines + 1] =
         string.format("%s_%s=\"$((%s${%s[1]}))\"",
                       tempE.erg, id,
                       strToOpstring(ast[1]), right)
