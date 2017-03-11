@@ -63,6 +63,14 @@ function tableSlice(tbl, first, last, step)
 end
 
 function emitBlock(ast, env, lines)
+    local scopeNumber = getUniqueId()
+    local scopeName = "scope_" .. scopeNumber
+
+    -- push new scope on top
+    env.scopeStack[#env.scopeStack + 1] =
+        {name = scopeName, scope = {}}
+
+    -- emit all enclosed statements
     for k,v in ipairs(ast) do
         if type(v) == "table" then
             lines = emitStatement(v, env, lines)
@@ -71,28 +79,101 @@ function emitBlock(ast, env, lines)
             os.exit(1)
         end
     end
+
+    -- pop the scope
+    env.scopeStack[#env.scopeStack] = {}
+
+    return lines
+end
+
+-- TODO: Inject name from for into the new scope
+function emitFornum(ast, env, lines)
+    -- push new scope only for the loop counter
+    env.scopeStack[#env.scopeStack + 1] =
+        {name = "loop_" .. getUniqueId(), scope = {[ast[1][1]] = nil}}
+
+    -- build syntax tree for set instruction
+    local tempAST = {
+        tag = "Set",
+        pos = -1,
+        {
+            tag = "VarList",
+            pos = -1,
+            { tag = "Id", pos = -1, ast[1][1] }
+        },
+        {
+            tag = "ExpList",
+            pos = -1,
+            ast[2]
+        }
+    }
+
+    lines = emitSet(tempAST, env, lines)
+
+    lines[#lines + 1] = "for ((;;)); do"
+
+    local forBlock = ast[5]
+    local tempASTIf = {
+        tag = "If",
+        pos = -1,
+        {
+            tag = "Op",
+            pos = -1,
+            "le",
+            ast[1],
+            ast[3],
+        },
+        forBlock,
+        {
+            tag = "Block",
+            pos = -1,
+            {
+                tag = "SPECIAL",
+                pos = -420,
+                special = "break;"
+            }
+        }
+    }
+    -- extend forblock so that it increments the loop counter
+    local incrementor, errormsg =
+        parser.parse(string.format("%s=%s+1", ast[1][1], ast[1][1]), nil)
+    if not ast then
+        print(errormsg)
+        os.exit(1)
+    end
+    forBlock[#forBlock + 1] = incrementor[1]
+
+
+    -- pp.dump(tempASTIf)
+    lines = emitIf(tempASTIf, env, lines)
+
+
+    lines[#lines + 1] = "true\ndone"
+
+    -- pop the loop counter scope
+    env.scopeStack[#env.scopeStack] = {}
+
     return lines
 end
 
 function emitIf(ast, env, lines)
     if #ast == 1 then
         -- make else
+        --pp.dump(ast[1])
         lines = emitBlock(ast[1], env, lines)
     elseif #ast > 1 then
         -- calculate expression
-        local location, lines = emitExpression(ast[1], env, lines)
+        local location, l1 = emitExpression(ast[1], env, lines)
 
         lines[#lines + 1] =
         string.format("if [ \"%s\" = 1 ]; then", derefLocation(location))
-        lines = emitBlock(ast[2], env, lines)
+        lines = emitBlock(ast[2], env, l1)
 
         lines[#lines + 1] = "else"
 
         lines = emitIf(tableSlice(ast, 3, nil, 1), env, lines)
         lines[#lines + 1] = string.format("true\nfi")
-
     end
-
 
     return lines
 end
@@ -101,8 +182,13 @@ function emitStatement(ast, env, lines)
     if ast.tag == "Call" then
         _, lines = emitCall(ast, env, lines)
         return lines
-    elseif ast.tag == "Fornum" then
 
+    -- HACK: This was used to "Simplyfy implementation"
+    elseif ast.tag == "SPECIAL" then
+        lines[#lines + 1] = ast.special
+        return lines
+    elseif ast.tag == "Fornum" then
+        return emitFornum(ast, env, lines)
     elseif ast.tag == "ForIn" then
 
     elseif ast.tag == "Function" then
@@ -129,9 +215,9 @@ end
 -- todo: refactor name to getScopePath
 function h_getNamePrefix(ast, env)
     result = ""
-    for k,scope in ipairs(env.scopeStack) do
-        result = result .. scope .. "_"
-    end
+--    for k,scope in ipairs(env.scopeStack) do
+--        result = result .. scope .. "_"
+--    end
     return result
 end
 

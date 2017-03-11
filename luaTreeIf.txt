@@ -1,0 +1,65 @@
+{
+  [tag] = If
+  [pos] = 1
+  [1] = {
+    [tag] = Op
+    [pos] = 4
+    [1] = le
+    [2] = {
+      [tag] = Id
+      [pos] = 4
+      [1] = i
+    }
+    [3] = {
+      [tag] = Op
+      [pos] = 9
+      [1] = add
+      [2] = {
+        [tag] = Number
+        [pos] = 9
+        [1] = 1
+      }
+      [3] = {
+        [tag] = Number
+        [pos] = 11
+        [1] = 2
+      }
+    }
+  }
+  [2] = {
+    [tag] = Block
+    [pos] = 18
+    [1] = {
+      [tag] = Call
+      [pos] = 18
+      [1] = {
+        [tag] = Id
+        [pos] = 18
+        [1] = print
+      }
+      [2] = {
+        [tag] = Number
+        [pos] = 24
+        [1] = 3
+      }
+    }
+  }
+  [3] = {
+    [tag] = Block
+    [pos] = 32
+    [1] = {
+      [tag] = Call
+      [pos] = 32
+      [1] = {
+        [tag] = Id
+        [pos] = 32
+        [1] = print
+      }
+      [2] = {
+        [tag] = Number
+        [pos] = 39
+        [1] = 4
+      }
+    }
+  }
+}
