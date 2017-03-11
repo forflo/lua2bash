@@ -1,0 +1,48 @@
+# produced by
+# lua lua2bash.lua "print(({1,{1,2+1,3},3})[2][({2})[1]]);"
+##
+ERG_1=("NUM" 'VAL_ERG_1')
+VAL_ERG_1='1'
+ATBL_2=("TBL" 'VAL_ATBL_2')
+VAL_ATBL_2='ATBL_2'
+ERG_3=("NUM" 'VAL_ERG_3')
+VAL_ERG_3='2'
+ATBL_2_1=("VAR" 'VAL_ATBL_2_1')
+VAL_ATBL_2_1="${!ERG_3[1]}"
+ERG_4=("VAR" 'VAL_ERG_4')
+VAL_ERG_4=''
+eval ${ERG_4[1]}=\${!${!ATBL_2[1]}_${!ERG_1[1]}[1]}
+ERG_5=("NUM" 'VAL_ERG_5')
+VAL_ERG_5='2'
+ATBL_6=("TBL" 'VAL_ATBL_6')
+VAL_ATBL_6='ATBL_6'
+ERG_7=("NUM" 'VAL_ERG_7')
+VAL_ERG_7='1'
+ATBL_6_1=("VAR" 'VAL_ATBL_6_1')
+VAL_ATBL_6_1="${!ERG_7[1]}"
+ATBL_2_6=("TBL" 'VAL_ATBL_6')
+VAL_ATBL_2_6='ATBL_6'
+ERG_8=("NUM" 'VAL_ERG_8')
+VAL_ERG_8='1'
+ATBL_6_2_1=("VAR" 'VAL_ATBL_6_2_1')
+VAL_ATBL_6_2_1="${!ERG_8[1]}"
+ERG_9=("VAR" 'VAL_ERG_9')
+ERG_10=("NUM" 'VAL_ERG_10')
+VAL_ERG_10='2'
+ERG_11=("NUM" 'VAL_ERG_11')
+VAL_ERG_11='1'
+VAL_ERG_9="$((${!ERG_10[1]}+${!ERG_11[1]}))"
+ATBL_6_2_2=("VAR" 'VAL_ATBL_6_2_2')
+VAL_ATBL_6_2_2="${!ERG_9[1]}"
+ERG_12=("NUM" 'VAL_ERG_12')
+VAL_ERG_12='3'
+ATBL_6_2_3=("VAR" 'VAL_ATBL_6_2_3')
+VAL_ATBL_6_2_3="${!ERG_12[1]}"
+ERG_13=("NUM" 'VAL_ERG_13')
+VAL_ERG_13='3'
+ATBL_6_3=("VAR" 'VAL_ATBL_6_3')
+VAL_ATBL_6_3="${!ERG_13[1]}"
+ERG_14=("VAR" 'VAL_ERG_14')
+VAL_ERG_14=''
+eval ${ERG_14[1]}=\${!${!ATBL_6[1]}_${!ERG_5[1]}_${!ERG_4[1]}[1]}
+echo ${!ERG_14[1]}

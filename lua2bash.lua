@@ -20,6 +20,10 @@ function dumpLines(lines)
     print("end ld")
 end
 
+function derefLocation(location)
+    return string.format("${!%s[1]}", location)
+end
+
 function zipI(left, right)
     if (left == nil or right == nil) then return nil end
     if #left ~= #right then return nil end
@@ -48,15 +52,48 @@ function tableIAdd(left, right)
     return result
 end
 
+function tableSlice(tbl, first, last, step)
+  local sliced = {}
+
+  for i = first or 1, last or #tbl, step or 1 do
+    sliced[#sliced+1] = tbl[i]
+  end
+
+  return sliced
+end
+
 function emitBlock(ast, env, lines)
     for k,v in ipairs(ast) do
         if type(v) == "table" then
-            lines = tableIAdd(lines, emitStatement(v, env, {}))
+            lines = emitStatement(v, env, lines)
         else
             print("emitBlock error!??")
             os.exit(1)
         end
     end
+    return lines
+end
+
+function emitIf(ast, env, lines)
+    if #ast == 1 then
+        -- make else
+        lines = emitBlock(ast[1], env, lines)
+    elseif #ast > 1 then
+        -- calculate expression
+        local location, lines = emitExpression(ast[1], env, lines)
+
+        lines[#lines + 1] =
+        string.format("if [ \"%s\" = 1 ]; then", derefLocation(location))
+        lines = emitBlock(ast[2], env, lines)
+
+        lines[#lines + 1] = "else"
+
+        lines = emitIf(tableSlice(ast, 3, nil, 1), env, lines)
+        lines[#lines + 1] = string.format("true\nfi")
+
+    end
+
+
     return lines
 end
 
@@ -71,7 +108,7 @@ function emitStatement(ast, env, lines)
     elseif ast.tag == "Function" then
 
     elseif ast.tag == "If" then
-
+        return emitIf(ast, env, lines)
     elseif ast.tag == "While" then
 
     elseif ast.tag == "Do" then
@@ -107,16 +144,6 @@ function getIdLvalue(ast, env, lines)
     return env.varPrefix .. "_" .. h_getNamePrefix(ast, env) .. ast[1]
 end
 
--- function emitIdLval(ast, env, lines)
---     if ast.tag ~= "Id" then
---         print("emitId(): not a Id node")
---         os.exit(1)
---     end
---
---     tempResult = makeLhs(env)
---     lines[#lines + 1] = string.format("%s=(\"%s\" '')", tempResult)
--- end
-
 function emitId(ast, env, lines, lvalContext)
     if ast.tag ~= "Id" then
         print("emitId(): not a Id node")
@@ -125,9 +152,10 @@ function emitId(ast, env, lines, lvalContext)
 
     if lvalContext == true then
         lines[#lines + 1] =
-            string.format("%s_%s%s=(\"%s\", '')",
+            string.format("%s_%s%s=(\"%s\", 'VAL_%s_%s%s')",
                           env.varPrefix, h_getNamePrefix(ast, env),
-                          ast[1], ast.tag)
+                          ast[1], ast.tag, env.varPrefix,
+                          h_getNamePrefix(ast,env), ast[1])
     end
 
     return getIdLvalue(ast, env, lines), lines
@@ -144,8 +172,9 @@ function emitNumber(ast, env, lines)
     end
 
     lhs = makeLhs(env)
-    lines[#lines + 1] = string.format("%s=(\"%s\" '%s')",
-                                      lhs, ast.tag, ast[1])
+    lines[#lines + 1] = string.format("%s=(\"NUM\" 'VAL_%s')",
+                                      lhs, lhs)
+    lines[#lines + 1] = string.format("VAL_%s='%s'", lhs, ast[1])
 
     return lhs, lines
 end
@@ -210,25 +239,25 @@ function emitExplist(ast, env, lines)
 
     for k,expression in ipairs(ast) do
 
-        lines[#lines + 1] = string.format("RHS_%s%s=(\"%s\" '')\n",
-                                          h_getNamePrefix(ast,env),
-                                          k, expression.tag)
         location, lines = emitExpression(expression, env, lines)
 
-        lines[#lines + 1] = string.format("RHS_%s%s[1]=${%s[1]}\n", k,
-                                          h_getNamePrefix(ast,env),
-                                          location)
+        lines[#lines + 1] = string.format("RHS_%s=(\"VAR\" 'RHS_%s_VAL')",
+                                          k, k)
+        lines[#lines + 1] = string.format("RHS_%s_VAL=\"%s\"", k,
+                                          derefLocation(location))
     end
 
     return lines
 end
 
-function emitPrefixexpAsLval(ast, env, lines)
+-- TODO: Declaration and definition only once!
+-- a=3 (if a already defined) => eval ${!VAR_a[1]}
+function emitPrefixexpAsLval(ast, env, lines, lvalContext)
     if ast.tag == "Id" then
         local location, lines = emitId(ast, env, lines, lvalContext)
         lines[#lines + 1] =
-            string.format("%s[1]=\"${%s[1]}\"",
-                          location, "RHS_" .. env.currentRval)
+            string.format("VAL_%s=\"%s\"",
+                          location, derefLocation("RHS_" .. env.currentRval))
 
         return location, lines
     elseif ast.tag == "Index" then
@@ -239,21 +268,46 @@ function emitPrefixexpAsLval(ast, env, lines)
     end
 end
 
+
 function emitPrefixexpAsRval(ast, env, lines, locationAccu)
     local recEndHelper = function (location, lines)
-        locationString = ""
-
-        for k,v in ipairs(locationAccu) do
-            locationString = locationString .. "_" .. v
+        local extractIPairs = function (tab)
+            local result = {}
+            for k,v in ipairs(tab) do
+                result[#result + 1] = v
+            end
+            return result
         end
 
-        location = location .. locationString
+        local tableReverse = function (tab)
+            local result = {}
+            for i=#tab,1,-1 do
+                result[#result + 1] = tab[i]
+            end
+            return result
+        end
+
+        local join = function(strings, char)
+            local result = strings[1]
+            if #strings == 1 then return strings[1] end
+            for i=2,#strings do
+                    result = result .. char .. strings[i]
+            end
+            return result
+        end
+
+        locationString = join(tableReverse(extractIPairs(locationAccu)), '_')
+
+        location = derefLocation(location) .. "_" .. locationString
 
         finalLocation = makeLhs(env)
         lines[#lines + 1] =
-            string.format("%s=(\"TMP\" '')", finalLocation)
+            string.format("%s=(\"VAR\" 'VAL_%s')", finalLocation, finalLocation)
         lines[#lines + 1] =
-            string.format("eval %s[1]=\\${%s[1]}", finalLocation, location)
+            string.format("VAL_%s=''", finalLocation)
+        lines[#lines + 1] =
+            string.format("eval ${%s[1]}=\\%s",
+                          finalLocation, derefLocation(location))
 
         return finalLocation, lines
     end
@@ -271,7 +325,7 @@ function emitPrefixexpAsRval(ast, env, lines, locationAccu)
         --
     elseif ast.tag == "Index" then
         location, lines = emitExpression(ast[2], env, lines)
-        locationAccu[#locationAccu + 1] = "${" .. location .. "[1]}"
+        locationAccu[#locationAccu + 1] = derefLocation(location)
         _, lines = emitPrefixexpAsRval(ast[1], env, lines, locationAccu)
 
         return _, lines
@@ -280,7 +334,7 @@ end
 
 function emitPrefixexp(ast, env, lines, lvalContext)
     if lvalContext == true then
-        return emitPrefixexpAsLval(ast, env, lines)
+        return emitPrefixexpAsLval(ast, env, lines, lvalContext)
     else
         return emitPrefixexpAsRval(ast, env, lines, {})
     end
@@ -298,9 +352,13 @@ function emitTable(ast, env, lines, tableId)
         tableId = getUniqueId()
     end
 
-    lines[#lines + 1] = string.format("%s_%s=(\"TBL\" '')",
+    lines[#lines + 1] = string.format("%s_%s=(\"TBL\" 'VAL_%s_%s')",
                                       env.tablePrefix .. env.tablePath,
-                                      tableId)
+                                      tableId, env.tablePrefix, tableId)
+
+    lines[#lines + 1] = string.format("VAL_%s_%s='%s_%s'",
+                                      env.tablePrefix .. env.tablePath,
+                                      tableId, env.tablePrefix, tableId)
 
     for k,v in ipairs(ast) do
         if (v.tag ~= "Table") then
@@ -308,14 +366,16 @@ function emitTable(ast, env, lines, tableId)
 
 
             lines[#lines + 1] =
-                string.format("%s_%s%s=(\"%s\" '')",
+                string.format("%s_%s%s=(\"VAR\" 'VAL_%s_%s%s')",
                               env.tablePrefix, tableId,
-                              env.tablePath .. "_" .. k, ast[k].tag)
+                              env.tablePath .. "_" .. k,
+                              env.tablePrefix, tableId,
+                              env.tablePath .. "_" .. k)
 
             lines[#lines + 1] =
-                string.format("%s_%s%s[1]=\"${%s[1]}\"",
-                              env.tablePrefix, tableId,
-                              env.tablePath .. "_" .. k, location)
+                string.format("VAL_%s_%s%s=\"%s\"", env.tablePrefix,
+                              tableId, env.tablePath .. "_" .. k,
+                              derefLocation(location))
         else
             oldTablePath = env.tablePath
             env.tablePath = env.tablePath .. "_" .. k
@@ -334,10 +394,53 @@ function emitCall(ast, env, lines)
     if ast[1][1] == "print" then
         local location, lines = emitExpression(ast[2], env, lines)
         lines[#lines + 1] =
-            string.format("echo ${%s[1]}", location)
+            string.format("echo %s", derefLocation(location))
 
         return nil, lines
     end
+end
+
+function emitFunction(ast, env, lines)
+    local namelist = ast[1]
+    local block = ast[2]
+    local functionId = getUniqueId()
+
+    -- first make environment
+    lines[#lines + 1] =
+        string.format("%s_%s=(\"RET\", 'B%s_%s')",
+                      env.functionPrefix, functionId,
+                      env.functionPrefix, functionId)
+
+    lines[#lines + 1] =
+        string.format("%s_%s_RET=(\"VAR\" '%s_%s_VAL_RET')",
+                      env.functionPrefix, functionId,
+                      env.functionPrefix, functionId)
+
+    -- initialize local variables
+    for k, v in ipairs(namelist) do
+        lines[#lines + 1] =
+            string.format("%s_%s_LCL_%s_%s=(\"VAR\", '%s_%s_VAL_%s_%s')",
+                          env.functionPrefix, functionId,
+                          env.varPrefix, v[1],
+                          env.functionPrefix, functionId,
+                          env.varPrefix, v[1])
+    end
+
+    -- initialize environment
+    -- TODO: generalize
+
+    -- begin of function definition
+    lines[#lines + 1] =
+        string.format("function B%s_%s () {",
+                      env.functionPrefix, functionId)
+
+    -- recurse into the function body
+    lines = emitBlock(ast, env, lines) -- TODO: Think return!!
+
+    -- end of function definition
+    lines[#lines + 1] = string.format("}")
+
+    return string.format("%s_%s", env.functionPrefix, functionId), lines
 end
 
 function emitExpression(ast, env, lines)
@@ -371,6 +474,7 @@ function strToOpstring(str)
     elseif str == "gt" then return ">"
     elseif str == "le" then return "<="
     elseif str == "le" then return "<="
+    elseif str == "eq" then return "=="
     end
 end
 
@@ -402,14 +506,14 @@ end
 function emitBinop(ast, env, lines)
     local ergId1 = getUniqueId()
 
-    lines[#lines + 1] = string.format("%s_%s=(\"TMP\" '')",
-                                      env.erg, ergId1)
+    lines[#lines + 1] = string.format("%s_%s=(\"VAR\" 'VAL_%s_%s')",
+                                      env.erg, ergId1, env.erg, ergId1)
 
     local left, lines = emitExpression(ast[2], env, lines)
     local right, lines = emitExpression(ast[3], env, lines)
 
     lines[#lines + 1] =
-        string.format("%s_%s[1]=\"$((${%s[1]}%s${%s[1]}))\"",
+        string.format("VAL_%s_%s=\"$((${!%s[1]}%s${!%s[1]}))\"",
                       env.erg, ergId1,
                       left,
                       strToOpstring(ast[1]),
@@ -434,13 +538,67 @@ function emitSet(ast, env, lines)
     return lines
 end
 
+function tblCountAll(table)
+    local counter = 0
+    for _1, _2 in pairs(table) do
+        counter = counter + 1
+    end
+    return counter
+end
+
+function scopeAddGlobal(id, value, scopeStack)
+    if #scopeStack < 1 then
+        print("scopeAddGlobal(): invalid size of scopeStack!")
+        os.exit(1)
+    end
+
+    globalScope = scopeStack[1].scope
+    globalScope.id = value
+end
+
+function scopePrint(scopeStack)
+    for i = 1, #scopeStack do
+        print(string.format("scope[%s] with name %s contains:",
+                            i, scopeStack[i].name))
+        for k, v in pairs(scopeStack[i].scope) do
+            print(string.format("  %s = %s", k, v))
+        end
+    end
+end
+
+function scopeGetScopeNamelistScopeStack(scopeStack)
+    result = {}
+    for i = 1, #scopeStack do
+        result[#result + 1] = scopeStack[i].name
+    end
+    return result
+end
+
+function findScope(scopeStack, scopeName)
+    for k, v in pairs(scopeStack) do
+        if v.name == scopeName then
+            return v
+        end
+    end
+
+    -- if no stack was found, nil will be given
+    return nil
+end
+
 sample={}
 sample.scopeStack = {} -- rechts => neuer
 sample.erg = "ERG"
+sample.functionPrefix = "AFUN"
 sample.ergCnt = 0
 sample.tablePrefix = "ATBL"
 sample.varPrefix = "VAR"
 sample.tablePath = ""
+sample.scopeStack = {} --{{name = "global", scope = {}}}
+sample.funcArglist = {}
+
+-- scopeStack = {{name = "global", scope = {<varname> = "<location>"}},
+--               {name = "anon1", scope = {}}, ...}
+--
 
 lines = emitBlock(ast, sample, {})
 
