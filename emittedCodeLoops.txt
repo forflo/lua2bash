@@ -1,3 +1,8 @@
+##
+# produced by
+# lua lua2bash.lua "for j=1,2000,1 do print(42) end;"
+##
+
 ERG_3=("NUM" 'VAL_ERG_3')
 VAL_ERG_3='1'
 RHS_1=("VAR" 'RHS_1_VAL')
@@ -11,7 +16,7 @@ VAL_ERG_5='2000'
 VAL_ERG_4="$((${!VAR_j[1]}<=${!ERG_5[1]}))"
 if [ "${!ERG_4[1]}" = 1 ]; then
 ERG_7=("NUM" 'VAL_ERG_7')
-VAL_ERG_7='1'
+VAL_ERG_7='42'
 echo ${!ERG_7[1]}
 ERG_8=("VAR" 'VAL_ERG_8')
 ERG_9=("NUM" 'VAL_ERG_9')

@@ -24,6 +24,22 @@ function derefLocation(location)
     return string.format("${!%s[1]}", location)
 end
 
+globalIdCount = 0
+
+function getUniqueId()
+    globalIdCount = globalIdCount + 1
+    return globalIdCount
+end
+
+-- todo: refactor name to getScopePath
+function h_getNamePrefix(ast, env)
+    result = ""
+--    for k,scope in ipairs(env.scopeStack) do
+--        result = result .. scope .. "_"
+--    end
+    return result
+end
+
 function zipI(left, right)
     if (left == nil or right == nil) then return nil end
     if #left ~= #right then return nil end
@@ -135,7 +151,8 @@ function emitFornum(ast, env, lines)
         }
     }
     -- extend forblock so that it increments the loop counter
-    local incrementor, errormsg =
+    local incrementor, errormsg = -- TODO: only increments by 1. The
+        -- increment needs to bee calculated before
         parser.parse(string.format("%s=%s+1", ast[1][1], ast[1][1]), nil)
     if not ast then
         print(errormsg)
@@ -178,6 +195,30 @@ function emitIf(ast, env, lines)
     return lines
 end
 
+function emitLocal(ast, env, lines)
+    -- TODO:
+
+    return lines
+end
+
+function emitForIn(ast, env, lines)
+    -- TODO:
+
+    return lines
+end
+
+function emitWhile(ast, env, lines)
+    -- TODO:
+
+    return lines
+end
+
+function emitRepeat(ast, env, lines)
+    -- TODO:
+
+    return lines
+end
+
 function emitStatement(ast, env, lines)
     if ast.tag == "Call" then
         _, lines = emitCall(ast, env, lines)
@@ -189,37 +230,26 @@ function emitStatement(ast, env, lines)
         return lines
     elseif ast.tag == "Fornum" then
         return emitFornum(ast, env, lines)
+    elseif ast.tag == "LOCAL" then
+        return emitLocal(ast, env, lines)
     elseif ast.tag == "ForIn" then
-
-    elseif ast.tag == "Function" then
-
+        return emitForIn(ast, env, lines)
+    --elseif ast.tag == "Function" then
+        -- not necessary here because the parser
+        -- rewrites named function definitions into assignment statements
+    elseif ast.tag == "Repeat" then
+        return emitRepeat(ast, env, lines)
     elseif ast.tag == "If" then
         return emitIf(ast, env, lines)
     elseif ast.tag == "While" then
-
+        return emitWhile(ast, env, lines)
     elseif ast.tag == "Do" then
-
+        return emitBlock(ast[1], env, lines)
     elseif ast.tag == "Set" then
         return emitSet(ast, env, lines)
     end
 end
 
-
-globalIdCount = 0
-
-function getUniqueId()
-    globalIdCount = globalIdCount + 1
-    return globalIdCount
-end
-
--- todo: refactor name to getScopePath
-function h_getNamePrefix(ast, env)
-    result = ""
---    for k,scope in ipairs(env.scopeStack) do
---        result = result .. scope .. "_"
---    end
-    return result
-end
 
 function getIdLvalue(ast, env, lines)
     if ast.tag ~= "Id" then
@@ -684,7 +714,6 @@ sample.funcArglist = {}
 
 -- scopeStack = {{name = "global", scope = {<varname> = "<location>"}},
 --               {name = "anon1", scope = {}}, ...}
---
 
 lines = emitBlock(ast, sample, {})
 
