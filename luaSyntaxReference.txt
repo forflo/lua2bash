@@ -20,7 +20,6 @@ funcname ::= Name {`.´ Name} [`:´ Name]
 
 varlist ::= var {`,´ var}
 
-         Id     Index                   Index
 var ::=  Name | prefixexp `[´ exp `]´ | prefixexp `.´ Name
 
 namelist ::= Name {`,´ Name}

@@ -12,12 +12,22 @@ if not ast then
     os.exit(1)
 end
 
+
 function dumpLines(lines)
     print("Linedump")
     for k,v in ipairs(lines) do
         print(v)
     end
     print("end ld")
+end
+
+-- adds indentation and optionally a comment
+function augmentLine(env, line, comment)
+    if comment then comment = " # " .. comment end
+    return string.format("%s%s %s",
+                         string.rep(" ", env.columnCount),
+                         line,
+                         comment or "")
 end
 
 imap = function(tbl, func)
@@ -114,6 +124,9 @@ function emitBlock(ast, env, lines)
     env.scopeStack[#env.scopeStack + 1] =
         {name = scopeName, scope = {}}
 
+    -- don't forget the indentation counter
+    incCC(env)
+
     -- emit all enclosed statements
     for k,v in ipairs(ast) do
         if type(v) == "table" then
@@ -124,17 +137,27 @@ function emitBlock(ast, env, lines)
         end
     end
 
+    decCC(env)
+
     -- pop the scope
     env.scopeStack[#env.scopeStack] = {}
 
     return lines
 end
 
--- TODO: Inject name from for into the new scope
+function incCC(env)
+    env.columnCount = env.columnCount + env.indentSize
+end
+
+function decCC(env)
+    env.columnCount = env.columnCount - env.indentSize
+end
+
 function emitFornum(ast, env, lines)
     -- push new scope only for the loop counter
     env.scopeStack[#env.scopeStack + 1] =
         {name = "loop_" .. getUniqueId(env), scope = {[ast[1][1]] = nil}}
+
 
     -- build syntax tree for set instruction
     local tempAST = {
@@ -152,9 +175,11 @@ function emitFornum(ast, env, lines)
         }
     }
 
-    lines = emitSet(tempAST, env, lines)
+    lines = emitSet(tempAST, env, lines, true)
 
-    lines[#lines + 1] = "for ((;;)); do"
+    lines[#lines + 1] = augmentLine(env, "for ((;;)); do")
+
+    incCC(env)
 
     local forBlock = ast[5]
     local tempASTIf = {
@@ -192,8 +217,10 @@ function emitFornum(ast, env, lines)
     -- pp.dump(tempASTIf)
     lines = emitIf(tempASTIf, env, lines)
 
+    lines[#lines + 1] = augmentLine(env, "true", "Dummy command for BASH")
 
-    lines[#lines + 1] = "true\ndone"
+    decCC(env)
+    lines[#lines + 1] = augmentLine(env, "done")
 
     -- pop the loop counter scope
     env.scopeStack[#env.scopeStack] = {}
@@ -210,14 +237,20 @@ function emitIf(ast, env, lines)
         -- calculate expression
         local location, l1 = emitExpression(ast[1], env, lines)
 
-        lines[#lines + 1] =
-        string.format("if [ \"%s\" = 1 ]; then", derefLocation(location))
+        lines[#lines + 1] = augmentLine(
+            env, string.format("if [ \"%s\" = 1 ]; then",
+                               derefLocation(location)))
+
         lines = emitBlock(ast[2], env, l1)
 
-        lines[#lines + 1] = "else"
+        lines[#lines + 1] = augmentLine(env, "else")
 
         lines = emitIf(tableSlice(ast, 3, nil, 1), env, lines)
-        lines[#lines + 1] = string.format("true\nfi")
+        incCC(env)
+        lines[#lines + 1] = augmentLine(env, "true",
+                                        "to prevent empty stmt block")
+        decCC(env)
+        lines[#lines + 1] = augmentLine(env, "fi")
     end
 
     return lines
@@ -272,7 +305,7 @@ function emitStatement(ast, env, lines)
 
     -- HACK: This was used to "Simplyfy implementation"
     elseif ast.tag == "SPECIAL" then
-        lines[#lines + 1] = ast.special
+        lines[#lines + 1] = augmentLine(env, ast.special)
         return lines
     elseif ast.tag == "Fornum" then
         return emitFornum(ast, env, lines)
@@ -316,11 +349,12 @@ function emitId(ast, env, lines, lvalContext)
     end
 
     if lvalContext == true then
-        lines[#lines + 1] =
+        lines[#lines + 1] = augmentLine(
+            env,
             string.format("%s_%s%s=(\"%s\", 'VAL_%s_%s%s')",
                           env.varPrefix, getScopePath(ast, env),
                           ast[1], ast.tag, env.varPrefix,
-                          getScopePath(ast,env), ast[1])
+                          getScopePath(ast,env), ast[1]))
     end
 
     return getIdLvalue(ast, env, lines), lines
@@ -337,9 +371,10 @@ function emitNumber(ast, env, lines)
     end
 
     lhs = makeLhs(env)
-    lines[#lines + 1] = string.format("%s=(\"NUM\" 'VAL_%s')",
-                                      lhs, lhs)
-    lines[#lines + 1] = string.format("VAL_%s='%s'", lhs, ast[1])
+    lines[#lines + 1] = augmentLine(
+        env, string.format("%s=(\"NUM\" 'VAL_%s')", lhs, lhs))
+    lines[#lines + 1] = augmentLine(
+        env, string.format("VAL_%s='%s'", lhs, ast[1]))
 
     return lhs, lines
 end
@@ -351,8 +386,8 @@ function emitNil(ast, env, lines)
     end
 
     lhs = makeLhs(env)
-    lines[#lines + 1] = string.format("%s=(\"%s\" '')",
-                                      lhs, ast.tag)
+    lines[#lines + 1] = augmentLine(
+        env, string.format("%s=(\"%s\" '')", lhs, ast.tag))
 
     return lhs, lines
 end
@@ -364,8 +399,8 @@ function emitString(ast, env, lines)
     end
 
     lhs = makeLhs(env)
-    lines[#lines + 1] = string.format("%s=(\"%s\" '%s')",
-                                      lhs, ast.tag, ast[1])
+    lines[#lines + 1] = augmentLine(
+        env, string.format("%s=(\"%s\" '%s')", lhs, ast.tag, ast[1]))
 
     return lhs, lines
 end
@@ -377,8 +412,8 @@ function emitFalse(ast, env, lines)
     end
 
     lhs = makeLhs(env)
-    lines[#lines + 1] = string.format("%s=(\"Bool\" '%s')",
-                                      lhs, ast.tag)
+    lines[#lines + 1] = augmentLine(
+        env, string.format("%s=(\"Bool\" '%s')", lhs, ast.tag))
 
     return lhs, lines
 end
@@ -390,8 +425,8 @@ function emitTrue(ast, env, lines)
     end
 
     lhs = makeLhs(env)
-    lines[#lines + 1] = string.format("%s=(\"Bool\" '%s')",
-                                      lhs, ast.tag)
+    lines[#lines + 1] = augmentLine(
+        env, string.format("%s=(\"Bool\" '%s')", lhs, ast.tag))
 
     return lhs, lines
 end
@@ -406,10 +441,10 @@ function emitExplist(ast, env, lines)
         local location
         location, lines = emitExpression(expression, env, lines)
 
-        lines[#lines + 1] = string.format("RHS_%s=(\"VAR\" 'RHS_%s_VAL')",
-                                          k, k)
-        lines[#lines + 1] = string.format("RHS_%s_VAL=\"%s\"", k,
-                                          derefLocation(location))
+        lines[#lines + 1] = augmentLine(
+            env, string.format("RHS_%s=(\"VAR\" 'RHS_%s_VAL')", k, k))
+        lines[#lines + 1] = augmentLine(
+            env, string.format("RHS_%s_VAL=\"%s\"", k, derefLocation(location)))
     end
 
     return lines
@@ -420,9 +455,10 @@ end
 function emitPrefixexpAsLval(ast, env, lines, lvalContext)
     if ast.tag == "Id" then
         local location, lines = emitId(ast, env, lines, lvalContext)
-        lines[#lines + 1] =
-            string.format("VAL_%s=\"%s\"",
-                          location, derefLocation("RHS_" .. env.currentRval))
+        lines[#lines + 1] = augmentLine(
+            env,
+            string.format("VAL_%s=\"%s\"", location,
+                          derefLocation("RHS_" .. env.currentRval)))
 
         return location, lines
     elseif ast.tag == "Index" then
@@ -457,13 +493,14 @@ function emitPrefixexpAsRval(ast, env, lines, locationAccu)
         location = derefLocation(location) .. "_" .. locationString
 
         finalLocation = makeLhs(env)
-        lines[#lines + 1] =
-            string.format("%s=(\"VAR\" 'VAL_%s')", finalLocation, finalLocation)
-        lines[#lines + 1] =
-            string.format("VAL_%s=''", finalLocation)
-        lines[#lines + 1] =
-            string.format("eval ${%s[1]}=\\%s",
-                          finalLocation, derefLocation(location))
+        lines[#lines + 1] = augmentLine(
+            env, string.format("%s=(\"VAR\" 'VAL_%s')", finalLocation,
+                               finalLocation))
+        lines[#lines + 1] = augmentLine(
+            env, string.format("VAL_%s=''", finalLocation))
+        lines[#lines + 1] = augmentLine(
+            env, string.format("eval ${%s[1]}=\\%s",
+                               finalLocation, derefLocation(location)))
 
         return finalLocation, lines
     end
@@ -508,30 +545,34 @@ function emitTable(ast, env, lines, tableId)
         tableId = getUniqueId(env)
     end
 
-    lines[#lines + 1] = string.format("%s_%s=(\"TBL\" 'VAL_%s_%s')",
-                                      env.tablePrefix .. env.tablePath,
-                                      tableId, env.tablePrefix, tableId)
+    lines[#lines + 1] = augmentLine(
+        env, string.format("%s_%s=(\"TBL\" 'VAL_%s_%s')",
+                           env.tablePrefix .. env.tablePath,
+                           tableId, env.tablePrefix, tableId))
 
-    lines[#lines + 1] = string.format("VAL_%s_%s='%s_%s'",
-                                      env.tablePrefix .. env.tablePath,
-                                      tableId, env.tablePrefix, tableId)
+    lines[#lines + 1] = augmentLine(
+        env, string.format("VAL_%s_%s='%s_%s'",
+                           env.tablePrefix .. env.tablePath,
+                           tableId, env.tablePrefix, tableId))
 
     for k,v in ipairs(ast) do
         if (v.tag ~= "Table") then
             location, lines = emitExpression(ast[k], env, lines)
 
 
-            lines[#lines + 1] =
+            lines[#lines + 1] = augmentLine(
+                env,
                 string.format("%s_%s%s=(\"VAR\" 'VAL_%s_%s%s')",
                               env.tablePrefix, tableId,
                               env.tablePath .. "_" .. k,
                               env.tablePrefix, tableId,
-                              env.tablePath .. "_" .. k)
+                              env.tablePath .. "_" .. k))
 
-            lines[#lines + 1] =
+            lines[#lines + 1] = augmentLine(
+                env,
                 string.format("VAL_%s_%s%s=\"%s\"", env.tablePrefix,
                               tableId, env.tablePath .. "_" .. k,
-                              derefLocation(location))
+                              derefLocation(location)))
         else
             oldTablePath = env.tablePath
             env.tablePath = env.tablePath .. "_" .. k
@@ -549,8 +590,8 @@ end
 function emitCall(ast, env, lines)
     if ast[1][1] == "print" then
         local location, lines = emitExpression(ast[2], env, lines)
-        lines[#lines + 1] =
-            string.format("echo %s", derefLocation(location))
+        lines[#lines + 1] = augmentLine(
+            env, string.format("echo %s", derefLocation(location)))
 
         return nil, lines
     end
@@ -563,39 +604,42 @@ function emitFunction(ast, env, lines)
 
 
     -- first make environment
-    lines[#lines + 1] =
+    lines[#lines + 1] = augmentLine(
+        env,
         string.format("%s_%s=(\"RET\", 'B%s_%s')",
                       env.functionPrefix, functionId,
-                      env.functionPrefix, functionId)
+                      env.functionPrefix, functionId))
 
-    lines[#lines + 1] =
+    lines[#lines + 1] = augmentLine(
+        env,
         string.format("%s_%s_RET=(\"VAR\" '%s_%s_VAL_RET')",
                       env.functionPrefix, functionId,
-                      env.functionPrefix, functionId)
+                      env.functionPrefix, functionId))
 
     -- initialize local variables
     for k, v in ipairs(namelist) do
-        lines[#lines + 1] =
+        lines[#lines + 1] = augmentLine(
+            env,
             string.format("%s_%s_LCL_%s_%s=(\"VAR\", '%s_%s_VAL_%s_%s')",
                           env.functionPrefix, functionId,
                           env.varPrefix, v[1],
                           env.functionPrefix, functionId,
-                          env.varPrefix, v[1])
+                          env.varPrefix, v[1]))
     end
 
     -- initialize environment
     -- TODO: generalize
 
     -- begin of function definition
-    lines[#lines + 1] =
-        string.format("function B%s_%s () {",
-                      env.functionPrefix, functionId)
+    lines[#lines + 1] = augmentLine(
+        env, string.format("function B%s_%s () {",
+                           env.functionPrefix, functionId))
 
     -- recurse into the function body
     lines = emitBlock(ast[2], env, lines) -- TODO: Think return!!
 
     -- end of function definition
-    lines[#lines + 1] = string.format("}")
+    lines[#lines + 1] = augmentLine(env, "}")
 
     return string.format("%s_%s", env.functionPrefix, functionId), lines
 end
@@ -652,10 +696,11 @@ function emitUnop(ast, env, lines)
     right, lines = emitExpression(ast[2], env, lines)
     id = getUniqueId(env)
 
-    lines[#lines + 1] =
+    lines[#lines + 1] = augmentLine(
+        env,
         string.format("%s_%s=\"$((%s${%s[1]}))\"",
                       tempE.erg, id,
-                      strToOpstring(ast[1]), right)
+                      strToOpstring(ast[1]), right))
 
     return env.erg .. "_" .. id, lines
 end
@@ -664,18 +709,21 @@ end
 function emitBinop(ast, env, lines)
     local ergId1 = getUniqueId(env)
 
-    lines[#lines + 1] = string.format("%s_%s=(\"VAR\" 'VAL_%s_%s')",
-                                      env.erg, ergId1, env.erg, ergId1)
+    lines[#lines + 1] = augmentLine(
+        env,
+        string.format("%s_%s=(\"VAR\" 'VAL_%s_%s')",
+                      env.erg, ergId1, env.erg, ergId1))
 
     local left, lines = emitExpression(ast[2], env, lines)
     local right, lines = emitExpression(ast[3], env, lines)
 
-    lines[#lines + 1] =
+    lines[#lines + 1] = augmentLine(
+        env,
         string.format("VAL_%s_%s=\"$((${!%s[1]}%s${!%s[1]}))\"",
                       env.erg, ergId1,
                       left,
                       strToOpstring(ast[1]),
-                      right)
+                      right))
 
     return env.erg .. "_" .. ergId1, lines
 end
@@ -745,13 +793,15 @@ function findScope(scopeStack, scopeName)
     return nil
 end
 
-sample={}
+sample = {}
 sample.scopeStack = {} -- rechts => neuer
 sample.erg = "ERG"
 sample.functionPrefix = "AFUN"
 sample.ergCnt = 0
 sample.tablePrefix = "ATBL"
 sample.varPrefix = "VAR"
+sample.indentSize = 4
+sample.columnCount = -sample.indentSize
 sample.tablePath = ""
 sample.scopeStack = {}
 sample.funcArglist = {}
@@ -759,6 +809,58 @@ sample.globalIdCount = 0
 
 -- scopeStack = {{name = "global", scope = {<varname> = "<location>"}},
 --               {name = "anon1", scope = {}}, ...}
+
+-- does scope analysis tailored towards closure detection
+function traverser(ast, func, env, predicate, recur)
+    if type(ast) ~= "table" then return end
+
+    if predicate(ast) then
+        func(ast, env)
+
+        -- don't traverse this subtree.
+        -- the function func takes care of that
+        if not (recur) then
+            return
+        end
+    end
+
+    for k, v in ipairs(ast) do
+        traverser(v, func, env, predicate, recur)
+    end
+end
+
+-- annotates the AST adding the member containsFuncs to all
+-- function nodes. This field can either be true or falsea. If
+-- it is true, the subtree will contain at least one other function
+-- subtree, otherwise one can be sure that there is no other function
+-- declaration
+traverser(ast,
+          function (node)
+              local env = {count = 0}
+              local predicate = function (x) return true end -- traverse all
+              local counter = function (node, env)
+                  if node.tag == "Function" then
+                      env.count = env.count + 1
+                  end
+              end
+
+              traverser(node, counter, env, predicate, true)
+              if env.count > 1 then
+                  node.containsFuncs = true
+              else
+                  node.containsFuncs = false
+              end
+
+          end, nil,
+          function (node)
+              if node.tag == "Function" then
+                  return true
+              else
+                  return false
+              end
+          end, true)
+
+--pp.dump(ast)
 
 lines = emitBlock(ast, sample, {})
 

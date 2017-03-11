@@ -57,6 +57,11 @@ t(1)
 -- b=42
 -- a=function (x) b = b + 1; return x + b end;
 -- c=b(3)
+-- u = function (a)
+--   return function (b)
+--     return a + b
+--   end
+-- end
 
 -- # b=42
 -- RHS_1=("NUM" '')
@@ -70,6 +75,8 @@ t(1)
 -- AFUN_1_LOCAL_VAR_x=("VAR" 'AFUN_1_VAL_VAR_x')
 -- AFUN_1_ENV_VAR_b=("STR" 'VAL_VAR_b')
 -- function BFUN_1 () {
+--     BFUN_1_VAR_x=("VAR" 'BFUN_1_VAL_VAR_x')
+--     eval BFUN_1_VAL_VAR_x="\${!$1}"
 --     E1=1
 --     E2=${!AFUN_1_ENV_VAR_b[1]}
 --     eval ${AFUN_1_ENV_VAR_b[1]}=$((E1+E2)) #b=b+1
@@ -77,8 +84,7 @@ t(1)
 --     eval ${!AFUN_1_RET[1]}=${!AFUN_1_ENV_VAR_b[1]} # return
 -- }
 -- E10=3
--- AFUN_1_VAL_VAR_x=$E10
--- BFUN_1 # b(3)
+-- BFUN_1 E10
 -- VAR_c=("NUM", 'VAL_VAR_c')
 -- VAL_VAR_C=${!AFUN_1_RET[1]} = c=b(3)
 
