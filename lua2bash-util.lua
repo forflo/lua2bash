@@ -133,6 +133,40 @@ function incCC(env)
     env.columnCount = env.columnCount + env.indentSize
 end
 
+function statefulIIterator(tbl)
+    local index = 0
+    return function()
+        index = index + 1
+        return tbl[index]
+    end
+end
+
+function tableGetKeyset(tbl)
+    local n = 0
+    local keyset = {}
+
+    for k, _ in pairs(tbl) do
+        n = n + 1
+        keyset[n] = k
+    end
+
+    return keyset
+end
+
+-- can also be used in conjunction with for in loops
+-- example:
+-- for k, v in statefulKVIterator{x = 1, y = 2, z = 3, 1, 2, 3} do
+--     print (k, v)
+-- end
+function statefulKVIterator(tbl)
+    local keyset = tableGetKeyset(tbl)
+    local keyIdx = 0
+    return function()
+        keyIdx = keyIdx + 1
+        return keyset[keyIdx], tbl[keyset[keyIdx]]
+    end
+end
+
 function decCC(env)
     env.columnCount = env.columnCount - env.indentSize
 end

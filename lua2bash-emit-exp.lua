@@ -352,12 +352,13 @@ function emitLocalInNone(ast, env, scope, idString)
     }
 end
 
-function statefulIIterator(tbl)
-    local index = 0
-    return function()
-        index = index + 1
-        return tbl[index]
-    end
+function emitLocalInSame(ast, env, varAttr)
+    local currentPathPrefix = getScopePath(ast, env)
+
+    local emitVN = env.varPrefix .. "_" .. currentPathPrefix .. "_" .. idString
+
+    varAttr.redefCount = varAttr.redefCount + 1
+    varAttr.emitCurSlot = "VAL_DEF" .. varAttr.redefCount .. "_" .. emitVN
 end
 
 function emitLocal(ast, env, lines)
@@ -383,12 +384,24 @@ function emitLocal(ast, env, lines)
         local inSame, attr2 = isInSameScope(env, idString)
 
         if inSame then
+            emitLocalInSame(ast, env, attr2)
 
-        elseif inSome then
+            lines[#lines + 1] = augmentLine(
+                env,
+                string.format("%s=\"\"",
+                              topScope[idString].emitCurSlot,
+                              derefLocation(iter())))
+            lines[#lines + 1] = autmentLine(
+                env,
+                string.format("%s[1]='%s'",
+                              topScope[idString].emitVarname,
+                              topScope[idString].emitCurSlot))
 
-        else
-            -- not defined yet
+        elseif inSome == true or isSome == false then
+            -- in both cases, define in top scope
             emitLocalInNone(ast, env, topScope, idString)
+
+            -- emit lines
             lines[#lines + 1] = augmentLine(
                 env,
                 string.format("%s=(\"VAR\" '%s')",
