@@ -4,22 +4,27 @@ function getIdLvalue(ast, env, lines)
         os.exit(1)
     end
 
-    return env.varPrefix .. "_" .. getScopePath(ast, env) .. ast[1]
+    return env.varPrefix .. "_" ..
+        getScopePath(ast, env) .. "_" .. ast[1]
 end
 
+-- a=3 leads to
+-- <varprefix>_<scopePath>_
 function emitId(ast, env, lines, lvalContext)
     if ast.tag ~= "Id" then
         print("emitId(): not a Id node")
         os.exit(1)
     end
 
-    if lvalContext == true then
+    if (lvalContext == true) and
+        (not alreadyDefined(env.scopeStack, ast[1]))
+    then
         lines[#lines + 1] = augmentLine(
             env,
-            string.format("%s_%s%s=(\"%s\", 'VAL_%s_%s%s')",
-                          env.varPrefix, getScopePath(ast, env),
-                          ast[1], ast.tag, env.varPrefix,
-                          getScopePath(ast,env), ast[1]))
+            string.format("%s=(\"%s\", 'VAL_%s')",
+                          getIdLvalue(ast, env, lines),
+                          ast.tag,
+                          getIdLvalue(ast, env, lines)))
     end
 
     return getIdLvalue(ast, env, lines), lines
@@ -366,9 +371,11 @@ end
 function emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext)
     if ast.tag == "Id" then
         local location, lines = emitId(ast, env, lines, lvalContext)
+
         lines[#lines + 1] = augmentLine(
             env,
-            string.format("VAL_%s=\"%s\"", location,
+            string.format("VAL_%s=\"%s\"",
+                          location,
                           derefLocation("RHS_" .. rhsTemp)))
 
         return location, lines
@@ -382,7 +389,6 @@ end
 
 function emitPrefixexpAsRval(ast, env, lines, rhsTemp, locationAccu)
     local recEndHelper = function (location, lines)
-
         locationString = join(tableReverse(extractIPairs(locationAccu)), '_')
 
         location = derefLocation(location) .. "_" .. locationString
@@ -403,7 +409,6 @@ function emitPrefixexpAsRval(ast, env, lines, rhsTemp, locationAccu)
         return finalLocation, lines
     end
 
-    --
     if ast.tag == "Id" then
         location = getIdLvalue(ast, env, lines)
 

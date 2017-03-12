@@ -42,6 +42,18 @@ function scopeGetScopeNamelistScopeStack(scopeStack)
     return result
 end
 
+function alreadyDefined(scopeStack, varName)
+    for _, scope in pairs(scopeStack) do
+        for varname, _ in pairs(scope.scope) do
+            if varname == varName then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 function findScope(scopeStack, scopeName)
     for k, v in pairs(scopeStack) do
         if v.name == scopeName then
