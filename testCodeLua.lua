@@ -82,7 +82,8 @@ t(1)
 --     eval ${AFUN_1_ENV_VAR_b[1]}=$((E1+E2)) #b=b+1
 --     E3=$((${!AFUN_1_ENV_VAR_b[1]}+${!AFUN_1_VAR_x})) # x+b
 --     eval ${!AFUN_1_RET[1]}=${!AFUN_1_ENV_VAR_b[1]} # return
--- }
+--
+--}
 -- E10=3
 -- BFUN_1 E10
 -- VAR_c=("NUM", 'VAL_VAR_c')
