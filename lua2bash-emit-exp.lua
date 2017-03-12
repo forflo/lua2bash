@@ -1,42 +1,19 @@
 -- hier indirektion wenn in function!
-function getIdLvalue(ast, env, lines)
+function emitId(ast, env, lines)
     if ast.tag ~= "Id" then
         print("getIdLvalue(): not a Id node")
         os.exit(1)
     end
 
     local inSome, coordinate = isInSomeScope(env, ast[1])
-    if not inSome then
-        print("Error in getIdLvalue. Not defined")
-        os.exit(1)
+    if inSome == false then
+        return "VAR_NIL", lines -- TODO: check
     end
 
     return env.varPrefix .. "_"
         .. coordinate[1].pathPrefix
-        .. "_" .. ast[1]
-end
-
--- a=3 leads to
--- <varprefix>_<scopePath>_
-function emitId(ast, env, lines, lvalContext)
-    if ast.tag ~= "Id" then
-        print("emitId(): not a Id node")
-        os.exit(1)
-    end
-
-    -- dbg()
-    if (lvalContext == true) and
-        (not alreadyDefined(env, ast[1]))
-    then
-        lines[#lines + 1] = augmentLine(
-            env,
-            string.format("%s=(\"%s\", 'VAL_1_%s')",
-                          getIdLvalue(ast, env, lines),
-                          ast.tag,
-                          getIdLvalue(ast, env, lines)))
-    end
-
-    return getIdLvalue(ast, env, lines), lines
+        .. "_" .. ast[1],
+    lines
 end
 
 function makeLhs(env)
@@ -343,6 +320,16 @@ function emitLocalInNone(ast, env, scope, idString)
     }
 end
 
+function emitGlobal(env, idString)
+    local emitVN = env.varPrefix .. "_" .. "G_" .. idString
+    env.scopeStack[1].scope[idString] = {
+        value = 0,
+        redefCount = 1,
+        emitCurSlot = "VAL_DEF1_" .. emitVN,
+        emitVarname = emitVN
+    }
+end
+
 function emitLocalInSame(ast, env, varAttr)
     local currentPathPrefix = getScopePath(env)
 
@@ -415,9 +402,11 @@ end
 
 -- TODO: emitPrefixexp should be named emitLefthand
 function emitVarlist(ast, env, lines, rhsLocations)
+    local iterator = statefulIIterator(rhsLocations)
+
     for k, lvalexp in ipairs(ast) do
         -- true = run in lval context
-        _, lines = emitPrefixexp(lvalexp, env, lines, rhsLoc, true)
+        _, lines = emitPrefixexp(lvalexp, env, lines, iterator(), true)
     end
 
     return lines
@@ -431,16 +420,27 @@ function emitPrefixexp(ast, env, lines, rhsLoc, lvalContext)
     end
 end
 
-function emitPrefixexpAsLval(ast, env, lines, rhsLocations, lvalContext)
+function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
     if ast.tag == "Id" then
-        local location, lines = emitId(ast, env, lines, lvalContext)
+        local inSome, coordinate = isInSomeScope(env, ast[1])
+        local location
+        if not inSome then -- make var in global
+            emitGlobal(env, ast[1])
+            inSome, coordinate = isInSomeScope(env, ast[1])
+            lines[#lines + 1] = augmentLine(
+                env,
+                string.format("%s=(\"\" '%s')",
+                              coordinate[2].emitVarname,
+                              coordinate[2].emitCurSlot))
+        end
+
+        location, lines = emitId(ast, env, lines, lvalContext)
 
         lines[#lines + 1] = augmentLine(
             env,
-            string.format("VAL_%s_%s=\"%s\"",
-                          getEntry(env, ast[1]).redefCount or "",
-                          location,
-                          derefLocation("RHS_" .. rhsTemp)))
+            string.format("%s=\"%s\"",
+                          coordinate[2].emitCurSlot,
+                          derefLocation(rhsLoc)))
 
 
         return location, lines
