@@ -37,8 +37,10 @@ end
 
 function emitFornum(ast, env, lines)
     -- push new scope only for the loop counter
-    pushScope(env, "for", "loop_" .. getUniqueId(env),
-              {[ast[1][1]] = nil})
+    pushScope(env,
+              "for",
+              "loop_" .. getUniqueId(env),
+              {[ast[1][1]] = ""})
 
 
     -- build syntax tree for set instruction

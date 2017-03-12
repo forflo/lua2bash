@@ -2,7 +2,7 @@ parser = require "lua-parser.parser"
 pp = require "lua-parser.pp"
 dbg = require "debugger"
 
-dbg = function () return end
+--dbg = function () return end
 
 require "lua2bash-emit-stmt"
 require "lua2bash-emit-exp"
@@ -20,6 +20,8 @@ if not ast then
     print(error_msg)
     os.exit(1)
 end
+
+print(alreadyDefined({ {name = "g", scope = { x = "" }}  }, "x"))
 
 env = {}
 env.scopeStack = {} -- rechts => neuer

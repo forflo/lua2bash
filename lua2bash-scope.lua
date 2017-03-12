@@ -42,6 +42,7 @@ function scopeGetScopeNamelistScopeStack(scopeStack)
     return result
 end
 
+-- table reverse
 function alreadyDefined(scopeStack, varName)
     for _, scope in pairs(scopeStack) do
         for varname, _ in pairs(scope.scope) do
