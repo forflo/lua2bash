@@ -79,8 +79,7 @@ function getScopePath(ast, env)
         scopeNames[#scopeNames + 1] = env.scopeStack[i].name
     end
 
-    dbg()
-    print(tostring(env.scopeStack))
+--    print(tostring(env.scopeStack))
 
     --dbg()
     --result must be string

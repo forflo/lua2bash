@@ -32,7 +32,7 @@ end
 function isInSameScope(env, varName)
     local topScope = env.scopeStack[#env.scopeStack].scope
 
-    for k, v in pairs(top) do
+    for k, v in pairs(topScope) do
         if k == varName then
             return true, v -- v is a table
         end
@@ -43,7 +43,7 @@ end
 
 -- table reverse
 function isInSomeScope(env, varName)
-    for idx, scope in pairs(table.reverse(env.scopeStack)) do
+    for idx, scope in pairs(tableReverse(env.scopeStack)) do
         for varname, attribs in pairs(scope.scope) do
             if (varname or "") == varName then
                 return true, {idx, attribs}

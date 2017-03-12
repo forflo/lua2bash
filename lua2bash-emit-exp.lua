@@ -322,18 +322,17 @@ function emitExplist(ast, env, lines)
     end
 
     local locations = {}
-    local rhsId = getUniqueId()
+    local rhsId = getUniqueId(env)
 
     for k, expression in ipairs(ast) do
-        local location
-        location, lines = emitExpression(expression, env, lines)
+        local location, lines = emitExpression(expression, env, lines)
 
         lines[#lines + 1] = augmentLine(
             env, string.format("RHS_%s=(\"VAR\" 'RHS_%s_VAL')", k, k))
         lines[#lines + 1] = augmentLine(
             env, string.format("RHS_%s_VAL=\"%s\"", k, derefLocation(location)))
 
-        locations[locations + 1] = string.format("RHS_%s", k)
+        locations[#locations + 1] = string.format("RHS_%s", k)
     end
 
     return locations, lines
@@ -355,31 +354,28 @@ end
 function emitLocalInSame(ast, env, varAttr)
     local currentPathPrefix = getScopePath(ast, env)
 
-    local emitVN = env.varPrefix .. "_" .. currentPathPrefix .. "_" .. idString
-
     varAttr.redefCount = varAttr.redefCount + 1
-    varAttr.emitCurSlot = "VAL_DEF" .. varAttr.redefCount .. "_" .. emitVN
+    varAttr.emitCurSlot = "VAL_DEF" .. varAttr.redefCount
+        .. "_" .. varAttr.emitVarname
 end
 
 function emitLocal(ast, env, lines)
-    local varNamesDefined = {}
+    local varNames = {}
     for i = 1, #ast[1] do
-        varNamesDefined[ast[1][i]] = alreadyDefined(env, ast[1][i])
+        varNames[i] = ast[1][i][1]
     end
 
     local topScope = env.scopeStack[#env.scopeStack].scope
+    local locations, lines = emitExplist(ast[2], env, lines)
 
-    local locations
-    locations, lines = emitExplist(ast, env, lines)
-
-    local memNumDiff = tblCountAll(varNamesDefined) - tblCountAll(locations)
+    local memNumDiff = tblCountAll(varNames) - tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
         locations[#locations + 1] = "DUMMY"
     end
 
     local iter = statefulIIterator(locations)
 
-    for idString, isAlreadyDefined in varNamesDefined do
+    for _, idString in pairs(varNames) do
         local inSome, attr1 = isInSomeScope(env, idString)
         local inSame, attr2 = isInSameScope(env, idString)
 
@@ -388,16 +384,16 @@ function emitLocal(ast, env, lines)
 
             lines[#lines + 1] = augmentLine(
                 env,
-                string.format("%s=\"\"",
+                string.format("%s=\"%s\"",
                               topScope[idString].emitCurSlot,
                               derefLocation(iter())))
-            lines[#lines + 1] = autmentLine(
+            lines[#lines + 1] = augmentLine(
                 env,
                 string.format("%s[1]='%s'",
                               topScope[idString].emitVarname,
                               topScope[idString].emitCurSlot))
 
-        elseif inSome == true or isSome == false then
+        elseif inSome == true or inSome == false then
             -- in both cases, define in top scope
             emitLocalInNone(ast, env, topScope, idString)
 
