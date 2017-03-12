@@ -16,7 +16,6 @@ function scopeAddLocal(varname, value, env)
     local entry = topScope(env).scope[varname] or {}
     if entry.redefCount == nil then entry.redefCount = 0 end
 
-    entry.redefCount = entry.redefCount + 1
     entry.value = value
 
     topScope(env).scope[varname] = entry
@@ -30,17 +29,29 @@ function scopeGetScopeNamelistScopeStack(scopeStack)
     return result
 end
 
+function isInSameScope(env, varName)
+    local topScope = env.scopeStack[#env.scopeStack].scope
+
+    for k, v in pairs(top) do
+        if k == varName then
+            return true, v -- v is a table
+        end
+    end
+
+    return false, nil
+end
+
 -- table reverse
-function alreadyDefined(env, varName)
-    for _, s in pairs(env.scopeStack) do
-        for varname, _ in pairs(s.scope) do
+function isInSomeScope(env, varName)
+    for idx, scope in pairs(table.reverse(env.scopeStack)) do
+        for varname, attribs in pairs(scope.scope) do
             if (varname or "") == varName then
-                return true
+                return true, {idx, attribs}
             end
         end
     end
 
-    return false
+    return false, nil
 end
 
 function getEntry(env, varName)
