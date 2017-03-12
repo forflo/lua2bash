@@ -1,3 +1,20 @@
+oldtostring = tostring
+function tostring(x)
+    local s
+    if type(x) == "table" then
+        s = "{ "
+        local i, v = next(x)
+        while i do
+            s = s .. tostring(i) .. " = " .. tostring(v)
+            i, v = next(x, i)
+            if i then s = s .. ", " end
+        end
+        return s .. " }"
+    else
+        return oldtostring(x)
+    end
+end
+
 -- adds indentation and optionally a comment
 function augmentLine(env, line, comment)
     if comment then comment = " # " .. comment end
@@ -34,6 +51,27 @@ function getUniqueId(env)
     return env.globalIdCount
 end
 
+function getScopePathForVar(env, varName)
+    local result = {}
+    local n = 1
+
+    for i = #env.scopeStack, 1, -1 do
+        for varname, _ in pairs(env.scopeStack[i].scope) do
+            if (varName == varname) then
+                n = i -- first stack of occurence found!
+
+                for i = 1, n do
+                    result[#result + 1] = env.scopeStack[i].name
+                end
+
+                return join(result, "_")
+            end
+        end
+    end
+
+    return "OUTOFSCOPE" --TODO: Make nicer
+end
+
 function getScopePath(ast, env)
     local scopeNames = {}
 
@@ -41,9 +79,12 @@ function getScopePath(ast, env)
         scopeNames[#scopeNames + 1] = env.scopeStack[i].name
     end
 
+    dbg()
+    print(tostring(env.scopeStack))
+
     --dbg()
     --result must be string
-    return ""
+    return join(scopeNames, '_')
 end
 
 function zipI(left, right)

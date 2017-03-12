@@ -21,7 +21,7 @@ if not ast then
     os.exit(1)
 end
 
-print(alreadyDefined({ {name = "g", scope = { x = "" }}  }, "x"))
+-- print(alreadyDefined({ {name = "g", scope = { x = "" }}  }, "x"))
 
 env = {}
 env.scopeStack = {} -- rechts => neuer

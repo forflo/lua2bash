@@ -1,37 +1,25 @@
 function pushScope(env, o, n, s)
     env.scopeStack[#env.scopeStack + 1] =
-        {occasion = o, name = n, scope = (s or {})}
+        { occasion = o, name = n, scope = {} }
 end
 
 function popScope(env)
     table.remove(env.scopeStack, #env.scopeStack)
 end
 
-function scopeAddGlobal(id, value, scopeStack)
-    if #scopeStack < 1 then
-        print("scopeAddGlobal(): invalid size of scopeStack!")
-        os.exit(1)
-    end
-
-    globalScope = scopeStack[1].scope
-    globalScope.id = value
+function topScope(env)
+    return env.scopeStack[#env.scopeStack]
 end
 
-function scopePrint(scopeStack)
-    if scopeStack == nil then
-        msgdebug("Error! Got nil")
-        return
-    end
+-- scope = { varX = { redefCount = 1, value = ""}, varY = {}}
+function scopeAddLocal(varname, value, env)
+    local entry = topScope(env).scope[varname] or {}
+    if entry.redefCount == nil then entry.redefCount = 0 end
 
-    dbg()
+    entry.redefCount = entry.redefCount + 1
+    entry.value = value
 
-    for k, v in pairs(scopeStack) do
-        print(string.format("scope[%s] with name %s (occasion: %s) contains:",
-                            k, v.name, v.occasion))
-        for k2, v2 in pairs(v.scope) do
-            print(string.format("  %s = %s", k2, v2))
-        end
-    end
+    topScope(env).scope[varname] = entry
 end
 
 function scopeGetScopeNamelistScopeStack(scopeStack)
@@ -43,10 +31,10 @@ function scopeGetScopeNamelistScopeStack(scopeStack)
 end
 
 -- table reverse
-function alreadyDefined(scopeStack, varName)
-    for _, scope in pairs(scopeStack) do
-        for varname, _ in pairs(scope.scope) do
-            if varname == varName then
+function alreadyDefined(env, varName)
+    for _, s in pairs(env.scopeStack) do
+        for varname, _ in pairs(s.scope) do
+            if (varname or "") == varName then
                 return true
             end
         end
@@ -55,8 +43,20 @@ function alreadyDefined(scopeStack, varName)
     return false
 end
 
-function findScope(scopeStack, scopeName)
-    for k, v in pairs(scopeStack) do
+function getEntry(env, varName)
+    for _, scope in pairs(env.scopeStack) do
+        for varname, _ in pairs(scope.scope) do
+            if varname == varName then
+                return scope.scope[varname]
+            end
+        end
+    end
+
+    return nil
+end
+
+function findScope(env, scopeName)
+    for k, v in pairs(env.scopeStack) do
         if v.name == scopeName then
             return v
         end

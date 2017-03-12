@@ -6,3 +6,6 @@ do
     print(x) -- must be 4
     print(y) -- must be 2
 end
+
+print(x) -- must be 3
+print(y) -- must be nil

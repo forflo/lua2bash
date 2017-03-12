@@ -39,8 +39,7 @@ function emitFornum(ast, env, lines)
     -- push new scope only for the loop counter
     pushScope(env,
               "for",
-              "loop_" .. getUniqueId(env),
-              {[ast[1][1]] = ""})
+              "loop_" .. getUniqueId(env))
 
 
     -- build syntax tree for set instruction
@@ -183,7 +182,10 @@ function emitStatement(ast, env, lines)
     elseif ast.tag == "While" then
         return emitWhile(ast, env, lines)
     elseif ast.tag == "Do" then
-        return emitBlock(ast[1], env, lines)
+        lines[#lines + 1] = augmentLine(env, "# do ")
+        lines = emitBlock(ast, env, lines)
+        lines[#lines + 1] = augmentLine(env, "# end ")
+        return lines
     elseif ast.tag == "Set" then
         return emitSet(ast, env, lines, false)
         -- false means that emitSet commits

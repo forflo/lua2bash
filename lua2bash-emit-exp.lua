@@ -1,27 +1,33 @@
+-- hier indirektion wenn in function!
 function getIdLvalue(ast, env, lines)
     if ast.tag ~= "Id" then
         print("getIdLvalue(): not a Id node")
         os.exit(1)
     end
 
-    return env.varPrefix .. "_" ..
-        getScopePath(ast, env) .. "_" .. ast[1]
+    return env.varPrefix .. "_"
+        .. getScopePathForVar(env, ast[1])
+        .. "_" .. ast[1]
 end
 
 -- a=3 leads to
 -- <varprefix>_<scopePath>_
-function emitId(ast, env, lines, lvalContext)
+function emitId(ast, env, lines, lvalContext, emitLocal)
     if ast.tag ~= "Id" then
         print("emitId(): not a Id node")
         os.exit(1)
     end
 
+    -- dbg()
     if (lvalContext == true) and
-        (not alreadyDefined(env.scopeStack, ast[1]))
+        (not alreadyDefined(env, ast[1]) or emitLocal)
     then
+        scopeAddLocal(ast[1], "", env)
+    --    dbg()
+
         lines[#lines + 1] = augmentLine(
             env,
-            string.format("%s=(\"%s\", 'VAL_%s')",
+            string.format("%s=(\"%s\", 'VAL_1_%s')",
                           getIdLvalue(ast, env, lines),
                           ast.tag,
                           getIdLvalue(ast, env, lines)))
@@ -303,7 +309,7 @@ end
 function emitVarlist(ast, env, lines, emitLocal)
     for k, lvalexp in ipairs(ast) do
         -- true = run in lval context
-        _, lines = emitPrefixexp(lvalexp, env, lines, k, true)
+        _, lines = emitPrefixexp(lvalexp, env, lines, k, true, emitLocal)
     end
 
     return lines
@@ -329,8 +335,6 @@ function emitExplist(ast, env, lines)
 end
 
 function emitLocal(ast, env, lines)
-    local currentScope = env.scopeStack[#env.scopeStack]
-
     local tempVarlistAST = {
         tag = "VarList",
         pos = -1
@@ -358,29 +362,29 @@ function emitSet(ast, env, lines, emitLocal)
     return lines
 end
 
-function emitPrefixexp(ast, env, lines, rhsTemp, lvalContext)
+function emitPrefixexp(ast, env, lines, rhsTemp, lvalContext, emitLocal)
     if lvalContext == true then
-        return emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext)
+        return emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext, emitLocal)
     else
         return emitPrefixexpAsRval(ast, env, lines, rhsTemp, {})
     end
 end
 
--- TODO: Declaration and definition only once!
--- a=3 (if a already defined) => eval ${!VAR_a[1]}
-function emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext)
+function emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext, emitLocal)
     if ast.tag == "Id" then
-        local location, lines = emitId(ast, env, lines, lvalContext)
+        local override = alreadyDefined(env, ast[1])
+        local location, lines = emitId(ast, env, lines, lvalContext, emitLocal)
 
         lines[#lines + 1] = augmentLine(
             env,
-            string.format("VAL_%s=\"%s\"",
+            string.format("VAL_%s_%s=\"%s\"",
+                          getEntry(env, ast[1]).redefCount or "",
                           location,
                           derefLocation("RHS_" .. rhsTemp)))
 
         return location, lines
     elseif ast.tag == "Index" then
-        _, lines = emitPrefixexp(ast[1], env, lines, true)
+        _, lines = emitPrefixexp(ast[1], env, lines, rhsTemp, true, emitLocal)
         _, lines = emitExpression(ast[2], env, lines)
 
         return _, lines
