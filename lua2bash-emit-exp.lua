@@ -349,6 +349,8 @@ function emitLocal(ast, env, lines)
         tempVarlistAST[i] = ast[1][i]
     end
 
+    -- if already defined. 
+    -- local override = alreadyDefined(env, ast[1])
     -- true means make assignment local
     lines = emitSet(tempSetAST, env, lines, true)
 
@@ -366,13 +368,12 @@ function emitPrefixexp(ast, env, lines, rhsTemp, lvalContext, emitLocal)
     if lvalContext == true then
         return emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext, emitLocal)
     else
-        return emitPrefixexpAsRval(ast, env, lines, rhsTemp, {})
+        return emitPrefixexpAsRval(ast, env, lines, {})
     end
 end
 
 function emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext, emitLocal)
     if ast.tag == "Id" then
-        local override = alreadyDefined(env, ast[1])
         local location, lines = emitId(ast, env, lines, lvalContext, emitLocal)
 
         lines[#lines + 1] = augmentLine(
@@ -381,6 +382,7 @@ function emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext, emitLocal)
                           getEntry(env, ast[1]).redefCount or "",
                           location,
                           derefLocation("RHS_" .. rhsTemp)))
+
 
         return location, lines
     elseif ast.tag == "Index" then
@@ -391,7 +393,7 @@ function emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext, emitLocal)
     end
 end
 
-function emitPrefixexpAsRval(ast, env, lines, rhsTemp, locationAccu)
+function emitPrefixexpAsRval(ast, env, lines, locationAccu)
     local recEndHelper = function (location, lines)
         locationString = join(tableReverse(extractIPairs(locationAccu)), '_')
 
