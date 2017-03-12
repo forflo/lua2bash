@@ -5,8 +5,14 @@ function getIdLvalue(ast, env, lines)
         os.exit(1)
     end
 
+    local inSome, coordinate = isInSomeScope(env, ast[1])
+    if not inSome then
+        print("Error in getIdLvalue. Not defined")
+        os.exit(1)
+    end
+
     return env.varPrefix .. "_"
-        .. getScopePathForVar(env, ast[1])
+        .. coordinate[1].pathPrefix
         .. "_" .. ast[1]
 end
 
@@ -22,9 +28,6 @@ function emitId(ast, env, lines, lvalContext)
     if (lvalContext == true) and
         (not alreadyDefined(env, ast[1]))
     then
-        scopeAddLocal(ast[1], "", env)
-        -- dbg()
-
         lines[#lines + 1] = augmentLine(
             env,
             string.format("%s=(\"%s\", 'VAL_1_%s')",
@@ -304,17 +307,6 @@ function emitBinop(ast, env, lines)
     return env.tempPrefix .. "_" .. ergId1, lines
 end
 
--- TODO: implement local
--- TODO: emitPrefixexp should be named emitLefthand
-function emitVarlist(ast, env, lines)
-    for k, lvalexp in ipairs(ast) do
-        -- true = run in lval context
-        _, lines = emitPrefixexp(lvalexp, env, lines, k, true)
-    end
-
-    return lines
-end
-
 function emitExplist(ast, env, lines)
     if ast.tag ~= "ExpList" then
         print("emitExplist(): not an explist node!")
@@ -339,7 +331,7 @@ function emitExplist(ast, env, lines)
 end
 
 function emitLocalInNone(ast, env, scope, idString)
-    local currentPathPrefix = getScopePath(ast, env)
+    local currentPathPrefix = getScopePath(env)
 
     local emitVN = env.varPrefix .. "_" .. currentPathPrefix .. "_" .. idString
 
@@ -352,7 +344,7 @@ function emitLocalInNone(ast, env, scope, idString)
 end
 
 function emitLocalInSame(ast, env, varAttr)
-    local currentPathPrefix = getScopePath(ast, env)
+    local currentPathPrefix = getScopePath(env)
 
     varAttr.redefCount = varAttr.redefCount + 1
     varAttr.emitCurSlot = "VAL_DEF" .. varAttr.redefCount
@@ -387,12 +379,12 @@ function emitLocal(ast, env, lines)
                 string.format("%s=\"%s\"",
                               topScope[idString].emitCurSlot,
                               derefLocation(iter())))
+
             lines[#lines + 1] = augmentLine(
                 env,
                 string.format("%s[1]='%s'",
                               topScope[idString].emitVarname,
                               topScope[idString].emitCurSlot))
-
         elseif inSome == true or inSome == false then
             -- in both cases, define in top scope
             emitLocalInNone(ast, env, topScope, idString)
@@ -416,21 +408,30 @@ end
 
 -- if emitLocal is set => emit to local scope
 function emitSet(ast, env, lines)
-    local temp
-    temp, lines = emitExplist(ast[2], env, lines)
-    lines = emitVarlist(ast[1], env, lines)
+    local rhsLocations, lines = emitExplist(ast[2], env, lines)
+    lines = emitVarlist(ast[1], env, lines, rhsLocations)
     return lines
 end
 
-function emitPrefixexp(ast, env, lines, rhsTemp, lvalContext)
+-- TODO: emitPrefixexp should be named emitLefthand
+function emitVarlist(ast, env, lines, rhsLocations)
+    for k, lvalexp in ipairs(ast) do
+        -- true = run in lval context
+        _, lines = emitPrefixexp(lvalexp, env, lines, rhsLoc, true)
+    end
+
+    return lines
+end
+
+function emitPrefixexp(ast, env, lines, rhsLoc, lvalContext)
     if lvalContext == true then
-        return emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext)
+        return emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
     else
         return emitPrefixexpAsRval(ast, env, lines, {})
     end
 end
 
-function emitPrefixexpAsLval(ast, env, lines, rhsTemp, lvalContext)
+function emitPrefixexpAsLval(ast, env, lines, rhsLocations, lvalContext)
     if ast.tag == "Id" then
         local location, lines = emitId(ast, env, lines, lvalContext)
 

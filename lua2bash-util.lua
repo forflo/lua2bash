@@ -51,38 +51,14 @@ function getUniqueId(env)
     return env.globalIdCount
 end
 
-function getScopePathForVar(env, varName)
-    local result = {}
-    local n = 1
-
-    for i = #env.scopeStack, 1, -1 do
-        for varname, _ in pairs(env.scopeStack[i].scope) do
-            if (varName == varname) then
-                n = i -- first stack of occurence found!
-
-                for i = 1, n do
-                    result[#result + 1] = env.scopeStack[i].name
-                end
-
-                return join(result, "_")
-            end
-        end
-    end
-
-    return "OUTOFSCOPE" --TODO: Make nicer
-end
-
-function getScopePath(ast, env)
+function getScopePath(env)
     local scopeNames = {}
 
     for i = 1, #env.scopeStack do
         scopeNames[#scopeNames + 1] = env.scopeStack[i].name
     end
 
---    print(tostring(env.scopeStack))
-
     --dbg()
-    --result must be string
     return join(scopeNames, '_')
 end
 

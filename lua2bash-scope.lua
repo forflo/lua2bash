@@ -1,6 +1,13 @@
-function pushScope(env, o, n, s)
+function pushScope(env, occasion, name)
+    if #env.scopeStack == 0 then
+        scopePath = name
+    else
+        scopePath = env.scopeStack[#env.scopeStack].pathPrefix .. "_" .. name
+    end
+
     env.scopeStack[#env.scopeStack + 1] =
-        { occasion = o, name = n, scope = {} }
+        { occasion = occasion, name = name,
+          pathPrefix = scopePath, scope = {} }
 end
 
 function popScope(env)
@@ -46,7 +53,7 @@ function isInSomeScope(env, varName)
     for idx, scope in pairs(tableReverse(env.scopeStack)) do
         for varname, attribs in pairs(scope.scope) do
             if (varname or "") == varName then
-                return true, {idx, attribs}
+                return true, {scope, attribs}
             end
         end
     end
