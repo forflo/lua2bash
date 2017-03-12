@@ -1,5 +1,7 @@
 local parser = require "lua-parser.parser"
 local pp = require "lua-parser.pp"
+local dbg = require "debugger"
+
 
 if #arg ~= 1 then
     print("Usage: lua2bash.lua <string>")
@@ -110,6 +112,10 @@ function tableSlice(tbl, first, last, step)
   return sliced
 end
 
+function msgdebug(msg)
+--    print(string.format("[%s]: %s", debug.getinfo(2).name, msg))
+end
+
 function emitBlock(ast, env, lines)
     local scopeNumber = getUniqueId(env)
     local scopeName
@@ -119,6 +125,10 @@ function emitBlock(ast, env, lines)
     else
         scopeName = "G"
     end
+
+    msgdebug("Current scope content:")
+    scopePrint(env.scopeStack)
+    msgdebug("Starting new scope")
 
     -- push new scope on top
     env.scopeStack[#env.scopeStack + 1] =
@@ -140,7 +150,8 @@ function emitBlock(ast, env, lines)
     decCC(env)
 
     -- pop the scope
-    env.scopeStack[#env.scopeStack] = {}
+    msgdebug("end of scope")
+    table.remove(env.scopeStack, #env.scopeStack)
 
     return lines
 end
@@ -764,12 +775,36 @@ function scopeAddGlobal(id, value, scopeStack)
     globalScope.id = value
 end
 
+oldtostring = tostring
+function tostring(x)
+    local s
+    if type(x) == "table" then
+        s = "{"
+        local i, v = next(x)
+        while i do
+            s = s .. tostring(i) .. "=" .. tostring(v)
+            i, v = next(x, i)
+            if i then s = s .. "," end
+        end
+        return s .. "}"
+    else
+        return oldtostring(x)
+    end
+end
+
 function scopePrint(scopeStack)
-    for i = 1, #scopeStack do
+    if scopeStack == nil then
+        msgdebug("Error! Got nil")
+        return
+    end
+
+    dbg()
+
+    for k, v in pairs(scopeStack) do
         print(string.format("scope[%s] with name %s contains:",
-                            i, scopeStack[i].name))
-        for k, v in pairs(scopeStack[i].scope) do
-            print(string.format("  %s = %s", k, v))
+                            k, v.name))
+        for k2, v2 in pairs(v.scope) do
+            print(string.format("  %s = %s", k2, v2))
         end
     end
 end
