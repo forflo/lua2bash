@@ -104,6 +104,21 @@ function tblCountAll(table)
     return counter
 end
 
+function extractIPairs (tab)
+    local result = {}
+    for k,v in ipairs(tab) do
+        result[#result + 1] = v
+    end
+    return result
+end
+
+function tableReverse (tab)
+    local result = {}
+    for i=#tab,1,-1 do
+        result[#result + 1] = tab[i]
+    end
+    return result
+end
 
 -- does scope analysis tailored towards closure detection
 function traverser(ast, func, env, predicate, recur)

@@ -382,21 +382,6 @@ end
 
 function emitPrefixexpAsRval(ast, env, lines, rhsTemp, locationAccu)
     local recEndHelper = function (location, lines)
-        local extractIPairs = function (tab)
-            local result = {}
-            for k,v in ipairs(tab) do
-                result[#result + 1] = v
-            end
-            return result
-        end
-
-        local tableReverse = function (tab)
-            local result = {}
-            for i=#tab,1,-1 do
-                result[#result + 1] = tab[i]
-            end
-            return result
-        end
 
         locationString = join(tableReverse(extractIPairs(locationAccu)), '_')
 
@@ -404,13 +389,16 @@ function emitPrefixexpAsRval(ast, env, lines, rhsTemp, locationAccu)
 
         finalLocation = makeLhs(env)
         lines[#lines + 1] = augmentLine(
-            env, string.format("%s=(\"VAR\" 'VAL_%s')", finalLocation,
+            env, string.format("%s=(\"VAR\" 'VAL_%s')",
+                               finalLocation,
                                finalLocation))
         lines[#lines + 1] = augmentLine(
-            env, string.format("VAL_%s=''", finalLocation))
+            env, string.format("VAL_%s=''",
+                               finalLocation))
         lines[#lines + 1] = augmentLine(
             env, string.format("eval ${%s[1]}=\\%s",
-                               finalLocation, derefLocation(location)))
+                               finalLocation,
+                               derefLocation(location)))
 
         return finalLocation, lines
     end
