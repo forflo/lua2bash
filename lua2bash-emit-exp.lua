@@ -1,7 +1,7 @@
 -- hier indirektion wenn in function!
 function emitId(ast, env, lines)
     if ast.tag ~= "Id" then
-        print("getIdLvalue(): not a Id node")
+        print("emitId(): not a Id node")
         os.exit(1)
     end
 
@@ -112,7 +112,10 @@ function emitTable(ast, env, lines, tableId)
                            tableId, env.tablePrefix, tableId))
 
     for k,v in ipairs(ast) do
-        if (v.tag ~= "Table") then
+        if (v.tag == "Pair") then
+            print("Associative tables not yet supported")
+            os.exit(1)
+        elseif v.tag ~= "Table" then
             location, lines = emitExpression(ast[k], env, lines)
 
 
@@ -129,6 +132,7 @@ function emitTable(ast, env, lines, tableId)
                 string.format("VAL_%s_%s%s=\"%s\"", env.tablePrefix,
                               tableId, env.tablePath .. "_" .. k,
                               derefLocation(location)))
+
         else
             oldTablePath = env.tablePath
             env.tablePath = env.tablePath .. "_" .. k
@@ -475,7 +479,7 @@ function emitPrefixexpAsRval(ast, env, lines, locationAccu)
     end
 
     if ast.tag == "Id" then
-        location = getIdLvalue(ast, env, lines)
+        location = emitId(ast, env, lines)
 
         return recEndHelper(location, lines)
     elseif ast.tag == "Paren" then
