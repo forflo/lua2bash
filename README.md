@@ -63,3 +63,57 @@ echo ${!ERG_13[1]}
 ```
 
 which correctly evaluates to `3`
+
+## Scoping
+
+I tried to correctly implement luas scoping rules. However, I'm not 100% convinced yet, that I didn't miss something. Anyways, here some sample code that gets translatet to sound bash code.
+
+```lua
+x = 3
+do
+    local x = 4
+    local y = 1
+    local y = 2
+    print(x) -- must be 4
+    print(y) -- must be 2
+end
+
+print(x) -- must be 3
+print(y) -- must be nil
+```
+
+which translates to
+```bash
+ERG_3=("NUM" 'VAL_ERG_3') 
+VAL_ERG_3='3' 
+RHS_1=("VAR" 'RHS_1_VAL') 
+RHS_1_VAL="${!ERG_3[1]}" 
+VAR_G_x=("" 'VAL_DEF1_VAR_G_x') 
+VAL_DEF1_VAR_G_x="${!RHS_1[1]}" 
+# do  
+    ERG_6=("NUM" 'VAL_ERG_6') 
+    VAL_ERG_6='4' 
+    RHS_1=("VAR" 'RHS_1_VAL') 
+    RHS_1_VAL="${!ERG_6[1]}" 
+    VAR_G_Scope_4_x=("VAR" 'VAL_DEF1_VAR_G_Scope_4_x') 
+    VAL_DEF1_VAR_G_Scope_4_x="${!RHS_1[1]}" 
+    ERG_8=("NUM" 'VAL_ERG_8') 
+    VAL_ERG_8='1' 
+    RHS_1=("VAR" 'RHS_1_VAL') 
+    RHS_1_VAL="${!ERG_8[1]}" 
+    VAR_G_Scope_4_y=("VAR" 'VAL_DEF1_VAR_G_Scope_4_y') 
+    VAL_DEF1_VAR_G_Scope_4_y="${!RHS_1[1]}" 
+    ERG_10=("NUM" 'VAL_ERG_10') 
+    VAL_ERG_10='2' 
+    RHS_1=("VAR" 'RHS_1_VAL') 
+    RHS_1_VAL="${!ERG_10[1]}" 
+    VAL_DEF2_VAR_G_Scope_4_y="${!RHS_1[1]}" 
+    VAR_G_Scope_4_y[1]='VAL_DEF2_VAR_G_Scope_4_y' 
+    echo ${!VAR_G_Scope_4_x[1]} 
+    echo ${!VAR_G_Scope_4_y[1]} 
+# end  
+echo ${!VAR_G_x[1]} 
+echo ${!VAR_NIL[1]} 
+```
+
+and correctly evaluates to `4\n2\n3\n\n`.
