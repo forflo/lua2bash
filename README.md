@@ -66,7 +66,7 @@ which correctly evaluates to `3`
 
 ## Scoping
 
-I tried to correctly implement luas scoping rules. However, I'm not 100% convinced yet, that I didn't miss something. Anyways, here some sample code that gets translatet to sound bash code.
+I tried to correctly implement luas scoping rules. However, I'm not 100% convinced yet, that I didn't miss something. Anyways, here some sample code that gets translated to sound bash code.
 
 ```lua
 x = 3
