@@ -21,6 +21,6 @@ pp.print(ast)
 
 require "lua2bash-serialize-ast"
 
-print(serExp(ast[1][2][1]))
+print(serBlock(ast))
 
 os.exit(0)

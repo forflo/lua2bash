@@ -24,6 +24,14 @@ function augmentLine(env, line, comment)
                          comment or "")
 end
 
+function expIf(cond, funTrue, funFalse)
+    if cond then
+        return funTrue()
+    else
+        return funFalse()
+    end
+end
+
 function imap(tbl, func)
     local result = {}
     for k,v in ipairs(tbl) do
@@ -34,6 +42,8 @@ function imap(tbl, func)
 end
 
 function join(strings, char)
+    if #strings == 0 then return "" end
+
     local result = strings[1]
     if #strings == 1 then return strings[1] end
     for i=2, #strings do
