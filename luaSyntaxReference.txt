@@ -2,7 +2,7 @@ chunk ::= {stat [`;´]} [laststat [`;´]]
 
 block ::= chunk
 
-stat ::=  varlist `=´ explist |
+stat ::= varlist `=´ explist |
          functioncall |
          do block end |
          while exp do block end |

@@ -4,6 +4,7 @@ dbg = require "debugger"
 
 --dbg = function () return end
 
+require "lua2bash-serialize-ast"
 require "lua2bash-emit-stmt"
 require "lua2bash-emit-exp"
 require "lua2bash-util"

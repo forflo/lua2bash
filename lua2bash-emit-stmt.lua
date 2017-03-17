@@ -41,6 +41,8 @@ function emitFornum(ast, env, lines)
               "for",
               "loop_" .. getUniqueId(env))
 
+    local block = ast[5] or ast[4]
+    local existsIncrement = ast[4].tag ~= "Block"
 
     -- build syntax tree for set instruction
     local tempAST = {
@@ -49,7 +51,11 @@ function emitFornum(ast, env, lines)
         {
             tag = "VarList",
             pos = -1,
-            { tag = "Id", pos = -1, ast[1][1] }
+            {
+                tag = "Id",
+                pos = -1,
+                ast[1][1]
+            }
         },
         {
             tag = "ExpList",
@@ -64,7 +70,6 @@ function emitFornum(ast, env, lines)
 
     incCC(env)
 
-    local forBlock = ast[5]
     local tempASTIf = {
         tag = "If",
         pos = -1,
@@ -75,7 +80,7 @@ function emitFornum(ast, env, lines)
             ast[1],
             ast[3],
         },
-        forBlock,
+        block,
         {
             tag = "Block",
             pos = -1,
@@ -86,15 +91,16 @@ function emitFornum(ast, env, lines)
             }
         }
     }
+
     -- extend forblock so that it increments the loop counter
     local incrementor, errormsg = -- TODO: only increments by 1. The
         -- increment needs to bee calculated before
-        parser.parse(string.format("%s=%s+1", ast[1][1], ast[1][1]), nil)
+        parser.parse(string.format("%s=%s+(%s)", ast[1][1], ast[1][1]), nil)
     if not ast then
         print(errormsg)
         os.exit(1)
     end
-    forBlock[#forBlock + 1] = incrementor[1]
+    block[#block + 1] = incrementor[1]
 
 
     -- pp.dump(tempASTIf)
