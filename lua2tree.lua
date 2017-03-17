@@ -1,6 +1,9 @@
 local parser = require "lua-parser.parser"
 local pp = require "lua-parser.pp"
 
+dbg = require "debugger"
+require "lua2bash-util"
+
 if #arg ~= 1 then
     print("Usage: parse.lua <string>")
     os.exit(1)
@@ -15,5 +18,9 @@ end
 
 pp.dump(ast,1)
 pp.print(ast)
+
+require "lua2bash-serialize-ast"
+
+print(serExp(ast[1][2][1]))
 
 os.exit(0)

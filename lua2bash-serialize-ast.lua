@@ -11,7 +11,7 @@ function serNil(ast, result)
 end
 
 function serStr(ast, result)
-    return ast[1]
+    return "\"" .. ast[1] .. "\""
 end
 
 function serFal(ast, result)
@@ -25,28 +25,28 @@ end
 -- prefixes each table member with env.tablePrefix
 -- uses env.tablePath
 function serTbl(ast, result)
-    local params = ""
+    local params = {}
 
     for i = 1, #ast do
         params[#params + 1] = serExp(ast[i])
     end
 
     params = join(params, ',')
-    return params
+    return "{" .. params .. "}"
 end
 
 function serPair(ast, result)
-    return "[" .. serExp(ast[i]) .. "] = " .. serExp(ast[i])
+    return "[" .. serExp(ast[1]) .. "] = " .. serExp(ast[2])
 end
 
 function serCall(ast, result)
-    local params = ""
-    for i = 2, #ast - 1 do
+    local params = {}
+    for i = 2, #ast do
         params[#params + 1] = serExp(ast[i])
     end
     params = join(params, ",")
 
-    return serExp(ast[1]) .. "(" .. params .. ")"
+    return serExp(ast[1]) .. "(" .. (params or "") .. ")"
 end
 
 -- TODO: because that would require a serializer also for statements...
@@ -56,8 +56,13 @@ function serFun(ast, result)
     os.exit(1)
 end
 
+function serPar(ast, result)
+    return "(" .. serExp(ast[1]) .. ")"
+end
+
 -- always returns a location "string" and the result table
 function serExp(ast, result)
+    --dbg()
     if ast.tag == "Op" then return serOp(ast, result)
     elseif ast.tag == "Id" then return serId(ast, result)
     elseif ast.tag == "True" then return serTru(ast, result)
@@ -99,10 +104,10 @@ end
 function serOp(ast, result)
     if (#ast == 3) then
         -- binop
-        return serExp(2) .. strToOpstr(ast[1]) .. serExp(3)
+        return serExp(ast[2]) .. strToOpstr(ast[1]) .. serExp(ast[3])
     else
         -- unop
-        return strToOpstr(ast[1]) .. serExp(2)
+        return strToOpstr(ast[1]) .. serExp(ast[2])
     end
 end
 
