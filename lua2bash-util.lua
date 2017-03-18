@@ -32,6 +32,14 @@ function expIf(cond, funTrue, funFalse)
     end
 end
 
+function expIfStrict(cond, expTrue, expFalse)
+    if cond then
+        return expTrue
+    else
+        return expFalse
+    end
+end
+
 function imap(tbl, func)
     local result = {}
     for k,v in ipairs(tbl) do

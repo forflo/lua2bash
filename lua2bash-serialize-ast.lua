@@ -31,7 +31,7 @@ function serTbl(ast)
         params[#params + 1] = serExp(ast[i])
     end
 
-    params = join(params, ',')
+    params = join(params, ', ')
     return "{" .. params .. "}"
 end
 
@@ -44,13 +44,11 @@ function serCall(ast)
     for i = 2, #ast do
         params[#params + 1] = serExp(ast[i])
     end
-    params = join(params, ",")
+    params = join(params, ", ")
 
     return serExp(ast[1]) .. "(" .. (params or "") .. ")"
 end
 
--- TODO: because that would require a serializer also for statements...
--- I'm not quite motivated to do that now
 function serFun(ast)
     return "function(" .. serNamelist(ast[1]) .. ") "
         .. serBlock(ast[2]) .. "end"
@@ -103,7 +101,8 @@ function serFor(ast)
             end,
             function()
                 return ", " .. serExp(ast[4]) .. " do " .. serBlock(ast[5])
-                end) .. "end"
+                end)
+        .. "end"
 end
 
 function serForIn(ast)
@@ -112,15 +111,39 @@ function serForIn(ast)
 end
 
 function serWhi(ast)
-    return "while" .. serPar(ast[1]) .. " do " .. serBlock(ast[2]) .. "end"
+    return "while " .. serPar(ast[1]) .. " do " .. serBlock(ast[2]) .. "end"
 end
 
 function serIf(ast)
-    -- TODO
+    local elseB = #ast % 2 == 1
+    return "if " .. serExp(ast[1]) .. " then "
+        .. serBlock(ast[2])
+        .. join(
+            imap(
+                tableSlice(ast, 3, expIfStrict(elseB, #ast - 1, #ast), 1),
+                function(e)
+                    return expIf(
+                        e.tag == "Block",
+                        function()
+                            return serBlock(e)
+                        end,
+                        function()
+                            return "elseif " .. serExp(e) .. " then "
+                    end)
+                end
+            ), '')
+        .. expIf(
+            elseB,
+            function()
+                return "else " .. serBlock(ast[#ast]) .. "end"
+            end,
+            function()
+                return "end"
+                end)
 end
 
 function serRep(ast)
-    return "repeat " .. serBlock(ast[1]) .. "until" .. serExp(ast[2])
+    return "repeat " .. serBlock(ast[1]) .. "until " .. serExp(ast[2])
 end
 
 function serDo(ast)
@@ -131,18 +154,22 @@ function serDo(ast)
                 function(e)
                     return serStm(e)
             end),
-            ';') .. "end"
+            '; ') .. "; end"
 end
 
 function serRet(ast)
-    return "return " .. serExplist(ast[1])
+    return "return " .. join(
+        imap(
+            ast,
+            function(e)
+                return serExp(e) end), ', ')
 end
 
 function serStm(ast)
     if ast.tag == "Call" then return serCall(ast)
     elseif ast.tag == "Fornum" then return serFor(ast)
     elseif ast.tag == "Local" then return serLcl(ast)
-    elseif ast.tag == "ForIn" then return serForin(ast)
+    elseif ast.tag == "Forin" then return serForIn(ast)
     elseif ast.tag == "Repeat" then return serRep(ast)
     elseif ast.tag == "Return" then return serRet(ast)
     elseif ast.tag == "If" then return serIf(ast)
