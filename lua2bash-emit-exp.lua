@@ -204,6 +204,10 @@ function emitFunction(ast, env, lines)
     return string.format("%s_%s", env.functionPrefix, functionId), lines
 end
 
+function emitParen(ast, env, lines)
+    return emitExpression(ast[1], env, lines)
+end
+
 -- always returns a location "string" and the lines table
 function emitExpression(ast, env, lines)
     if ast.tag == "Op" then return emitOp(ast, env, lines)

@@ -94,8 +94,11 @@ function emitFornum(ast, env, lines)
 
     -- extend forblock so that it increments the loop counter
     local incrementor, errormsg = -- TODO: only increments by 1. The
-        -- increment needs to bee calculated before
-        parser.parse(string.format("%s=%s+(%s)", ast[1][1], ast[1][1]), nil)
+        -- increment needs to be calculated before
+        parser.parse(string.format("%s=%s+(%s)",
+                                   ast[1][1],
+                                   ast[1][1],
+                                   serExp(ast[4])))
     if not ast then
         print(errormsg)
         os.exit(1)

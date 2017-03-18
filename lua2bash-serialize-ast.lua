@@ -114,6 +114,7 @@ function serWhi(ast)
     return "while " .. serPar(ast[1]) .. " do " .. serBlock(ast[2]) .. "end"
 end
 
+-- Well, ...
 function serIf(ast)
     local elseB = #ast % 2 == 1
     return "if " .. serExp(ast[1]) .. " then "
