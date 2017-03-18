@@ -60,8 +60,12 @@ function join(strings, char)
     return result
 end
 
-function derefLocation(location)
-    return string.format("${!%s[1]}", location)
+function derefVarToValue(varname)
+    return string.format("${!%s}", varname)
+end
+
+function derefVarToType(varname)
+    return string.format("$(eval echo \\${${f}[1]})", varname)
 end
 
 function getUniqueId(env)

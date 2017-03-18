@@ -26,11 +26,13 @@ end
 
 env = {}
 env.scopeStack = {} -- rechts => neuer
-env.tempPrefix = "ERG"
+env.tempVarPrefix = "TVR"
+env.tempValPrefix = "TVL"
 env.functionPrefix = "AFUN"
 env.ergCnt = 0
 env.tablePrefix = "ATBL"
 env.varPrefix = "VAR"
+env.valPrefix = "VAL"
 env.indentSize = 4
 env.columnCount = -env.indentSize
 env.tablePath = ""
@@ -40,7 +42,7 @@ env.globalIdCount = 0
 -- scopeStack = {{name = "global", scope = {<varname> = "<location>"}},
 --               {name = "anon1", scope = {}}, ...}
 
-print(tostring(getUsedSymbols(ast)))
+--print(tostring(getUsedSymbols(ast)))
 lines = emitBlock(ast, env, {})
 
 for k,v in ipairs(lines) do

@@ -16,23 +16,13 @@ function emitId(ast, env, lines)
     lines
 end
 
-function makeLhs(env)
-    return env.tempPrefix .. "_" .. getUniqueId(env)
-end
-
 function emitNumber(ast, env, lines)
     if ast.tag ~= "Number" then
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
 
-    lhs = makeLhs(env)
-    lines[#lines + 1] = augmentLine(
-        env, string.format("%s=(\"NUM\" 'VAL_%s')", lhs, lhs))
-    lines[#lines + 1] = augmentLine(
-        env, string.format("VAL_%s='%s'", lhs, ast[1]))
-
-    return lhs, lines
+    return emitTempVar(ast, env, lines, "NUM", ast[1])
 end
 
 function emitNil(ast, env, lines)
@@ -41,11 +31,26 @@ function emitNil(ast, env, lines)
         os.exit(1)
     end
 
-    lhs = makeLhs(env)
-    lines[#lines + 1] = augmentLine(
-        env, string.format("%s=(\"%s\" '')", lhs, ast.tag))
+    return emitTempVar(ast, env, lines, "NIL", "")
+end
 
-    return lhs, lines
+function getTempVarname()
+    local varname = join({env.tempVarPrefix,
+                      "${" .. topScope(env).environmentCounter .. "}",
+                      getUniqueId(env)}, '_')
+
+    return varname, env.tempValPrefix .. '_' .. varname
+end
+
+function emitTempVar(ast, env, lines, typ, content)
+    tempVn, tempVl = getTempVarname()
+
+    lines[#lines + 1] = augmentLine(
+        env, string.format("eval %s=\"%s\"", tempVn, typ, tempVl))
+    lines[#lines + 1] = augmentLine(
+        env, string.format("eval %s=('%s' '%s')", tempVl, content, typ))
+
+    return tempVn, lines
 end
 
 function emitString(ast, env, lines)
@@ -54,11 +59,7 @@ function emitString(ast, env, lines)
         os.exit(1)
     end
 
-    lhs = makeLhs(env)
-    lines[#lines + 1] = augmentLine(
-        env, string.format("%s=(\"%s\" '%s')", lhs, ast.tag, ast[1]))
-
-    return lhs, lines
+    return emitTempVar(ast, env, lines, "STR", ast[1])
 end
 
 function emitFalse(ast, env, lines)
@@ -67,11 +68,7 @@ function emitFalse(ast, env, lines)
         os.exit(1)
     end
 
-    lhs = makeLhs(env)
-    lines[#lines + 1] = augmentLine(
-        env, string.format("%s=(\"Bool\" '%s')", lhs, ast.tag))
-
-    return lhs, lines
+    return emitTempVar(ast, env, lines, "FLS", "0")
 end
 
 function emitTrue(ast, env, lines)
@@ -80,13 +77,8 @@ function emitTrue(ast, env, lines)
         os.exit(1)
     end
 
-    lhs = makeLhs(env)
-    lines[#lines + 1] = augmentLine(
-        env, string.format("%s=(\"Bool\" '%s')", lhs, ast.tag))
-
-    return lhs, lines
+    return emitTempVar(ast, env, lines, "TRU", "0")
 end
-
 
 
 -- prefixes each table member with env.tablePrefix
@@ -245,51 +237,44 @@ function strToOpstring(str)
 end
 
 function emitOp(ast, env, lines)
-    if ast.tag ~= "Op" then
-        print("emitOp(): not an Op node!")
-        os.exit(1)
-    end
-
     if #ast == 3 then return emitBinop(ast, env, lines)
     elseif #ast == 2 then return emitUnop(ast, env, lines)
-    else return nil
+    else
+        print("Not supported!")
+        os.exit(1)
     end
 end
 
 function emitUnop(ast, env, lines)
-    right, lines = emitExpression(ast[2], env, lines)
-    id = getUniqueId(env)
+    operand2, lines = emitExpression(ast[2], env, lines)
+    tempVn, _ = getTempVarname()
 
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("%s_%s=\"$((%s${%s[1]}))\"",
-                      tempE.tempPrefix, id,
-                      strToOpstring(ast[1]), right))
+        string.format("eval %s=\"$((%s%s))\"",
+                      tempVn,
+                      strToOpstring(ast[1]),
+                      derefVarToValue(operand2)))
 
-    return env.tempPrefix .. "_" .. id, lines
+    return tempVn, lines
 end
-
 
 function emitBinop(ast, env, lines)
     local ergId1 = getUniqueId(env)
-
+    local tempVn, tempVl = getTempVarname(env)
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("%s_%s=(\"VAR\" 'VAL_%s_%s')",
-                      env.tempPrefix, ergId1, env.tempPrefix, ergId1))
-
+        string.format("%s=%s", tempVn, tempVl))
     local left, lines = emitExpression(ast[2], env, lines)
     local right, lines = emitExpression(ast[3], env, lines)
-
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("VAL_%s_%s=\"$((${!%s[1]}%s${!%s[1]}))\"",
-                      env.tempPrefix, ergId1,
-                      left,
+        string.format("eval %s=\"$((%s%s%s}))\"",
+                      tempVl,
+                      derefVarToValue(left),
                       strToOpstring(ast[1]),
-                      right))
-
-    return env.tempPrefix .. "_" .. ergId1, lines
+                      derefVarToValue(right)))
+    return tempVn, lines
 end
 
 function emitExplist(ast, env, lines)
@@ -297,33 +282,23 @@ function emitExplist(ast, env, lines)
         print("emitExplist(): not an explist node!")
         os.exit(1)
     end
-
     local locations = {}
-    local rhsId = getUniqueId(env)
-
     for k, expression in ipairs(ast) do
-        local location, lines = emitExpression(expression, env, lines)
-
-        lines[#lines + 1] = augmentLine(
-            env, string.format("RHS_%s=(\"VAR\" 'RHS_%s_VAL')", k, k))
-        lines[#lines + 1] = augmentLine(
-            env, string.format("RHS_%s_VAL=\"%s\"", k, derefLocation(location)))
-
-        locations[#locations + 1] = string.format("RHS_%s", k)
+        local tempVn, _ = emitExpression(expression, env, lines)
+        local tempVnRhs, _ = emitTempVar(ast, env, lines,
+                                         "NKN", derefVarToValue(tempVn))
+        locations[#locations + 1] = tempVnRhs
     end
-
     return locations, lines
 end
 
-function emitLocalInNone(ast, env, scope, idString)
+function scopeSetLocalFirstTime(ast, env, scope, idString)
     local currentPathPrefix = getScopePath(env)
-
     local emitVN = env.varPrefix .. "_" .. currentPathPrefix .. "_" .. idString
-
     scope[idString] = {
         value = 0,
         redefCount = 1,
-        emitCurSlot = "VAL_DEF1_" .. emitVN,
+        emitCurSlot = env.valPrefix .. "_DEF1_" .. emitVN,
         emitVarname = emitVN
     }
 end
@@ -333,16 +308,15 @@ function emitGlobal(env, idString)
     env.scopeStack[1].scope[idString] = {
         value = 0,
         redefCount = 1,
-        emitCurSlot = "VAL_DEF1_" .. emitVN,
+        emitCurSlot = env.valPrefix .. "_DEF1_" .. emitVN,
         emitVarname = emitVN
     }
 end
 
-function emitLocalInSame(ast, env, varAttr)
+function scopeSetLocalAgain(ast, env, varAttr)
     local currentPathPrefix = getScopePath(env)
-
     varAttr.redefCount = varAttr.redefCount + 1
-    varAttr.emitCurSlot = "VAL_DEF" .. varAttr.redefCount
+    varAttr.emitCurSlot = env.valPrefix .. "_DEF" .. varAttr.redefCount
         .. "_" .. varAttr.emitVarname
 end
 
@@ -361,50 +335,42 @@ function emitLocal(ast, env, lines)
     end
 
     local iter = statefulIIterator(locations)
-
     for _, idString in pairs(varNames) do
         local inSome, attr1 = isInSomeScope(env, idString)
         local inSame, attr2 = isInSameScope(env, idString)
-
         if inSame then
-            emitLocalInSame(ast, env, attr2)
-
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("%s=\"%s\"",
-                              topScope[idString].emitCurSlot,
-                              derefLocation(iter())))
-
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("%s[1]='%s'",
-                              topScope[idString].emitVarname,
-                              topScope[idString].emitCurSlot))
+            scopeSetLocalAgain(ast, env, attr2)
+            emitVarUpdate(env,
+                          lines,
+                          topScope[idString].emitVarname,
+                          topScope[idString].emitCurSlot,
+                          derefVarToValue(iter()))
         elseif inSome == true or inSome == false then
             -- in both cases, define in top scope
-            emitLocalInNone(ast, env, topScope, idString)
-
-            -- emit lines
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("%s=(\"VAR\" '%s')",
-                              topScope[idString].emitVarname,
-                              topScope[idString].emitCurSlot))
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("%s=\"%s\"",
-                              topScope[idString].emitCurSlot,
-                              derefLocation(iter())))
+            scopeSetLocalFirstTime(ast, env, topScope, idString)
+            emitVarUpdate(env,
+                          lines,
+                          topScope[idString].emitVarname,
+                          topScope[idString].emitCurSlot,
+                          derefVarToValue(iter()))
         end
     end
-
     return lines
+end
+
+function emitVarUpdate(env, lines, varname, valuename, value)
+            lines[#lines + 1] = augmentLine(
+                env,
+                string.format("eval %s=%s", varname, valuename))
+            lines[#lines + 1] = augmentLine(
+                env,
+                string.format("eval %s=\"%s\"", valuename, value))
 end
 
 -- if emitLocal is set => emit to local scope
 function emitSet(ast, env, lines)
-    local rhsLocations, lines = emitExplist(ast[2], env, lines)
-    lines = emitVarlist(ast[1], env, lines, rhsLocations)
+    local rhsTempresults, lines = emitExplist(ast[2], env, lines)
+    lines = emitVarlist(ast[1], env, lines, rhsTempresults)
     return lines
 end
 
