@@ -40,6 +40,7 @@ env.globalIdCount = 0
 -- scopeStack = {{name = "global", scope = {<varname> = "<location>"}},
 --               {name = "anon1", scope = {}}, ...}
 
+print(tostring(getUsedSymbols(ast)))
 lines = emitBlock(ast, env, {})
 
 for k,v in ipairs(lines) do

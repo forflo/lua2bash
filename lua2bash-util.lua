@@ -207,8 +207,29 @@ function traverser(ast, func, env, predicate, recur)
     end
 end
 
+function getNodePredicate(typ)
+    return function(node)
+        if node.tag == typ then
+            return true
+        else
+            return false
+        end
+    end
+end
+
+function getUsedSymbols(ast)
+    local visitor = function(astNode, env)
+        env[astNode[1]] = true
+    end
+
+    local result = {}
+    traverser(ast, visitor, result, getNodePredicate("Id"), true)
+
+    return tableGetKeyset(result)
+end
+
 -- annotates the AST adding the member containsFuncs to all
--- function nodes. This field can either be true or falsea. If
+-- function nodes. This field can either be true or false. If
 -- it is true, the subtree will contain at least one other function
 -- subtree, otherwise one can be sure that there is no other function
 -- declaration
