@@ -1,4 +1,3 @@
--- hier indirektion wenn in function!
 function emitId(ast, env, lines)
     if ast.tag ~= "Id" then
         print("emitId(): not a Id node")
@@ -10,10 +9,7 @@ function emitId(ast, env, lines)
         return "VAR_NIL", lines -- TODO: check
     end
 
-    return env.varPrefix .. "_"
-        .. coordinate[1].pathPrefix
-        .. "_" .. ast[1],
-    lines
+    return coordinate[1].emitVarname, lines
 end
 
 function emitNumber(ast, env, lines)
@@ -303,7 +299,7 @@ function scopeSetLocalFirstTime(ast, env, scope, idString)
     }
 end
 
-function emitGlobal(env, idString)
+function scopeSetGlobal(env, idString)
     local emitVN = env.varPrefix .. "_" .. "G_" .. idString
     env.scopeStack[1].scope[idString] = {
         value = 0,
@@ -367,7 +363,6 @@ function emitVarUpdate(env, lines, varname, valuename, value)
                 string.format("eval %s=\"%s\"", valuename, value))
 end
 
--- if emitLocal is set => emit to local scope
 function emitSet(ast, env, lines)
     local rhsTempresults, lines = emitExplist(ast[2], env, lines)
     lines = emitVarlist(ast[1], env, lines, rhsTempresults)
@@ -394,29 +389,31 @@ function emitPrefixexp(ast, env, lines, rhsLoc, lvalContext)
     end
 end
 
+function emitGlobalVar(varname, valuename, lines, env)
+    lines[#lines + 1] = augmentLine(
+        env,
+        string.format("eval %s=%s)", varname, valuename))
+end
+
+function emitUpdateGlobVar(valuename, value, lines, env)
+    lines[#lines + 1] = augmentLine(
+        env,
+        string.format("eval %s=\"%s\"", valuename, value))
+end
+
 function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
     if ast.tag == "Id" then
         local inSome, coordinate = isInSomeScope(env, ast[1])
         local location
         if not inSome then -- make var in global
-            emitGlobal(env, ast[1])
+            scopeSetGlobal(env, ast[1])
             inSome, coordinate = isInSomeScope(env, ast[1])
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("%s=(\"\" '%s')",
-                              coordinate[2].emitVarname,
-                              coordinate[2].emitCurSlot))
+
+            emitGlobalVar(coordinate[2].emitVarname,
+                          coordinate[2].emitCurSlot)
         end
-
         location, lines = emitId(ast, env, lines, lvalContext)
-
-        lines[#lines + 1] = augmentLine(
-            env,
-            string.format("%s=\"%s\"",
-                          coordinate[2].emitCurSlot,
-                          derefLocation(rhsLoc)))
-
-
+        emitUpdateGlobVar(coordinate[2].emitCurSlot, derefVarToValue, lines, env)
         return location, lines
     elseif ast.tag == "Index" then
         _, lines = emitPrefixexp(ast[1], env, lines, rhsTemp, true, emitLocal)
@@ -444,7 +441,6 @@ function emitPrefixexpAsRval(ast, env, lines, locationAccu)
             env, string.format("eval ${%s[1]}=\\%s",
                                finalLocation,
                                derefLocation(location)))
-
         return finalLocation, lines
     end
 
