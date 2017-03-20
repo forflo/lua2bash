@@ -30,17 +30,6 @@ function emitNil(ast, env, lines)
     return emitTempVar(ast, env, lines, "NIL", "")
 end
 
-function getTempVarname()
-    local commonSuffix =
-        "${" .. topScope(env).environmentCounter .. "}"
-        .. "_" .. getUniqueId(env)
-
-    local varname = env.tempVarPrefix .. commonSuffix
-    local valname = env.tempValPrefix .. commonSuffix
-
-    return varname, valname
-end
-
 function getTempValname(env)
     local commonSuffix =
         "${" .. topScope(env).environmentCounter .. "}"
@@ -147,11 +136,19 @@ function emitTable(ast, env, lines, tableId)
     return env.tablePrefix .. "_" .. tableId
 end
 
+function addLine(env, str, lines)
+    lines[#lines + 1] = augmentLine(
+        env, lines)
+end
+
 function emitCall(ast, env, lines)
     if ast[1][1] == "print" then
         local location = emitExpression(ast[2], env, lines)
         lines[#lines + 1] = augmentLine(
             env, string.format("eval echo %s", derefValToValue(location)))
+    elseif ast[1][1] == "type" then
+        local value = emitExpression(ast[2], env, lines)
+        addLine(env,string.format("eval echo %s", derefValToValue(location)) ,lines)
     else
         local varname = emitExpression(ast[1], env, lines)
         lines[#lines + 1] = augmentLine(
@@ -441,7 +438,7 @@ function emitVarlist(ast, env, lines, rhsLocations)
 
     for k, lvalexp in ipairs(ast) do
         -- true = run in lval context
-        _, lines = emitPrefixexp(lvalexp, env, lines, iterator(), true)
+        emitPrefixexp(lvalexp, env, lines, iterator(), true)
     end
 end
 
@@ -485,10 +482,10 @@ function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
                           env)
         return location
     elseif ast.tag == "Index" then
-        emitPrefixexp(ast[1], env, lines, rhsTemp, true, emitLocal)
+        location = emitPrefixexp(ast[1], env, lines, rhsTemp, true, emitLocal)
         emitExpression(ast[2], env, lines)
 
-        return nil
+        return location
     end
 end
 
