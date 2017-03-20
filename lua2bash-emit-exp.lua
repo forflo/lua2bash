@@ -86,9 +86,9 @@ end
 function emitTable(ast, env, lines, tableId, tablePath)
     if tableId == nil then
         tableId = getUniqueId(env)
+        addLine(env, lines, "# " .. serTbl(ast))
     end
     local tablePath = tablePath or ""
-    local separatorChar = "_"
     if ast.tag ~= "Table" then
         print("emitTable(): not a Table!")
         os.exit(1)
@@ -109,7 +109,7 @@ function emitTable(ast, env, lines, tableId, tablePath)
             emitTable(ast, env, lines, tableId, tablePath .. k)
         end
     end
-    return env.tablePrefix .. separatorChar .. tableId
+    return env.tablePrefix .. getEnvSuffix(env) .. tableId
 end
 
 function addLine(env, lines, line)
@@ -118,14 +118,16 @@ function addLine(env, lines, line)
 end
 
 function emitCall(ast, env, lines)
+    addLine(env, lines, "# " .. serCall(ast))
     local functionName = ast[1][1]
     local functionExp = ast[1]
     local arguments = ast[2]
     if functionName == "print" then
-        local location = emitExpression(arguments, env, lines)
+    --    dbg()
+        local loc = emitExpression(arguments, env, lines)
         addLine(
             env, lines,
-            string.format("eval echo %s", derefValToValue(location)))
+            string.format("eval echo %s", derefValToValue(loc)))
     elseif functionName == "type" then
         local value = emitExpression(arguments, env, lines)
         local typeStrValue = emitTempVal(ast, env, lines,
@@ -178,7 +180,8 @@ function emitEnvCounter(env, lines, envName)
           string.format("fi")},
         compose(
             function(e)
-                lines[#lines + 1] = augmentLine(env, e, "environment counter")
+                lines[#lines + 1] =
+                    augmentLine(env, e, "environment counter")
                 return lines
         end)(fillup(50)))
 end
@@ -395,9 +398,9 @@ end
 
 function emitPrefixexp(ast, env, lines, rhsLoc, lvalContext)
     if lvalContext == true then
-        emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
+        return emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
     else
-        emitPrefixexpAsRval(ast, env, lines, {})
+        return emitPrefixexpAsRval(ast, env, lines, {})
     end
 end
 
@@ -420,13 +423,11 @@ function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
         if not inSome then -- make var in global
             scopeSetGlobal(env, ast[1])
             inSome, coordinate = isInSomeScope(env, ast[1])
-
             emitGlobalVar(coordinate[2].emitVarname,
                           coordinate[2].emitCurSlot,
                           lines,
                           env)
         end
-        --location = emitId(ast, env, lines, lvalContext)
         emitUpdateGlobVar(coordinate[2].emitCurSlot,
                           derefValToValue(rhsLoc),
                           lines,
@@ -434,45 +435,33 @@ function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
                           derefValToType(rhsLoc))
         return location
     elseif ast.tag == "Index" then
-        location = emitPrefixexp(ast[1], env, lines, rhsTemp, true, emitLocal)
+        location = emitPrefixexp(ast[1], env, lines,
+                                 rhsTemp, true, emitLocal)
         emitExpression(ast[2], env, lines)
-
         return location
     end
 end
 
 function emitPrefixexpAsRval(ast, env, lines, locationAccu)
-    local recEndHelper = function (location, lines)
-        locationString = join(tableReverse(extractIPairs(locationAccu)), '_')
+    local recEndHelper = function (tempVal, lines)
+        locationString = join(tableReverse(extractIPairs(locationAccu)), '')
+        tempVal = derefValToValue(tempVal) .. "" .. locationString
 
-        location = derefLocation(location) .. "_" .. locationString
-
-        finalLocation = makeLhs(env)
-        lines[#lines + 1] = augmentLine(
-            env, string.format("%s=(\"VAR\" 'VAL_%s')",
-                               finalLocation,
-                               finalLocation))
-        lines[#lines + 1] = augmentLine(
-            env, string.format("VAL_%s=''",
-                               finalLocation))
-        lines[#lines + 1] = augmentLine(
-            env, string.format("eval ${%s[1]}=\\%s",
-                               finalLocation,
-                               derefLocation(location)))
-        return finalLocation
+        return emitTempVal(ast, env, lines, "NKN",
+                           string.format([[$(eval echo \\\${%s})]], tempVal))
     end
-    if ast.tag == "Id" then
-        location = emitId(ast, env, lines)
-        return recEndHelper(location, lines)
-    elseif ast.tag == "Paren" then
-        location = emitExpression(ast[1], env, lines)
 
-        return recEndHelper(location, lines)
+    if ast.tag == "Id" then
+        tv = emitId(ast, env, lines)
+        return recEndHelper(tv, lines)
+    elseif ast.tag == "Paren" then
+        tv = emitExpression(ast[1], env, lines)
+        return recEndHelper(tv, lines)
     elseif ast.tag == "Call"  then
         --
     elseif ast.tag == "Index" then
-        location, lines = emitExpression(ast[2], env, lines)
-        locationAccu[#locationAccu + 1] = derefLocation(location)
-        emitPrefixexpAsRval(ast[1], env, lines, locationAccu)
+        tv = emitExpression(ast[2], env, lines)
+        locationAccu[#locationAccu + 1] = derefValToValue(tv)
+        return emitPrefixexpAsRval(ast[1], env, lines, locationAccu)
     end
 end

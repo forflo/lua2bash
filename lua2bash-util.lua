@@ -85,16 +85,6 @@ function getUniqueId(env)
     return env.globalIdCount
 end
 
-function getScopePath(env)
-    local scopeNames = {}
-
-    for i = 1, #env.scopeStack do
-        scopeNames[#scopeNames + 1] = env.scopeStack[i].name
-    end
-
-    --dbg()
-    return join(scopeNames, '_')
-end
 
 function zipI(left, right)
     if (left == nil or right == nil) then return nil end
