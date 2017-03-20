@@ -43,7 +43,8 @@ env.globalIdCount = 0
 --               {name = "anon1", scope = {}}, ...}
 
 --print(tostring(getUsedSymbols(ast)))
-lines = emitBlock(ast, env, {})
+lines = {}
+emitBlock(ast, env, lines)
 
 for k,v in ipairs(lines) do
     print(v)

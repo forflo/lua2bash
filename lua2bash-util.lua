@@ -60,12 +60,12 @@ function join(strings, char)
     return result
 end
 
-function derefVarToValue(varname)
-    return string.format("\\${!%s}", varname)
+function derefValToValue(valuename)
+    return string.format("\\${%s}", valuename)
 end
 
-function derefVarToType(varname)
-    return string.format("$(eval echo \\${${%s}[1]})", varname)
+function derefValToType(varname)
+    return string.format([[$(eval echo \${$(eval echo \${%s})[1]})]], varname)
 end
 
 function getUniqueId(env)

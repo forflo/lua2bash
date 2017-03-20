@@ -17,7 +17,7 @@ function emitBlock(ast, env, lines, occasion)
     -- emit all enclosed statements
     for k,v in ipairs(ast) do
         if type(v) == "table" then
-            lines = emitStatement(v, env, lines)
+            emitStatement(v, env, lines)
         else
             print("emitBlock error!??")
             os.exit(1)
@@ -26,7 +26,6 @@ function emitBlock(ast, env, lines, occasion)
     decCC(env)
     -- pop the scope
     popScope(env)
-    return lines
 end
 
 function emitFornum(ast, env, lines)
@@ -58,7 +57,7 @@ function emitFornum(ast, env, lines)
         }
     }
 
-    lines = emitSet(tempAST, env, lines, true)
+    emitSet(tempAST, env, lines, true)
 
     lines[#lines + 1] = augmentLine(env, "for ((;;)); do")
 
@@ -101,7 +100,7 @@ function emitFornum(ast, env, lines)
 
 
     -- pp.dump(tempASTIf)
-    lines = emitIf(tempASTIf, env, lines)
+    emitIf(tempASTIf, env, lines)
 
     lines[#lines + 1] = augmentLine(env, "true", "Dummy command for BASH")
 
@@ -110,24 +109,22 @@ function emitFornum(ast, env, lines)
 
     -- pop the loop counter scope
     popScope(env)
-
-    return lines
 end
 
 function emitIf(ast, env, lines)
     if #ast == 1 then
         -- make else
         --pp.dump(ast[1])
-        lines = emitBlock(ast[1], env, lines)
+        emitBlock(ast[1], env, lines)
     elseif #ast > 1 then
         -- calculate expression
-        local location, l1 = emitExpression(ast[1], env, lines)
+        local location = emitExpression(ast[1], env, lines)
 
         lines[#lines + 1] = augmentLine(
             env, string.format("if [ \"%s\" = 1 ]; then",
                                derefLocation(location)))
 
-        lines = emitBlock(ast[2], env, l1)
+        emitBlock(ast[2], env, lines)
 
         lines[#lines + 1] = augmentLine(env, "else")
 
@@ -138,61 +135,47 @@ function emitIf(ast, env, lines)
         decCC(env)
         lines[#lines + 1] = augmentLine(env, "fi")
     end
-
-    return lines
 end
 
 function emitForIn(ast, env, lines)
     -- TODO:
 
-    return lines
 end
 
 function emitWhile(ast, env, lines)
     -- TODO:
 
-    return lines
 end
 
 function emitRepeat(ast, env, lines)
     -- TODO:
 
-    return lines
 end
 
 function emitStatement(ast, env, lines)
     if ast.tag == "Call" then
-        _, lines = emitCall(ast, env, lines)
-        return lines
+        emitCall(ast, env, lines)
 
     -- HACK: This was used to "Simplyfy implementation"
     elseif ast.tag == "SPECIAL" then
         lines[#lines + 1] = augmentLine(env, ast.special)
-        return lines
     elseif ast.tag == "Fornum" then
-        return emitFornum(ast, env, lines)
+        emitFornum(ast, env, lines)
     elseif ast.tag == "Local" then
-        return emitLocal(ast, env, lines)
+        emitLocal(ast, env, lines)
     elseif ast.tag == "ForIn" then
-        return emitForIn(ast, env, lines)
-    --elseif ast.tag == "Function" then
-        -- not necessary here because the parser
-        -- rewrites named function definitions into assignment statements
+        emitForIn(ast, env, lines)
     elseif ast.tag == "Repeat" then
-        return emitRepeat(ast, env, lines)
+        emitRepeat(ast, env, lines)
     elseif ast.tag == "If" then
-        return emitIf(ast, env, lines)
+        emitIf(ast, env, lines)
     elseif ast.tag == "While" then
-        return emitWhile(ast, env, lines)
+        emitWhile(ast, env, lines)
     elseif ast.tag == "Do" then
         lines[#lines + 1] = augmentLine(env, "# do ")
-        lines = emitBlock(ast, env, lines)
+        emitBlock(ast, env, lines)
         lines[#lines + 1] = augmentLine(env, "# end ")
-        return lines
     elseif ast.tag == "Set" then
-        return emitSet(ast, env, lines, false)
-        -- false means that emitSet commits
-        -- the assignment into global scope
-        -- this is by default required by lua
+        emitSet(ast, env, lines)
     end
 end
