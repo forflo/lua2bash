@@ -9,7 +9,7 @@ function emitId(ast, env, lines)
         return "VAR_NIL", lines -- TODO: check
     end
 
-    return coordinate[1].emitVarname, lines
+    return coordinate[2].emitVarname, lines
 end
 
 function emitNumber(ast, env, lines)
@@ -31,24 +31,29 @@ function emitNil(ast, env, lines)
 end
 
 function getTempVarname()
-    local varname = join({env.tempVarPrefix,
-                      "${" .. topScope(env).environmentCounter .. "}",
-                      getUniqueId(env)}, '_')
+    local commonSuffix =
+        "${" .. topScope(env).environmentCounter .. "}"
+        .. "_" .. getUniqueId(env)
 
-    return varname, env.tempValPrefix .. '_' .. varname
+    local varname = env.tempVarPrefix .. commonSuffix
+    local valname = env.tempValPrefix .. commonSuffix
+
+    return varname, valname
 end
 
 function emitTempVar(ast, env, lines, typ, content)
     tempVn, tempVl = getTempVarname()
 
     lines[#lines + 1] = augmentLine(
-        env, string.format("eval %s=\"%s\"", tempVn, typ, tempVl))
+        env, string.format("eval %s=\"%s\"", tempVn, tempVl))
     lines[#lines + 1] = augmentLine(
-        env, string.format("eval %s=('%s' '%s')", tempVl, content, typ))
+        env, string.format("eval %s=\\(%s %s\\)", tempVl, content, typ))
 
     return tempVn, lines
 end
 
+-- TODO:
+-- eigentlich müssten hier nur temporäre valueslots ausgegeben werden...
 function emitString(ast, env, lines)
     if ast.tag ~= "String" then
         print("emitString(): not a string node")
@@ -139,57 +144,111 @@ function emitCall(ast, env, lines)
     if ast[1][1] == "print" then
         local location, lines = emitExpression(ast[2], env, lines)
         lines[#lines + 1] = augmentLine(
-            env, string.format("echo %s", derefLocation(location)))
+            env, string.format("eval echo %s", derefVarToValue(location)))
+
+        return nil, lines
+    else
+        local varname, lines = emitExpression(ast[1], env, lines)
+        lines[#lines + 1] = augmentLine(
+            env,
+            string.format("eval %s %s", derefVarToValue(varname),
+                          derefVarToType(varname))
+        )
 
         return nil, lines
     end
+end
+
+-- currying just for fun
+function fillup(column)
+    return function(str)
+        local l = string.len(str)
+        if column > l then
+            return string.format("%s%s", str, string.rep(" ", column - l))
+        else
+            return str
+        end
+    end
+end
+
+-- function composition
+-- compose(fun1, fun2)("foobar") = fun1(fun2("foobar"))
+function compose(funOuter)
+    return function(funInner)
+        return function(x)
+            return funOuter(funInner(x))
+        end
+    end
+end
+
+function emitEnvCounter(env, lines, envName)
+    imap({string.format("if [ -z $%s ]; then", envName),
+          string.format("%s%s=0;",
+                        string.rep(" ", env.indentSize),
+                        envName),
+          string.format("else"),
+          string.format("%s((%s++))",
+                        string.rep(" ", env.indentSize),
+                        envName,
+                        envName),
+          string.format("fi")},
+        compose(
+            function(e)
+                lines[#lines + 1] = augmentLine(env, e, "environment counter")
+                return lines
+        end)(fillup(50)))
+end
+
+function snapshotEnvironment(ast, env, lines, usedSyms)
+    return imap(
+        usedSyms,
+        function(sym)
+            local assignmentAst = parser.parse(
+                string.format("local %s = %s;",
+                              sym,
+                              sym))
+
+            -- we only need the local ast not the block surrounding it
+            return emitLocal(assignmentAst[1], env, lines)
+    end)
 end
 
 function emitFunction(ast, env, lines)
     local namelist = ast[1]
     local block = ast[2]
     local functionId = getUniqueId(env)
+    local usedSyms = getUsedSymbols(block)
+    local oldEnv = topScope(env).environmentCounter
 
+    pushScope(env, "function", "fun" .. functionId)
+    lines[#lines + 1] =
+        augmentLine(env, topScope(env).environmentCounter .. "=$" .. oldEnv)
+    local varname, _ =
+        emitTempVar(ast, env, lines,
+                    "${" .. topScope(env).environmentCounter .. "}",
+                    "BF" .. functionId)
+    lines[#lines + 1] = augmentLine(env, "", "Environment Snapshotting")
+    snapshotEnvironment(ast, env, lines, usedSyms)
 
-    -- first make environment
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("%s_%s=(\"RET\", 'B%s_%s')",
-                      env.functionPrefix, functionId,
-                      env.functionPrefix, functionId))
+        string.format("function BF%s {", functionId))
+--    lines = emitBlock(ast[2], env, lines)
 
+    incCC(env)
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("%s_%s_RET=(\"VAR\" '%s_%s_VAL_RET')",
-                      env.functionPrefix, functionId,
-                      env.functionPrefix, functionId))
+        string.format("%s=$1", topScope(env).environmentCounter))
 
-    -- initialize local variables
-    for k, v in ipairs(namelist) do
-        lines[#lines + 1] = augmentLine(
-            env,
-            string.format("%s_%s_LCL_%s_%s=(\"VAR\", '%s_%s_VAL_%s_%s')",
-                          env.functionPrefix, functionId,
-                          env.varPrefix, v[1],
-                          env.functionPrefix, functionId,
-                          env.varPrefix, v[1]))
-    end
-
-    -- initialize environment
-    -- TODO: generalize
-
-    -- begin of function definition
-    lines[#lines + 1] = augmentLine(
-        env, string.format("function B%s_%s () {",
-                           env.functionPrefix, functionId))
-
-    -- recurse into the function body
-    lines = emitBlock(ast[2], env, lines) -- TODO: Think return!!
+    imap(block, function(stmt) emitStatement(stmt, env, lines) end)
+    decCC(env)
 
     -- end of function definition
     lines[#lines + 1] = augmentLine(env, "}")
 
-    return string.format("%s_%s", env.functionPrefix, functionId), lines
+    popScope(env)
+
+    return varname, lines
 end
 
 function emitParen(ast, env, lines)
@@ -247,7 +306,7 @@ function emitUnop(ast, env, lines)
 
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("eval %s=\"$((%s%s))\"",
+        string.format("eval %s=\"\\$((%s%s))\"",
                       tempVn,
                       strToOpstring(ast[1]),
                       derefVarToValue(operand2)))
@@ -260,12 +319,12 @@ function emitBinop(ast, env, lines)
     local tempVn, tempVl = getTempVarname(env)
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("%s=%s", tempVn, tempVl))
+        string.format("eval %s=%s", tempVn, tempVl))
     local left, lines = emitExpression(ast[2], env, lines)
     local right, lines = emitExpression(ast[3], env, lines)
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("eval %s=\"$((%s%s%s}))\"",
+        string.format("eval %s=\"\\$((%s%s%s))\"",
                       tempVl,
                       derefVarToValue(left),
                       strToOpstring(ast[1]),
@@ -290,8 +349,9 @@ end
 
 function scopeSetLocalFirstTime(ast, env, scope, idString)
     local currentPathPrefix = getScopePath(env)
-    local emitVN = env.varPrefix .. "_" .. currentPathPrefix .. "_" .. idString
-    scope[idString] = {
+    local emitVN = env.varPrefix .. "${" .. scope.environmentCounter .. "}"
+        .. "_" .. currentPathPrefix .. "_" .. idString
+    scope.scope[idString] = {
         value = 0,
         redefCount = 1,
         emitCurSlot = env.valPrefix .. "_DEF1_" .. emitVN,
@@ -300,7 +360,8 @@ function scopeSetLocalFirstTime(ast, env, scope, idString)
 end
 
 function scopeSetGlobal(env, idString)
-    local emitVN = env.varPrefix .. "_" .. "G_" .. idString
+    local emitVN = env.varPrefix .. "${" .. env.scopeStack[1].environmentCounter
+        .. "}_" .. "G_" .. idString
     env.scopeStack[1].scope[idString] = {
         value = 0,
         redefCount = 1,
@@ -343,7 +404,9 @@ function emitLocal(ast, env, lines)
                           derefVarToValue(iter()))
         elseif inSome == true or inSome == false then
             -- in both cases, define in top scope
-            scopeSetLocalFirstTime(ast, env, topScope, idString)
+            scopeSetLocalFirstTime(ast, env,
+                                   env.scopeStack[#env.scopeStack],
+                                   idString)
             emitVarUpdate(env,
                           lines,
                           topScope[idString].emitVarname,
@@ -392,7 +455,7 @@ end
 function emitGlobalVar(varname, valuename, lines, env)
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("eval %s=%s)", varname, valuename))
+        string.format("eval %s=%s", varname, valuename))
 end
 
 function emitUpdateGlobVar(valuename, value, lines, env)
@@ -410,10 +473,15 @@ function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
             inSome, coordinate = isInSomeScope(env, ast[1])
 
             emitGlobalVar(coordinate[2].emitVarname,
-                          coordinate[2].emitCurSlot)
+                          coordinate[2].emitCurSlot,
+                          lines,
+                          env)
         end
         location, lines = emitId(ast, env, lines, lvalContext)
-        emitUpdateGlobVar(coordinate[2].emitCurSlot, derefVarToValue, lines, env)
+        emitUpdateGlobVar(coordinate[2].emitCurSlot,
+                          derefVarToValue(rhsLoc),
+                          lines,
+                          env)
         return location, lines
     elseif ast.tag == "Index" then
         _, lines = emitPrefixexp(ast[1], env, lines, rhsTemp, true, emitLocal)

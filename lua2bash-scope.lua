@@ -7,8 +7,8 @@ function pushScope(env, occasion, name)
 
     env.scopeStack[#env.scopeStack + 1] =
         { occasion = occasion, name = name,
-          environmentCounter = "ENV_" .. "pathPrefix",
-          pathPrefix = scopePath, scope = {} }
+          environmentCounter = "ENV_" .. scopePath,
+          pathPrefix = scopePath, scope = { } }
 end
 
 function popScope(env)

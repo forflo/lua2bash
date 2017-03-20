@@ -61,11 +61,11 @@ function join(strings, char)
 end
 
 function derefVarToValue(varname)
-    return string.format("${!%s}", varname)
+    return string.format("\\${!%s}", varname)
 end
 
 function derefVarToType(varname)
-    return string.format("$(eval echo \\${${f}[1]})", varname)
+    return string.format("$(eval echo \\${${%s}[1]})", varname)
 end
 
 function getUniqueId(env)

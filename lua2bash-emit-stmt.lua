@@ -4,19 +4,16 @@ function emitBlock(ast, env, lines, occasion)
     local scopeNumber = getUniqueId(env)
     local occasion = occasion or "block"
     local scopeName
-
     if #env.scopeStack ~= 0 then
-        scopeName = "Scope_" .. scopeNumber
+        scopeName = "S" .. scopeNumber
     else
         scopeName = "G"
     end
-
     -- push new scope on top
     pushScope(env, occasion, scopeName)
-
     -- don't forget the indentation counter
     incCC(env)
-
+    emitEnvCounter(env, lines, topScope(env).environmentCounter)
     -- emit all enclosed statements
     for k,v in ipairs(ast) do
         if type(v) == "table" then
@@ -26,12 +23,9 @@ function emitBlock(ast, env, lines, occasion)
             os.exit(1)
         end
     end
-
     decCC(env)
-
     -- pop the scope
     popScope(env)
-
     return lines
 end
 
@@ -39,7 +33,7 @@ function emitFornum(ast, env, lines)
     -- push new scope only for the loop counter
     pushScope(env,
               "for",
-              "loop_" .. getUniqueId(env))
+              "L" .. getUniqueId(env))
 
     local block = ast[5] or ast[4]
     local existsIncrement = ast[4].tag ~= "Block"
