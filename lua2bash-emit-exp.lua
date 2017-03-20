@@ -3,12 +3,10 @@ function emitId(ast, env, lines)
         print("emitId(): not a Id node")
         os.exit(1)
     end
-
     local inSome, coordinate = isInSomeScope(env, ast[1])
     if inSome == false then
         return "VAR_NIL", lines -- TODO: check
     end
-
     return emitTempVal(ast, env, lines,
                        derefVarToType(coordinate[2].emitVarname),
                        derefVarToValue(coordinate[2].emitVarname))
@@ -19,7 +17,6 @@ function emitNumber(ast, env, lines)
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-
     return emitTempVal(ast, env, lines, "NUM", ast[1])
 end
 
@@ -28,7 +25,6 @@ function emitNil(ast, env, lines)
         print("emitNil(): not a Nil node")
         os.exit(1)
     end
-
     return emitTempVal(ast, env, lines, "NIL", "")
 end
 
@@ -36,28 +32,21 @@ function getTempValname(env)
     local commonSuffix =
         "${" .. topScope(env).environmentCounter .. "}"
         .. "_" .. getUniqueId(env)
-
-
     return env.tempValPrefix .. commonSuffix
 end
 
 function emitTempVal(ast, env, lines, typ, content)
     tempVal = getTempValname(env)
-
     lines[#lines + 1] = augmentLine(
         env, string.format("eval %s=\\(%s %s\\)", tempVal, content, typ))
-
     return tempVal
 end
 
--- TODO:
--- eigentlich müssten hier nur temporäre valueslots ausgegeben werden...
 function emitString(ast, env, lines)
     if ast.tag ~= "String" then
         print("emitString(): not a string node")
         os.exit(1)
     end
-
     return emitTempVal(ast, env, lines, "STR", ast[1])
 end
 
@@ -66,7 +55,6 @@ function emitFalse(ast, env, lines)
         print("emitFalse(): not a False node!")
         os.exit(1)
     end
-
     return emitTempVal(ast, env, lines, "FLS", "0")
 end
 
@@ -75,10 +63,8 @@ function emitTrue(ast, env, lines)
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-
     return emitTempVal(ast, env, lines, "TRU", "0")
 end
-
 
 -- prefixes each table member with env.tablePrefix
 -- uses env.tablePath
@@ -87,29 +73,23 @@ function emitTable(ast, env, lines, tableId)
         print("emitTable(): not a Table!")
         os.exit(1)
     end
-
     if tableId == nil then
         tableId = getUniqueId(env)
     end
-
     lines[#lines + 1] = augmentLine(
         env, string.format("%s_%s=(\"TBL\" 'VAL_%s_%s')",
                            env.tablePrefix .. env.tablePath,
                            tableId, env.tablePrefix, tableId))
-
     lines[#lines + 1] = augmentLine(
         env, string.format("VAL_%s_%s='%s_%s'",
                            env.tablePrefix .. env.tablePath,
                            tableId, env.tablePrefix, tableId))
-
     for k,v in ipairs(ast) do
         if (v.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif v.tag ~= "Table" then
             location, lines = emitExpression(ast[k], env, lines)
-
-
             lines[#lines + 1] = augmentLine(
                 env,
                 string.format("%s_%s%s=(\"VAR\" 'VAL_%s_%s%s')",
@@ -117,24 +97,18 @@ function emitTable(ast, env, lines, tableId)
                               env.tablePath .. "_" .. k,
                               env.tablePrefix, tableId,
                               env.tablePath .. "_" .. k))
-
             lines[#lines + 1] = augmentLine(
                 env,
                 string.format("VAL_%s_%s%s=\"%s\"", env.tablePrefix,
                               tableId, env.tablePath .. "_" .. k,
                               derefLocation(location)))
-
         else
             oldTablePath = env.tablePath
             env.tablePath = env.tablePath .. "_" .. k
-
             emitTable(v, env, lines, tableId)
-
             env.tablePath = oldTablePath
         end
-
     end
-
     return env.tablePrefix .. "_" .. tableId
 end
 
@@ -356,15 +330,12 @@ function emitLocal(ast, env, lines)
     for i = 1, #ast[1] do
         varNames[i] = ast[1][i][1]
     end
-
     local topScope = env.scopeStack[#env.scopeStack].scope
     local locations = emitExplist(ast[2], env, lines)
-
     local memNumDiff = tblCountAll(varNames) - tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
         locations[#locations + 1] = "DUMMY"
     end
-
     local iter = statefulIIterator(locations)
     for _, idString in pairs(varNames) do
         local inSome, attr1 = isInSomeScope(env, idString)
@@ -486,10 +457,8 @@ function emitPrefixexpAsRval(ast, env, lines, locationAccu)
                                derefLocation(location)))
         return finalLocation
     end
-
     if ast.tag == "Id" then
         location = emitId(ast, env, lines)
-
         return recEndHelper(location, lines)
     elseif ast.tag == "Paren" then
         location = emitExpression(ast[1], env, lines)
