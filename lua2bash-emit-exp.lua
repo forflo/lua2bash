@@ -28,9 +28,12 @@ function emitNil(ast, env, lines)
     return emitTempVal(ast, env, lines, "NIL", "")
 end
 
+function getEnvSuffix(env)
+    return "${" .. topScope(env).environmentCounter .. "}"
+end
+
 function getTempValname(env)
-    local commonSuffix =
-        "${" .. topScope(env).environmentCounter .. "}"
+    local commonSuffix = getEnvSuffix(env)
         .. "_" .. getUniqueId(env)
     return env.tempValPrefix .. commonSuffix
 end
@@ -63,53 +66,50 @@ function emitTrue(ast, env, lines)
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-    return emitTempVal(ast, env, lines, "TRU", "0")
+    return emitTempVal(ast, env, lines, "TRU", "1")
+end
+
+function emitTableValue(ast, env, lines, suffix, value, typ)
+    local typeString = "Table"
+    local envSuffix = getEnvSuffix(env)
+    local valueName = env.tablePrefix .. envSuffix .. suffix
+    addLine(
+        env, lines,
+        string.format("eval %s=\\(%s %s\\)",
+                      valueName, value or valueName,
+                      typ or typeString))
+    return valueName
 end
 
 -- prefixes each table member with env.tablePrefix
 -- uses env.tablePath
-function emitTable(ast, env, lines, tableId)
+function emitTable(ast, env, lines, tableId, tablePath)
+    if tableId == nil then
+        tableId = getUniqueId(env)
+    end
+    local tablePath = tablePath or ""
+    local separatorChar = "_"
     if ast.tag ~= "Table" then
         print("emitTable(): not a Table!")
         os.exit(1)
     end
-    if tableId == nil then
-        tableId = getUniqueId(env)
-    end
-    lines[#lines + 1] = augmentLine(
-        env, string.format("%s_%s=(\"TBL\" 'VAL_%s_%s')",
-                           env.tablePrefix .. env.tablePath,
-                           tableId, env.tablePrefix, tableId))
-    lines[#lines + 1] = augmentLine(
-        env, string.format("VAL_%s_%s='%s_%s'",
-                           env.tablePrefix .. env.tablePath,
-                           tableId, env.tablePrefix, tableId))
+    emitTableValue(ast, env, lines,
+                   tableId .. tablePath)
     for k,v in ipairs(ast) do
         if (v.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif v.tag ~= "Table" then
-            location, lines = emitExpression(ast[k], env, lines)
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("%s_%s%s=(\"VAR\" 'VAL_%s_%s%s')",
-                              env.tablePrefix, tableId,
-                              env.tablePath .. "_" .. k,
-                              env.tablePrefix, tableId,
-                              env.tablePath .. "_" .. k))
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("VAL_%s_%s%s=\"%s\"", env.tablePrefix,
-                              tableId, env.tablePath .. "_" .. k,
-                              derefLocation(location)))
+            tempValue = emitExpression(ast[k], env, lines)
+            emitTableValue(ast, env, lines,
+                           tableId .. tablePath .. k,
+                           derefValToValue(tempValue),
+                           derefValToType(tempValue))
         else
-            oldTablePath = env.tablePath
-            env.tablePath = env.tablePath .. "_" .. k
-            emitTable(v, env, lines, tableId)
-            env.tablePath = oldTablePath
+            emitTable(ast, env, lines, tableId, tablePath .. k)
         end
     end
-    return env.tablePrefix .. "_" .. tableId
+    return env.tablePrefix .. separatorChar .. tableId
 end
 
 function addLine(env, lines, line)
@@ -118,24 +118,28 @@ function addLine(env, lines, line)
 end
 
 function emitCall(ast, env, lines)
-    if ast[1][1] == "print" then
-        local location = emitExpression(ast[2], env, lines)
-        lines[#lines + 1] = augmentLine(
-            env, string.format("eval echo %s", derefValToValue(location)))
-    elseif ast[1][1] == "type" then
-        local value = emitExpression(ast[2], env, lines)
+    local functionName = ast[1][1]
+    local functionExp = ast[1]
+    local arguments = ast[2]
+    if functionName == "print" then
+        local location = emitExpression(arguments, env, lines)
+        addLine(
+            env, lines,
+            string.format("eval echo %s", derefValToValue(location)))
+    elseif functionName == "type" then
+        local value = emitExpression(arguments, env, lines)
         local typeStrValue = emitTempVal(ast, env, lines,
                                          "STR", derefValToType(value))
 
         return typeStrValue
     else
-        local varname = emitExpression(ast[1], env, lines)
-        lines[#lines + 1] = augmentLine(
-            env,
+        local varname = emitExpression(functionExp, env, lines)
+        -- TODO: Argument values!
+        addLine(
+            env, lines,
             string.format("eval %s %s",
                           derefValToValue(varname),
-                          derefValToType(varname))
-        )
+                          derefValToType(varname)))
     end
 end
 
