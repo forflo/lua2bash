@@ -9,7 +9,9 @@ function emitId(ast, env, lines)
         return "VAR_NIL", lines -- TODO: check
     end
 
-    return "!" .. coordinate[2].emitVarname
+    return emitTempVal(ast, env, lines,
+                       derefVarToType(coordinate[2].emitVarname),
+                       derefVarToValue(coordinate[2].emitVarname))
 end
 
 function emitNumber(ast, env, lines)
@@ -18,7 +20,7 @@ function emitNumber(ast, env, lines)
         os.exit(1)
     end
 
-    return emitTempVar(ast, env, lines, "NUM", ast[1])
+    return emitTempVal(ast, env, lines, "NUM", ast[1])
 end
 
 function emitNil(ast, env, lines)
@@ -27,7 +29,7 @@ function emitNil(ast, env, lines)
         os.exit(1)
     end
 
-    return emitTempVar(ast, env, lines, "NIL", "")
+    return emitTempVal(ast, env, lines, "NIL", "")
 end
 
 function getTempValname(env)
@@ -39,7 +41,7 @@ function getTempValname(env)
     return env.tempValPrefix .. commonSuffix
 end
 
-function emitTempVar(ast, env, lines, typ, content)
+function emitTempVal(ast, env, lines, typ, content)
     tempVal = getTempValname(env)
 
     lines[#lines + 1] = augmentLine(
@@ -56,7 +58,7 @@ function emitString(ast, env, lines)
         os.exit(1)
     end
 
-    return emitTempVar(ast, env, lines, "STR", ast[1])
+    return emitTempVal(ast, env, lines, "STR", ast[1])
 end
 
 function emitFalse(ast, env, lines)
@@ -65,7 +67,7 @@ function emitFalse(ast, env, lines)
         os.exit(1)
     end
 
-    return emitTempVar(ast, env, lines, "FLS", "0")
+    return emitTempVal(ast, env, lines, "FLS", "0")
 end
 
 function emitTrue(ast, env, lines)
@@ -74,7 +76,7 @@ function emitTrue(ast, env, lines)
         os.exit(1)
     end
 
-    return emitTempVar(ast, env, lines, "TRU", "0")
+    return emitTempVal(ast, env, lines, "TRU", "0")
 end
 
 
@@ -148,7 +150,10 @@ function emitCall(ast, env, lines)
             env, string.format("eval echo %s", derefValToValue(location)))
     elseif ast[1][1] == "type" then
         local value = emitExpression(ast[2], env, lines)
-        addLine(env,string.format("eval echo %s", derefValToValue(location)) ,lines)
+        local typeStrValue = emitTempVal(ast, env, lines,
+                                         "STR", derefValToType(value))
+
+        return typeStrValue
     else
         local varname = emitExpression(ast[1], env, lines)
         lines[#lines + 1] = augmentLine(
@@ -224,8 +229,8 @@ function emitFunction(ast, env, lines)
     pushScope(env, "function", "fun" .. functionId)
     lines[#lines + 1] =
         augmentLine(env, topScope(env).environmentCounter .. "=$" .. oldEnv)
-    local varname, _ =
-        emitTempVar(ast, env, lines,
+    local tempVal =
+        emitTempVal(ast, env, lines,
                     "${" .. topScope(env).environmentCounter .. "}",
                     "BF" .. functionId)
     lines[#lines + 1] = augmentLine(env, "", "Environment Snapshotting")
@@ -249,7 +254,7 @@ function emitFunction(ast, env, lines)
 
     popScope(env)
 
-    return varname
+    return tempVal
 end
 
 function emitParen(ast, env, lines)
@@ -307,10 +312,11 @@ function emitUnop(ast, env, lines)
 
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("eval %s=\"\\$((%s%s))\"",
+        string.format("eval %s=\\(\"\\$((%s%s))\" %s\\)",
                       tempVal,
                       strToOpstring(ast[1]),
-                      derefValToValue(operand2)))
+                      derefValToValue(operand2),
+                      derefValToType(operand2)))
 
     return tempVal
 end
@@ -322,11 +328,12 @@ function emitBinop(ast, env, lines)
     local right = emitExpression(ast[3], env, lines)
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("eval %s=\"\\$((%s%s%s))\"",
+        string.format("eval %s=\\(\"\\$((%s%s%s))\" %s\\)",
                       tempVal,
                       derefValToValue(left),
                       strToOpstring(ast[1]),
-                      derefValToValue(right)))
+                      derefValToValue(right),
+                      derefValToType(right)))
     return tempVal
 end
 
@@ -338,8 +345,9 @@ function emitExplist(ast, env, lines)
     local locations = {}
     for k, expression in ipairs(ast) do
         local tempVal = emitExpression(expression, env, lines)
-        local tempVnRhs = emitTempVar(ast, env, lines,
-                                      "NKN", derefValToValue(tempVal))
+        local tempVnRhs = emitTempVal(ast, env, lines,
+                                      derefValToType(tempVal),
+                                      derefValToValue(tempVal))
         locations[#locations + 1] = tempVnRhs
     end
     return locations
@@ -456,10 +464,10 @@ function emitGlobalVar(varname, valuename, lines, env)
         string.format("eval %s=%s", varname, valuename))
 end
 
-function emitUpdateGlobVar(valuename, value, lines, env)
+function emitUpdateGlobVar(valuename, value, lines, env, typ)
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("eval %s=\"%s\"", valuename, value))
+        string.format([[eval %s=\(%s %s\)]], valuename, value, typ))
 end
 
 function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
@@ -475,11 +483,12 @@ function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
                           lines,
                           env)
         end
-        location = emitId(ast, env, lines, lvalContext)
+        --location = emitId(ast, env, lines, lvalContext)
         emitUpdateGlobVar(coordinate[2].emitCurSlot,
                           derefValToValue(rhsLoc),
                           lines,
-                          env)
+                          env,
+                          derefValToType(rhsLoc))
         return location
     elseif ast.tag == "Index" then
         location = emitPrefixexp(ast[1], env, lines, rhsTemp, true, emitLocal)
