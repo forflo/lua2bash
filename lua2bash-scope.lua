@@ -1,14 +1,61 @@
 function pushScope(env, occasion, name)
+    local joinChar = ''
+    local envId = getUniqueId(env)
     if #env.scopeStack == 0 then
         scopePath = name
     else
-        scopePath = env.scopeStack[#env.scopeStack].pathPrefix .. "_" .. name
+        scopePath = env.scopeStack[#env.scopeStack].pathPrefix
+            .. joinChar .. name
     end
-
     env.scopeStack[#env.scopeStack + 1] =
-        { occasion = occasion, name = name,
-          environmentCounter = "ENV_" .. scopePath,
-          pathPrefix = scopePath, scope = { } }
+        { occasion = occasion,
+          name = name,
+          environmentCounter = env.environmentPrefix .. envId,
+          pathPrefix = scopePath,
+          scope = { } }
+end
+
+function scopeSetLocalFirstTime(ast, env, scope, idString)
+    local redefCountStr = "D1"
+    local currentPathPrefix = getScopePath(env)
+    local emitVN = env.varPrefix .. "${" .. scope.environmentCounter .. "}"
+        .. "" .. currentPathPrefix .. "_" .. idString
+    scope.scope[idString] = {
+        value = 0,
+        redefCount = 1,
+        emitCurSlot = env.valPrefix .. redefCountStr .. emitVN,
+        emitVarname = emitVN
+    }
+end
+
+function scopeSetLocalAgain(ast, env, varAttr)
+    local definitionInfix = "D"
+    local currentPathPrefix = getScopePath(env)
+    varAttr.redefCount = varAttr.redefCount + 1
+    varAttr.emitCurSlot = env.valPrefix .. definitionInfix .. varAttr.redefCount
+        .. varAttr.emitVarname
+end
+
+function scopeSetGlobal(env, idString)
+    local definitionInfix = "D1"
+    local emitVN = env.varPrefix .. "${" .. env.scopeStack[1].environmentCounter
+        .. "}" .. "G_" .. idString
+    env.scopeStack[1].scope[idString] = {
+        value = 0,
+        redefCount = 1,
+        emitCurSlot = env.valPrefix .. definitionInfix .. emitVN,
+        emitVarname = emitVN
+    }
+end
+
+function getScopePath(env)
+    local scopeNames = {}
+    local joinChar = ''
+    for i = 1, #env.scopeStack do
+        scopeNames[#scopeNames + 1] = env.scopeStack[i].name
+    end
+    --dbg()
+    return join(scopeNames, joinChar)
 end
 
 function popScope(env)

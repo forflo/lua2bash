@@ -2,7 +2,24 @@ parser = require "lua-parser.parser"
 pp = require "lua-parser.pp"
 dbg = require "debugger"
 
---dbg = function () return end
+env = {}
+env.scopeStack = {} -- rechts => neuer
+env.tempVarPrefix = "TV" -- Temp Variable
+env.tempValPrefix = "TL" -- Temp vaLue
+env.environmentPrefix = "E"
+env.functionPrefix = "AFUN"
+env.ergCnt = 0
+env.tablePrefix = "ATBL"
+env.varPrefix = "V" -- Variable
+env.valPrefix = "L" -- vaLue
+env.indentSize = 4
+env.columnCount = -env.indentSize
+env.tablePath = ""
+env.scopeStack = {}
+env.funcArglist = {}
+env.globalIdCount = 0
+-- scopeStack = {{name = "global", scope = {<varname> = "<location>"}},
+--               {name = "anon1", scope = {}}, ...}
 
 require "lua2bash-serialize-ast"
 require "lua2bash-emit-stmt"
@@ -24,23 +41,6 @@ end
 
 -- print(alreadyDefined({ {name = "g", scope = { x = "" }}  }, "x"))
 
-env = {}
-env.scopeStack = {} -- rechts => neuer
-env.tempVarPrefix = "TVR"
-env.tempValPrefix = "TVL"
-env.functionPrefix = "AFUN"
-env.ergCnt = 0
-env.tablePrefix = "ATBL"
-env.varPrefix = "VAR"
-env.valPrefix = "VAL"
-env.indentSize = 4
-env.columnCount = -env.indentSize
-env.tablePath = ""
-env.scopeStack = {}
-env.funcArglist = {}
-env.globalIdCount = 0
--- scopeStack = {{name = "global", scope = {<varname> = "<location>"}},
---               {name = "anon1", scope = {}}, ...}
 
 --print(tostring(getUsedSymbols(ast)))
 lines = {}

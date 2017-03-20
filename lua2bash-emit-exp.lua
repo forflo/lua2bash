@@ -138,9 +138,9 @@ function emitTable(ast, env, lines, tableId)
     return env.tablePrefix .. "_" .. tableId
 end
 
-function addLine(env, str, lines)
+function addLine(env, lines, line)
     lines[#lines + 1] = augmentLine(
-        env, lines)
+        env, line)
 end
 
 function emitCall(ast, env, lines)
@@ -226,34 +226,31 @@ function emitFunction(ast, env, lines)
     local usedSyms = getUsedSymbols(block)
     local oldEnv = topScope(env).environmentCounter
 
-    pushScope(env, "function", "fun" .. functionId)
-    lines[#lines + 1] =
-        augmentLine(env, topScope(env).environmentCounter .. "=$" .. oldEnv)
+    pushScope(env, "function", "F" .. functionId)
+    local newEnv = topScope(env).environmentCounter
+    topScope(env).environmentCounter = oldEnv
+
+    addLine(env, lines, "# Closure defintion")
     local tempVal =
         emitTempVal(ast, env, lines,
                     "${" .. topScope(env).environmentCounter .. "}",
                     "BF" .. functionId)
-    lines[#lines + 1] = augmentLine(env, "", "Environment Snapshotting")
+    addLine(env, lines, "# Environment Snapshotting")
     snapshotEnvironment(ast, env, lines, usedSyms)
+    topScope(env).environmentCounter = newEnv
 
-    lines[#lines + 1] = augmentLine(
-        env,
-        string.format("function BF%s {", functionId))
---    lines = emitBlock(ast[2], env, lines)
-
+    addLine(env, lines,
+            string.format("function BF%s {", functionId))
+    -- recurse into block
+    emitBlock(ast[2], env, lines)
     incCC(env)
     lines[#lines + 1] = augmentLine(
         env,
         string.format("%s=$1", topScope(env).environmentCounter))
-
-    imap(block, function(stmt) emitStatement(stmt, env, lines) end)
     decCC(env)
-
     -- end of function definition
-    lines[#lines + 1] = augmentLine(env, "}")
-
+    addLine(env, lines, "}")
     popScope(env)
-
     return tempVal
 end
 
@@ -353,35 +350,6 @@ function emitExplist(ast, env, lines)
     return locations
 end
 
-function scopeSetLocalFirstTime(ast, env, scope, idString)
-    local currentPathPrefix = getScopePath(env)
-    local emitVN = env.varPrefix .. "${" .. scope.environmentCounter .. "}"
-        .. "_" .. currentPathPrefix .. "_" .. idString
-    scope.scope[idString] = {
-        value = 0,
-        redefCount = 1,
-        emitCurSlot = env.valPrefix .. "_DEF1_" .. emitVN,
-        emitVarname = emitVN
-    }
-end
-
-function scopeSetGlobal(env, idString)
-    local emitVN = env.varPrefix .. "${" .. env.scopeStack[1].environmentCounter
-        .. "}_" .. "G_" .. idString
-    env.scopeStack[1].scope[idString] = {
-        value = 0,
-        redefCount = 1,
-        emitCurSlot = env.valPrefix .. "_DEF1_" .. emitVN,
-        emitVarname = emitVN
-    }
-end
-
-function scopeSetLocalAgain(ast, env, varAttr)
-    local currentPathPrefix = getScopePath(env)
-    varAttr.redefCount = varAttr.redefCount + 1
-    varAttr.emitCurSlot = env.valPrefix .. "_DEF" .. varAttr.redefCount
-        .. "_" .. varAttr.emitVarname
-end
 
 function emitLocal(ast, env, lines)
     local varNames = {}

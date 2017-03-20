@@ -13,6 +13,8 @@ function emitBlock(ast, env, lines, occasion)
     pushScope(env, occasion, scopeName)
     -- don't forget the indentation counter
     incCC(env)
+    lines[#lines + 1] = augmentLine(
+        env, "# Begin of Scope: " .. topScope(env).pathPrefix)
     emitEnvCounter(env, lines, topScope(env).environmentCounter)
     -- emit all enclosed statements
     for k,v in ipairs(ast) do
