@@ -116,6 +116,16 @@ function addLine(env, lines, line)
         env, line)
 end
 
+-- TODO: argValueList!
+-- returns a tempvalue of the result
+function emitCallClosure(env, lines, closureValue, argValueList)
+    addLine(
+        env, lines,
+        string.format("eval %s %s",
+                      derefValToValue(closureValue),
+                      derefValToType(closureValue)))
+end
+
 function emitCall(ast, env, lines)
     addLine(env, lines, "# " .. serCall(ast))
     local functionName = ast[1][1]
@@ -134,13 +144,8 @@ function emitCall(ast, env, lines)
 
         return typeStrValue
     else
-        local varname = emitExpression(functionExp, env, lines)
-        -- TODO: Argument values!
-        addLine(
-            env, lines,
-            string.format("eval %s %s",
-                          derefValToValue(varname),
-                          derefValToType(varname)))
+        local c = emitExpression(functionExp, env, lines)
+        return emitCallClosure(env, lines, c)
     end
 end
 
@@ -425,16 +430,14 @@ end
 
 function emitComplexAssign(lhs, env, lines, rhs)
     local setValue = emitExecutePrefixexp(lhs, env, lines)
-    local inSome, coordinate = isInSomeScope(env, idString)
-    if not inSome then print("Must be in one scope!"); os.exit(1); end
-    emitUpdateGlobVar(coordinate[2].emitCurSlot,
-                      derefValToValue(setValue),
+    emitUpdateGlobVar(setValue,
+                      derefValToValue(rhs),
                       lines, env,
-                      derefValToType(setValue))
+                      derefValToType(rhs))
 end
 
-function emitPrefixexp(ast, env, lines, rhsLoc)
-    return emitPrefixexpAsRval(ast, env, lines, {})
+function emitPrefixexp(ast, env, lines)
+    return emitExecutePrefixexp(ast, env, lines)
 end
 
 --
@@ -442,44 +445,31 @@ end
 -- and returns the values to be written to
 function emitExecutePrefixexp(prefixExp, env, lines)
     local indirections = linearizePrefixTree(prefixExp, env)
-    local resultLocation
+    local temp = {}
 
-    for _, indirection in ipairs(indirections) do
+    for i, indirection in ipairs(indirections) do
+        -- Id and Paren nodes are both terminal in this production tree
+        -- in prefix expressions a paren or id node can only occur once
+        -- on the left
         if     indirection.typ == "Id" then
-
+            local inSome, coordinate = isInSomeScope(env, indirection.id)
+            if not inSome then print("Must be in one scope!"); os.exit(1); end
+            temp[i] = emitId(indirection.ast, env, lines)
         elseif indirection.typ == "Paren" then
+            temp[i] = emitExpression(indirection.exp, env, lines)
         elseif indirection.typ == "Call"  then
+            -- TODO function arguments!
+            local funArgs
+            temp[i] = emitCallClosure(env, lines, temp[i - 1], funArgs)
         elseif indirection.typ == "Index" then
-
+            local index = emitExpression(indirection.exp, env, lines)
+            index =  temp[i-1] .. derefValToValue(index)
+            temp[i] = emitTempVal(
+                ast, env, lines, "NKN",
+                string.format([[$(eval echo \\\${%s})]], index))
         end
     end
-
-    return resultLocation
-end
-
--- TODO: adjust to new env
-function emitPrefixexpAsRval(ast, env, lines, locationAccu)
-    local recEndHelper = function (tempVal, lines)
-        locationString = join(tableReverse(extractIPairs(locationAccu)), '')
-        tempVal = derefValToValue(tempVal) .. "" .. locationString
-
-        return emitTempVal(ast, env, lines, "NKN",
-                           string.format([[$(eval echo \\\${%s})]], tempVal))
-    end
-
-    if ast.tag == "Id" then
-        tv = emitId(ast, env, lines)
-        return recEndHelper(tv, lines)
-    elseif ast.tag == "Paren" then
-        tv = emitExpression(ast[1], env, lines)
-        return recEndHelper(tv, lines)
-    elseif ast.tag == "Call"  then
-        --
-    elseif ast.tag == "Index" then
-        tv = emitExpression(ast[2], env, lines)
-        locationAccu[#locationAccu + 1] = derefValToValue(tv)
-        return emitPrefixexpAsRval(ast[1], env, lines, locationAccu)
-    end
+    return temp[#temp]
 end
 
 function linearizePrefixTree(ast, env, result)
@@ -488,21 +478,25 @@ function linearizePrefixTree(ast, env, result)
         result[#result + 1] =
             { id = ast[1],
               typ = ast.tag,
+              ast = ast,
               exp = nil}
     elseif ast.tag == "Paren" then
         result[#result + 1] =
             { exp = ast[1],
               typ = ast.tag,
+              ast = ast,
               exp = ast[2]}
     elseif ast.tag == "Call"  then
         result[#result + 1] =
             { callee = ast[1],
               typ = ast.tag,
+              ast = ast,
               exp = tableSlice(ast, 2, #ast, 1)}
     elseif ast.tag == "Index" then
         result[#result + 1] =
             { indexee = ast[1],
               typ = ast.tag,
+              ast = ast,
               exp = ast[2]}
     end
     if ast.tag ~= "Id" then
