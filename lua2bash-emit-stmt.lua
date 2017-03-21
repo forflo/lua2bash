@@ -100,7 +100,6 @@ function emitFornum(ast, env, lines)
     end
     block[#block + 1] = incrementor[1]
 
-
     -- pp.dump(tempASTIf)
     emitIf(tempASTIf, env, lines)
 

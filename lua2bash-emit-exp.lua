@@ -398,11 +398,10 @@ function emitUpdateGlobVar(valuename, value, lines, env, typ)
 end
 
 function emitSet(ast, env, lines)
+    addLine(env, lines, "# " .. serSet(ast))
     local explist, varlist = ast[2], ast[1]
-
     local rhsTempresults = emitExplist(explist, env, lines)
     local iterator = statefulIIterator(rhsTempresults)
-
     for k, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
             emitSimpleAssign(lhs, env, lines, iterator())
@@ -429,8 +428,8 @@ function emitSimpleAssign(ast, env, lines, rhs)
 end
 
 function emitComplexAssign(lhs, env, lines, rhs)
-    local setValue = emitExecutePrefixexp(lhs, env, lines)
-    emitUpdateGlobVar(setValue,
+    local setValue = emitExecutePrefixexp(lhs, env, lines, true)
+    emitUpdateGlobVar(string.format([[$(eval echo %s)]], setValue),
                       derefValToValue(rhs),
                       lines, env,
                       derefValToType(rhs))
@@ -443,11 +442,11 @@ end
 --
 -- dereferences expressions like getTable()[1]
 -- and returns the values to be written to
-function emitExecutePrefixexp(prefixExp, env, lines)
+function emitExecutePrefixexp(prefixExp, env, lines, asLval)
     local indirections = linearizePrefixTree(prefixExp, env)
     local temp = {}
-
-    for i, indirection in ipairs(indirections) do
+    for i = 1, #indirections do
+        local indirection = indirections[i]
         -- Id and Paren nodes are both terminal in this production tree
         -- in prefix expressions a paren or id node can only occur once
         -- on the left
@@ -464,9 +463,13 @@ function emitExecutePrefixexp(prefixExp, env, lines)
         elseif indirection.typ == "Index" then
             local index = emitExpression(indirection.exp, env, lines)
             index =  derefValToValue(temp[i-1]) .. derefValToValue(index)
-            temp[i] = emitTempVal(
-                ast, env, lines, "NKN",
-                string.format([[$(eval echo \\\${%s})]], index))
+            if i == #indirections and asLval then
+                temp[i] = index
+            else
+                temp[i] = emitTempVal(
+                    ast, env, lines, "NKN",
+                    string.format([[$(eval echo \\\${%s})]], index))
+            end
         end
     end
     return temp[#temp]
@@ -474,6 +477,7 @@ end
 
 function linearizePrefixTree(ast, env, result)
     local result = result or {}
+    if type(ast) ~= "table" then return result end
     if ast.tag == "Id" then
         result[#result + 1] =
             { id = ast[1],
@@ -484,8 +488,7 @@ function linearizePrefixTree(ast, env, result)
         result[#result + 1] =
             { exp = ast[1],
               typ = ast.tag,
-              ast = ast,
-              exp = ast[2]}
+              ast = ast}
     elseif ast.tag == "Call"  then
         result[#result + 1] =
             { callee = ast[1],
