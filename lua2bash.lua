@@ -14,7 +14,6 @@ env.varPrefix = "V" -- Variable
 env.valPrefix = "L" -- vaLue
 env.indentSize = 4
 env.columnCount = -env.indentSize
-env.tablePath = ""
 env.scopeStack = {}
 env.funcArglist = {}
 env.globalIdCount = 0

@@ -83,7 +83,7 @@ end
 
 -- prefixes each table member with env.tablePrefix
 -- uses env.tablePath
-function emitTable(ast, env, lines, tableId, tablePath)
+function emitTable(ast, env, lines, tableId)
     if tableId == nil then
         tableId = getUniqueId(env)
         addLine(env, lines, "# " .. serTbl(ast))
@@ -93,20 +93,18 @@ function emitTable(ast, env, lines, tableId, tablePath)
         print("emitTable(): not a Table!")
         os.exit(1)
     end
-    emitTableValue(ast, env, lines,
-                   tableId .. tablePath)
+    emitTableValue(ast, env, lines, tableId)
     for k,v in ipairs(ast) do
         if (v.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif v.tag ~= "Table" then
             tempValue = emitExpression(ast[k], env, lines)
-            emitTableValue(ast, env, lines,
-                           tableId .. tablePath .. k,
+            emitTableValue(ast, env, lines, tableId .. k,
                            derefValToValue(tempValue),
                            derefValToType(tempValue))
         else
-            emitTable(ast[k], env, lines, tableId, tablePath .. k)
+            emitTable(ast[k], env, lines, tableId)
         end
     end
     return env.tablePrefix .. getEnvSuffix(env) .. tableId
@@ -348,8 +346,8 @@ function emitLocal(ast, env, lines)
         local inSome, attr1 = isInSomeScope(env, idString)
         local inSame, attr2 = isInSameScope(env, idString)
         if inSame then
-            scopeSetLocalAgain(ast, env, attr2)
             local t = iter()
+            scopeSetLocalAgain(ast, env, attr2)
             emitVarUpdate(env,
                           lines,
                           topScope[idString].emitVarname,
@@ -357,11 +355,11 @@ function emitLocal(ast, env, lines)
                           derefValToValue(t),
                           derefValToType(t))
         elseif inSome == true or inSome == false then
+            local t = iter()
             -- in both cases, define in top scope
             scopeSetLocalFirstTime(ast, env,
                                    env.scopeStack[#env.scopeStack],
                                    idString)
-            local t = iter()
             emitVarUpdate(env,
                           lines,
                           topScope[idString].emitVarname,
@@ -446,15 +444,12 @@ function emitExecutePrefixexp(prefixExp, env, lines)
     local resultLocation
 
     for _, indirection in ipairs(indirections) do
+        if     indirection.typ == "Id" then
 
-        if ast.tag == "Id" then
-        elseif ast.tag == "Paren" then
-        elseif ast.tag == "Call"  then
-            tempVal = emitExpression(ast[1], env, lines)
-        elseif ast.tag == "Index" then
-            tempVal = emitExpression(ast[2], env, lines)
-            emitPrefixexpIndex(ast[1], env, lines,
-                               tableIAdd(tempValAccu, tempVal))
+        elseif indirection.typ == "Paren" then
+        elseif indirection.typ == "Call"  then
+        elseif indirection.typ == "Index" then
+
         end
     end
 
