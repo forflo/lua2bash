@@ -463,7 +463,7 @@ function emitExecutePrefixexp(prefixExp, env, lines)
             temp[i] = emitCallClosure(env, lines, temp[i - 1], funArgs)
         elseif indirection.typ == "Index" then
             local index = emitExpression(indirection.exp, env, lines)
-            index =  temp[i-1] .. derefValToValue(index)
+            index =  derefValToValue(temp[i-1]) .. derefValToValue(index)
             temp[i] = emitTempVal(
                 ast, env, lines, "NKN",
                 string.format([[$(eval echo \\\${%s})]], index))
