@@ -33,8 +33,7 @@ function getEnvSuffix(env)
 end
 
 function getTempValname(env)
-    local commonSuffix = getEnvSuffix(env)
-        .. "_" .. getUniqueId(env)
+    local commonSuffix = getEnvSuffix(env) .. "_" .. getUniqueId(env)
     return env.tempValPrefix .. commonSuffix
 end
 
@@ -69,7 +68,7 @@ function emitTrue(ast, env, lines)
     return emitTempVal(ast, env, lines, "TRU", "1")
 end
 
-function emitTableValue(ast, env, lines, suffix, value, typ)
+function emitTableValue(env, lines, suffix, value, typ)
     local typeString = "Table"
     local envSuffix = getEnvSuffix(env)
     local valueName = env.tablePrefix .. envSuffix .. suffix
@@ -82,29 +81,31 @@ function emitTableValue(ast, env, lines, suffix, value, typ)
 end
 
 -- prefixes each table member with env.tablePrefix
--- uses env.tablePath
-function emitTable(ast, env, lines, tableId)
-    if tableId == nil then
-        tableId = getUniqueId(env)
-        addLine(env, lines, "# " .. serTbl(ast))
-    end
-    local tablePath = tablePath or ""
+function emitTable(ast, env, lines, firstCall)
     if ast.tag ~= "Table" then
         print("emitTable(): not a Table!")
         os.exit(1)
     end
-    emitTableValue(ast, env, lines, tableId)
-    for k,v in ipairs(ast) do
+    if firstCall == nil then
+        addLine(env, lines, "# " .. serTbl(ast))
+    end
+    local tableId = getUniqueId(env)
+    emitTableValue(env, lines, tableId)
+    for k, v in ipairs(ast) do
+        local fieldExp = ast[k]
         if (v.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif v.tag ~= "Table" then
-            tempValue = emitExpression(ast[k], env, lines)
-            emitTableValue(ast, env, lines, tableId .. k,
+            tempValue = emitExpression(fieldExp, env, lines)
+            emitTableValue(env, lines, tableId .. k,
                            derefValToValue(tempValue),
                            derefValToType(tempValue))
         else
-            emitTable(ast[k], env, lines, tableId)
+            tempValue = emitTable(ast[k], env, lines, false)
+            emitTableValue(env, lines, tableId .. k,
+                           derefValToValue(tempValue),
+                           derefValToType(tempValue))
         end
     end
     return env.tablePrefix .. getEnvSuffix(env) .. tableId
@@ -395,9 +396,9 @@ function emitSet(ast, env, lines)
     local explist, varlist = ast[2], ast[1]
 
     local rhsTempresults = emitExplist(explist, env, lines)
-    local iterator = statefulIIterator(rhsLocations)
+    local iterator = statefulIIterator(rhsTempresults)
 
-    for k, lhs in ipairs(varlst) do
+    for k, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
             emitSimpleAssign(lhs, env, lines, iterator())
         else
@@ -406,7 +407,7 @@ function emitSet(ast, env, lines)
     end
 end
 
-function emitSimpleAssign(lhs, env, lines, rhs)
+function emitSimpleAssign(ast, env, lines, rhs)
     local idString = ast[1]
     local inSome, coordinate = isInSomeScope(env, idString)
     if not inSome then -- make var in global
@@ -417,9 +418,9 @@ function emitSimpleAssign(lhs, env, lines, rhs)
                       lines, env)
     end
     emitUpdateGlobVar(coordinate[2].emitCurSlot,
-                      derefValToValue(rhsLoc),
+                      derefValToValue(rhs),
                       lines, env,
-                      derefValToType(rhsLoc))
+                      derefValToType(rhs))
 end
 
 function emitComplexAssign(lhs, env, lines, rhs)
@@ -456,6 +457,7 @@ function emitExecutePrefixexp(prefixExp, env, lines)
     return resultLocation
 end
 
+-- TODO: adjust to new env
 function emitPrefixexpAsRval(ast, env, lines, locationAccu)
     local recEndHelper = function (tempVal, lines)
         locationString = join(tableReverse(extractIPairs(locationAccu)), '')
