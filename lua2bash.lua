@@ -42,9 +42,9 @@ end
 -- print(alreadyDefined({ {name = "g", scope = { x = "" }}  }, "x"))
 
 
-tbl = linearizePrefixTree(parser.parse("x=x[1]()[1]()()")[1][2][1])
+tbl = linearizePrefixTree(parser.parse("x=x[1]('c')[1]('c2', 3)('c3')")[1][2][1])
 for k,v in ipairs(tbl) do
-    print(v.typ)
+    io.write(v.typ .. ' ') io.write(tostring(v.exp) .. '\n')
 end
 
 
