@@ -42,7 +42,12 @@ end
 -- print(alreadyDefined({ {name = "g", scope = { x = "" }}  }, "x"))
 
 
---print(tostring(getUsedSymbols(ast)))
+tbl = linearizePrefixTree(parser.parse("x=x[1]()[1]()()")[1][2][1])
+for k,v in ipairs(tbl) do
+    print(v.typ)
+end
+
+
 lines = {}
 emitBlock(ast, env, lines)
 

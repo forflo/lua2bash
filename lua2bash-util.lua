@@ -100,9 +100,6 @@ function zipI(left, right)
 end
 
 function tableIAdd(left, right)
-    if (left == nil) then return right end
-    if (right == nil) then return left end
-
     result = {}
     for k,v in ipairs(left) do
         result[#result + 1] = v

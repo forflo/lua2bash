@@ -106,7 +106,7 @@ function emitTable(ast, env, lines, tableId, tablePath)
                            derefValToValue(tempValue),
                            derefValToType(tempValue))
         else
-            emitTable(ast, env, lines, tableId, tablePath .. k)
+            emitTable(ast[k], env, lines, tableId, tablePath .. k)
         end
     end
     return env.tablePrefix .. getEnvSuffix(env) .. tableId
@@ -398,7 +398,7 @@ end
 
 function emitPrefixexp(ast, env, lines, rhsLoc, lvalContext)
     if lvalContext == true then
-        return emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
+        return emitPrefixexpAssign(ast, env, lines, rhsLoc, lvalContext)
     else
         return emitPrefixexpAsRval(ast, env, lines, {})
     end
@@ -416,7 +416,36 @@ function emitUpdateGlobVar(valuename, value, lines, env, typ)
         string.format([[eval %s=\(%s %s\)]], valuename, value, typ))
 end
 
-function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
+function linearizePrefixTree(ast, env, result)
+    local result = result or {}
+    if ast.tag == "Id" then
+        result[#result + 1] =
+            { id = ast[1],
+              typ = "id",
+              exp = nil}
+    elseif ast.tag == "Paren" then
+        result[#result + 1] =
+            { exp = ast[1],
+              typ = "exp",
+              exp = ast[2]}
+    elseif ast.tag == "Call"  then
+        result[#result + 1] =
+            { callee = ast[1],
+              typ = "call",
+              explist = tableSlice(ast, 2, #ast, 1)}
+    elseif ast.tag == "Index" then
+        result[#result + 1] =
+            { indexee = ast[1],
+              typ = "index",
+              exp = ast[2]}
+    end
+    if ast.tag ~= "Id" then
+        linearizePrefixTree(ast[1], env, result)
+    end
+    return tableReverse(result)
+end
+
+function emitPrefixexpAssign(ast, env, lines, rhsLoc, lvalContext)
     if ast.tag == "Id" then
         local inSome, coordinate = isInSomeScope(env, ast[1])
         local location
@@ -433,12 +462,27 @@ function emitPrefixexpAsLval(ast, env, lines, rhsLoc, lvalContext)
                           lines,
                           env,
                           derefValToType(rhsLoc))
-        return location
+    else
+        emitPrefixexpIndex(ast, env, lines, rhsLoc)
+    end
+end
+
+-- for handling assignments where indexes are on the lhs
+function emitPrefixexpIndex(ast, env, lines, rhsLoc, tempValAccu)
+    local tempValAccu = tempValAccu or ""
+
+    local recEndHelper = function (tempVal, lines)
+        locationString = join(tableReverse(extractIPairs(tempValAccu)), '')
+    end
+
+    if ast.tag == "Id" then
+    elseif ast.tag == "Paren" then
+    elseif ast.tag == "Call"  then
+        tempVal = emitExpression(ast[1], env, lines)
     elseif ast.tag == "Index" then
-        location = emitPrefixexp(ast[1], env, lines,
-                                 rhsTemp, true, emitLocal)
-        emitExpression(ast[2], env, lines)
-        return location
+        tempVal = emitExpression(ast[2], env, lines)
+        emitPrefixexpIndex(ast[1], env, lines,
+                           tableIAdd(tempValAccu, tempVal))
     end
 end
 
