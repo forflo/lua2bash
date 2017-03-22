@@ -42,10 +42,9 @@ end
 
 function imap(tbl, func)
     local result = {}
-    for k,v in ipairs(tbl) do
+    for k, v in ipairs(tbl) do
         result[#result + 1] = func(v)
     end
-
     return result
 end
 

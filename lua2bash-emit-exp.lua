@@ -142,10 +142,12 @@ function emitCall(ast, env, lines)
     local arguments = ast[2]
     if functionName == "print" then
     --    dbg()
-        local loc = emitExpression(arguments, env, lines)[1]
+        local tempValues = emitExpression(arguments, env, lines)
+        local dereferenced =
+            join(imap(tempValues, derefValToValue), "\t")
         addLine(
             env, lines,
-            string.format("eval echo %s", derefValToValue(loc)))
+            string.format("eval echo %s", dereferenced))
     elseif functionName == "type" then
         local value = emitExpression(arguments, env, lines)[1]
         local typeStrValue = emitTempVal(ast, env, lines,
