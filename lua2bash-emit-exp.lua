@@ -441,18 +441,21 @@ function emitExecutePrefixexp(prefixExp, env, lines, asLval)
         -- Id and Paren nodes are both terminal in this production tree
         -- in prefix expressions a paren or id node can only occur once
         -- on the left
-        if     indirection.typ == "Id" then
+        if indirection.typ == "Id" then
             local inSome, coordinate = isInSomeScope(env, indirection.id)
-            if not inSome then print("Must be in one scope!"); os.exit(1); end
-            temp[i] = emitId(indirection.ast, env, lines)
+            if not inSome then
+                print("Must be in one scope!");
+                os.exit(1);
+            end
+            temp[i] = emitId(indirection.ast, env, lines)[1]
         elseif indirection.typ == "Paren" then
-            temp[i] = emitExpression(indirection.exp, env, lines)
+            temp[i] = emitExpression(indirection.exp, env, lines)[1]
         elseif indirection.typ == "Call"  then
             -- TODO function arguments!
             local funArgs
-            temp[i] = emitCallClosure(env, lines, temp[i - 1], funArgs)
+            temp[i] = emitCallClosure(env, lines, temp[i - 1], funArgs)[1]
         elseif indirection.typ == "Index" then
-            local index = emitExpression(indirection.exp, env, lines)
+            local index = emitExpression(indirection.exp, env, lines)[1]
             index =  derefValToValue(temp[i-1]) .. derefValToValue(index)
             if i == #indirections and asLval then
                 temp[i] = index
