@@ -40,7 +40,7 @@ f[1](); -- prints 3
 f[2](); -- prints 2
 ```
 
-And here, ladies and gentle men, is the corresponding BASH
+And here, ladies and gentlemen, is the corresponding BASH
 code (only successfully tested on 4.4.12(1)-release).
 
 ```bash
