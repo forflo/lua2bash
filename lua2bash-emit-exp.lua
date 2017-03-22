@@ -7,9 +7,9 @@ function emitId(ast, env, lines)
     if inSome == false then
         return "VAR_NIL", lines -- TODO: check
     end
-    return emitTempVal(ast, env, lines,
-                       derefVarToType(coordinate[2].emitVarname),
-                       derefVarToValue(coordinate[2].emitVarname))
+    return { emitTempVal(ast, env, lines,
+                         derefVarToType(coordinate[2].emitVarname),
+                         derefVarToValue(coordinate[2].emitVarname)) }
 end
 
 function emitNumber(ast, env, lines)
@@ -17,7 +17,7 @@ function emitNumber(ast, env, lines)
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-    return emitTempVal(ast, env, lines, "NUM", ast[1])
+    return { emitTempVal(ast, env, lines, "NUM", ast[1]) }
 end
 
 function emitNil(ast, env, lines)
@@ -25,7 +25,7 @@ function emitNil(ast, env, lines)
         print("emitNil(): not a Nil node")
         os.exit(1)
     end
-    return emitTempVal(ast, env, lines, "NIL", "")
+    return { emitTempVal(ast, env, lines, "NIL", "") }
 end
 
 function getEnvSuffix(env)
@@ -49,7 +49,7 @@ function emitString(ast, env, lines)
         print("emitString(): not a string node")
         os.exit(1)
     end
-    return emitTempVal(ast, env, lines, "STR", ast[1])
+    return { emitTempVal(ast, env, lines, "STR", ast[1]) }
 end
 
 function emitFalse(ast, env, lines)
@@ -57,7 +57,7 @@ function emitFalse(ast, env, lines)
         print("emitFalse(): not a False node!")
         os.exit(1)
     end
-    return emitTempVal(ast, env, lines, "FLS", "0")
+    return { emitTempVal(ast, env, lines, "FLS", "0") }
 end
 
 function emitTrue(ast, env, lines)
@@ -65,7 +65,7 @@ function emitTrue(ast, env, lines)
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-    return emitTempVal(ast, env, lines, "TRU", "1")
+    return { emitTempVal(ast, env, lines, "TRU", "1") }
 end
 
 function emitTableValue(env, lines, suffix, value, typ)
@@ -90,6 +90,7 @@ function emitTable(ast, env, lines, firstCall)
         addLine(env, lines, "# " .. serTbl(ast))
     end
     local tableId = getUniqueId(env)
+    local tempValues
     emitTableValue(env, lines, tableId)
     for k, v in ipairs(ast) do
         local fieldExp = ast[k]
@@ -97,18 +98,25 @@ function emitTable(ast, env, lines, firstCall)
             print("Associative tables not yet supported")
             os.exit(1)
         elseif v.tag ~= "Table" then
-            tempValue = emitExpression(fieldExp, env, lines)
-            emitTableValue(env, lines, tableId .. k,
-                           derefValToValue(tempValue),
-                           derefValToType(tempValue))
+            tempValues = emitExpression(fieldExp, env, lines)
+            imap(
+                tempValues,
+                function(v)
+                    emitTableValue(env, lines, tableId .. k,
+                                   derefValToValue(v),
+                                   derefValToType(v)) end)
         else
-            tempValue = emitTable(ast[k], env, lines, false)
-            emitTableValue(env, lines, tableId .. k,
-                           derefValToValue(tempValue),
-                           derefValToType(tempValue))
+            -- tempValues possibly is a list of tempValue
+            tempValues = emitTable(ast[k], env, lines, false)
+            imap(
+                tempValues,
+                function(v)
+                    emitTableValue(env, lines, tableId .. k,
+                                   derefValToValue(v),
+                                   derefValToType(v)) end)
         end
     end
-    return env.tablePrefix .. getEnvSuffix(env) .. tableId
+    return { env.tablePrefix .. getEnvSuffix(env) .. tableId }
 end
 
 function addLine(env, lines, line)
@@ -126,6 +134,7 @@ function emitCallClosure(env, lines, closureValue, argValueList)
                       derefValToType(closureValue)))
 end
 
+-- TODO: return und argumente
 function emitCall(ast, env, lines)
     addLine(env, lines, "# " .. serCall(ast))
     local functionName = ast[1][1]
@@ -133,41 +142,19 @@ function emitCall(ast, env, lines)
     local arguments = ast[2]
     if functionName == "print" then
     --    dbg()
-        local loc = emitExpression(arguments, env, lines)
+        local loc = emitExpression(arguments, env, lines)[1]
         addLine(
             env, lines,
             string.format("eval echo %s", derefValToValue(loc)))
     elseif functionName == "type" then
-        local value = emitExpression(arguments, env, lines)
+        local value = emitExpression(arguments, env, lines)[1]
         local typeStrValue = emitTempVal(ast, env, lines,
                                          "STR", derefValToType(value))
 
         return typeStrValue
     else
-        local c = emitExpression(functionExp, env, lines)
+        local c = emitExpression(functionExp, env, lines)[1]
         return emitCallClosure(env, lines, c)
-    end
-end
-
--- currying just for fun
-function fillup(column)
-    return function(str)
-        local l = string.len(str)
-        if column > l then
-            return string.format("%s%s", str, string.rep(" ", column - l))
-        else
-            return str
-        end
-    end
-end
-
--- function composition
--- compose(fun1, fun2)("foobar") = fun1(fun2("foobar"))
-function compose(funOuter)
-    return function(funInner)
-        return function(x)
-            return funOuter(funInner(x))
-        end
     end
 end
 
@@ -236,14 +223,14 @@ function emitFunction(ast, env, lines)
     -- end of function definition
     addLine(env, lines, "}")
     popScope(env)
-    return tempVal
+    return { tempVal }
 end
 
 function emitParen(ast, env, lines)
     return emitExpression(ast[1], env, lines)
 end
 
--- always returns a location "string" and the lines table
+-- always returns a table of location "strings" and the lines table
 function emitExpression(ast, env, lines)
     if ast.tag == "Op" then return emitOp(ast, env, lines)
     elseif ast.tag == "Id" then return emitId(ast, env, lines)
@@ -289,7 +276,7 @@ function emitOp(ast, env, lines)
 end
 
 function emitUnop(ast, env, lines)
-    operand2, lines = emitExpression(ast[2], env, lines)
+    operand2, lines = emitExpression(ast[2], env, lines)[1]
     tempVal = getTempValname(env)
 
     lines[#lines + 1] = augmentLine(
@@ -300,14 +287,14 @@ function emitUnop(ast, env, lines)
                       derefValToValue(operand2),
                       derefValToType(operand2)))
 
-    return tempVal
+    return { tempVal }
 end
 
 function emitBinop(ast, env, lines)
     local ergId1 = getUniqueId(env)
     local tempVal = getTempValname(env)
-    local left = emitExpression(ast[2], env, lines)
-    local right = emitExpression(ast[3], env, lines)
+    local left = emitExpression(ast[2], env, lines)[1]
+    local right = emitExpression(ast[3], env, lines)[1]
     lines[#lines + 1] = augmentLine(
         env,
         string.format("eval %s=\\(\"\\$((%s%s%s))\" %s\\)",
@@ -316,7 +303,7 @@ function emitBinop(ast, env, lines)
                       strToOpstring(ast[1]),
                       derefValToValue(right),
                       derefValToType(right)))
-    return tempVal
+    return { tempVal }
 end
 
 function emitExplist(ast, env, lines)
@@ -377,12 +364,12 @@ function emitLocal(ast, env, lines)
 end
 
 function emitVarUpdate(env, lines, varname, valuename, value, typ)
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("eval %s=%s", varname, valuename))
-            lines[#lines + 1] = augmentLine(
-                env,
-                string.format("eval %s=\\(\"%s\" %s\\)", valuename, value, typ))
+    lines[#lines + 1] = augmentLine(
+        env,
+        string.format("eval %s=%s", varname, valuename))
+    lines[#lines + 1] = augmentLine(
+        env,
+        string.format("eval %s=\\(\"%s\" %s\\)", valuename, value, typ))
 end
 
 function emitGlobalVar(varname, valuename, lines, env)
@@ -472,7 +459,7 @@ function emitExecutePrefixexp(prefixExp, env, lines, asLval)
             end
         end
     end
-    return temp[#temp]
+    return { temp[#temp] }
 end
 
 function linearizePrefixTree(ast, env, result)

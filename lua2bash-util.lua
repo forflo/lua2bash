@@ -99,15 +99,17 @@ function zipI(left, right)
     return result
 end
 
+function tableFullAdd(left, right)
+    result = {}
+    for k, v in pairs(left) do result[#result + 1] = v end
+    for k, v in pairs(right) do result[#result + 1] = v end
+    return result
+end
+
 function tableIAdd(left, right)
     result = {}
-    for k,v in ipairs(left) do
-        result[#result + 1] = v
-    end
-    for k,v in ipairs(right) do
-        result[#result + 1] = v
-    end
-
+    for k,v in ipairs(left) do result[#result + 1] = v end
+    for k,v in ipairs(right) do result[#result + 1] = v end
     return result
 end
 
@@ -261,3 +263,25 @@ traverser(ast,
                   return false
               end
           end, true)
+
+-- currying just for fun
+function fillup(column)
+    return function(str)
+        local l = string.len(str)
+        if column > l then
+            return string.format("%s%s", str, string.rep(" ", column - l))
+        else
+            return str
+        end
+    end
+end
+
+-- function composition
+-- compose(fun1, fun2)("foobar") = fun1(fun2("foobar"))
+function compose(funOuter)
+    return function(funInner)
+        return function(x)
+            return funOuter(funInner(x))
+        end
+    end
+end
