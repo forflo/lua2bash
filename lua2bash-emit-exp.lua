@@ -149,12 +149,14 @@ function emitCall(ast, env, lines)
             env, lines,
             string.format("eval echo %s", dereferenced))
     elseif functionName == "type" then
+        -- TODO: table!
         local value = emitExpression(arguments, env, lines)[1]
         local typeStrValue = emitTempVal(ast, env, lines,
                                          "STR", derefValToType(value))
 
         return typeStrValue
     else
+        -- TODO: table
         local c = emitExpression(functionExp, env, lines)[1]
         return emitCallClosure(env, lines, c)
     end
@@ -315,11 +317,14 @@ function emitExplist(ast, env, lines)
     end
     local locations = {}
     for k, expression in ipairs(ast) do
-        local tempVal = emitExpression(expression, env, lines)
-        local tempVnRhs = emitTempVal(ast, env, lines,
-                                      derefValToType(tempVal),
-                                      derefValToValue(tempVal))
-        locations[#locations + 1] = tempVnRhs
+        local tempValues = emitExpression(expression, env, lines)
+        local tempVnRhs =
+            imap(tempValues,
+                 function(v)
+                     return emitTempVal(ast, env, lines,
+                                        derefValToType(v),
+                                        derefValToValue(v)) end)
+        tableIAddInplace(locations, tempVnRhs)
     end
     return locations
 end
@@ -367,11 +372,10 @@ end
 
 function emitVarUpdate(env, lines, varname, valuename, value, typ)
     lines[#lines + 1] = augmentLine(
-        env,
-        string.format("eval %s=%s", varname, valuename))
+        env, string.format("eval %s=%s", varname, valuename))
     lines[#lines + 1] = augmentLine(
-        env,
-        string.format("eval %s=\\(\"%s\" %s\\)", valuename, value, typ))
+        env, string.format("eval %s=\\(\"%s\" %s\\)",
+                           valuename, value, typ))
 end
 
 function emitGlobalVar(varname, valuename, lines, env)

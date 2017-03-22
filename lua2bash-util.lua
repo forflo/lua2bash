@@ -98,6 +98,12 @@ function zipI(left, right)
     return result
 end
 
+function tableIAddInplace(dest, source)
+    local dest = dest or {} -- make new table if dest is nil
+    for k, v in ipairs(source) do dest[#dest + 1] = v end
+    return dest
+end
+
 function tableFullAdd(left, right)
     result = {}
     for k, v in pairs(left) do result[#result + 1] = v end
