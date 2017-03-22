@@ -43,6 +43,8 @@ f[2](); -- prints 2
 And here, ladies and gentlemen, is the corresponding BASH
 code (only successfully tested on 4.4.12(1)-release).
 
+Transpilation command: `$ lua lua2bash.lua "$(<tc/simpleClosure.lua)" | bash`
+
 ```bash
 # Begin of Scope: G
 if [ -z $E2 ]; then                                 # environment counter
