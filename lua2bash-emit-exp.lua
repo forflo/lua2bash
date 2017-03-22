@@ -380,14 +380,12 @@ end
 
 function emitGlobalVar(varname, valuename, lines, env)
     lines[#lines + 1] = augmentLine(
-        env,
-        string.format("eval %s=%s", varname, valuename))
+        env, string.format("eval %s=%s", varname, valuename))
 end
 
 function emitUpdateGlobVar(valuename, value, lines, env, typ)
     lines[#lines + 1] = augmentLine(
-        env,
-        string.format([[eval %s=\(%s %s\)]], valuename, value, typ))
+        env, string.format([[eval %s=\(%s %s\)]], valuename, value, typ))
 end
 
 function emitSet(ast, env, lines)
