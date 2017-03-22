@@ -32,13 +32,18 @@ function getEnvSuffix(env)
     return "${" .. topScope(env).environmentCounter .. "}"
 end
 
-function getTempValname(env)
-    local commonSuffix = getEnvSuffix(env) .. "_" .. getUniqueId(env)
+function getTempValname(env, simple)
+    local commonSuffix
+    if not simple then
+        commonSuffix = getEnvSuffix(env) .. "_" .. getUniqueId(env)
+    else
+        commonSuffix = "_" .. getUniqueId(env)
+    end
     return env.tempValPrefix .. commonSuffix
 end
 
-function emitTempVal(ast, env, lines, typ, content)
-    tempVal = getTempValname(env)
+function emitTempVal(ast, env, lines, typ, content, simple)
+    tempVal = getTempValname(env, simple)
     lines[#lines + 1] = augmentLine(
         env, string.format("eval %s=\\(%s %s\\)", tempVal, content, typ))
     return tempVal
@@ -117,11 +122,6 @@ function emitTable(ast, env, lines, firstCall)
         end
     end
     return { env.tablePrefix .. getEnvSuffix(env) .. tableId }
-end
-
-function addLine(env, lines, line)
-    lines[#lines + 1] = augmentLine(
-        env, line)
 end
 
 -- TODO: argValueList!

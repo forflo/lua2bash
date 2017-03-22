@@ -111,7 +111,8 @@ function serForIn(ast)
 end
 
 function serWhi(ast)
-    return "while " .. serPar(ast[1]) .. " do " .. serBlock(ast[2]) .. "end"
+    return "while " .. "(" .. serExp(ast[1]) .. ")"
+    .. " do " .. serBlock(ast[2]) .. "end"
 end
 
 -- Well, ...

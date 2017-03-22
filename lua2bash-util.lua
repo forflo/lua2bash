@@ -98,6 +98,10 @@ function zipI(left, right)
     return result
 end
 
+function addLine(env, lines, line, comment)
+    lines[#lines + 1] = augmentLine(env, line, comment)
+end
+
 function tableIAddInplace(dest, source)
     local dest = dest or {} -- make new table if dest is nil
     for k, v in ipairs(source) do dest[#dest + 1] = v end

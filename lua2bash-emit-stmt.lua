@@ -140,17 +140,37 @@ end
 
 function emitForIn(ast, env, lines)
     -- TODO:
-
 end
 
 function emitWhile(ast, env, lines)
-    -- TODO:
-
+    local loopExpr = ast[1]
+    local loopBlock = ast[2]
+    -- only the first tempValue is significant
+    local tempValue = emitExpression(loopExpr, env, lines)[1]
+    local simpleValue = emitTempVal(ast, env, lines, derefValToType(tempValue),
+                derefValToValue(tempValue), true)
+    addLine(env, lines, string.format(
+                "while [ \"${%s}\" != 0 ]; do",
+                simpleValue))
+    emitBlock(loopBlock, env, lines)
+    -- recalculate expression for next loop
+    incCC(env)
+    local tempValue2 = emitExpression(loopExpr, env, lines)[1]
+    addLine(env, lines, string.format("eval %s=%s",
+                                      simpleValue,
+                                      derefValToValue(tempValue2)))
+    addLine(env, lines, "true", "to prevent empty block")
+    decCC(env)
+    addLine(env, lines, "done")
 end
 
 function emitRepeat(ast, env, lines)
     -- TODO:
 
+end
+
+function emitBreak(ast, env, lines)
+    addLine(env, lines, "break;")
 end
 
 function emitStatement(ast, env, lines)
@@ -170,6 +190,8 @@ function emitStatement(ast, env, lines)
         emitRepeat(ast, env, lines)
     elseif ast.tag == "If" then
         emitIf(ast, env, lines)
+    elseif ast.tag == "Break" then
+        emitBreak(ast, env, lines)
     elseif ast.tag == "While" then
         emitWhile(ast, env, lines)
     elseif ast.tag == "Do" then
