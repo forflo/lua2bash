@@ -217,6 +217,10 @@ function emitFunction(ast, env, lines)
 
     addLine(env, lines,
             string.format("function BF%s {", functionId))
+    incCC(env)
+    addLine(env, lines, string.format("%s=$1", oldEnv))
+    decCC(env)
+
     -- recurse into block
     emitBlock(ast[2], env, lines)
     incCC(env)
@@ -267,6 +271,7 @@ function strToOpstring(str)
     elseif str == "le" then return "<="
     elseif str == "le" then return "<="
     elseif str == "eq" then return "=="
+    elseif str == "not" then return "!"
     end
 end
 
@@ -461,7 +466,8 @@ function emitExecutePrefixexp(prefixExp, env, lines, asLval)
                 temp[i] = index
             else
                 temp[i] = emitTempVal(
-                    ast, env, lines, "NKN",
+                    ast, env, lines,
+                    string.format([[$(eval echo \\\${%s[1]})]], index),
                     string.format([[$(eval echo \\\${%s})]], index))
             end
         end
