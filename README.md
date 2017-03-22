@@ -14,10 +14,10 @@ Here a few things that work right now
 ## Closures and first class functions
 
 Yes, this is real. Closures have come to the bash.
-Well, at least, the following, trivial example works
+Well, at least the following trivial example works
 as expected. I am, however, not even remotely sure
-whether the target code will always behave in correct
-closure semantical ways.
+whether the target code will always behave in correct,
+closure-semantic ways.
 
 But here is the test code...
 
@@ -42,6 +42,8 @@ f[2](); -- prints 2
 
 And here, ladies and gentlemen, is the corresponding BASH
 code (only successfully tested on 4.4.12(1)-release).
+
+Transpilation command: `$ lua lua2bash.lua "$(<tc/simpleClosure.lua)" | bash`
 
 ```bash
 # Begin of Scope: G
