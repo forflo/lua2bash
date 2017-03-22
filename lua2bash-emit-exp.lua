@@ -419,7 +419,7 @@ function emitSimpleAssign(ast, env, lines, rhs)
 end
 
 function emitComplexAssign(lhs, env, lines, rhs)
-    local setValue = emitExecutePrefixexp(lhs, env, lines, true)
+    local setValue = emitExecutePrefixexp(lhs, env, lines, true)[1]
     emitUpdateGlobVar(string.format([[$(eval echo %s)]], setValue),
                       derefValToValue(rhs),
                       lines, env,
