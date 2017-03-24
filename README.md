@@ -246,3 +246,11 @@ echo ${!VAR_NIL[1]}
 ```
 
 and correctly evaluates to `4\n2\n3\n\n`.
+
+# Prerequisites
+
+In order to be able to run lua2bash, you'll need the following items installed on your computer.
+
+- lua
+- luarocks
+- the luarocks package `lua-parser`
