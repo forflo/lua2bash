@@ -15,6 +15,15 @@ function tostring(x)
     end
 end
 
+function max(n1, n2)
+    return expIfStrict(n1 <= n2, n2, n1)
+end
+
+function iterate(fun, arg, n)
+    if (n <= 1) then return fun(arg)
+    else return iterate(fun, fun(arg), n - 1) end
+end
+
 -- adds indentation and optionally a comment
 function augmentLine(env, line, comment)
     if comment then comment = " # " .. comment end
