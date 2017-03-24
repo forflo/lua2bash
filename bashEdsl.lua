@@ -12,13 +12,34 @@ local function makeBdsl(activeChars, begin, ending, str, nesting)
     end
     result = { activeChars = temp, begin = begin,
                ending = ending, payload = str,
+               typ = "normal",
                nesting = nesting }
     setmetatable(result, bashDslMtab)
     return result
 end
 
--- bashString:
--- { activeChars, begin = "${", string = "foo", end = "}", hostsNests = 0}
+
+local function bDslWord(bash)
+    if not bash then print("error!"); os.exit(1) end
+    -- TODO: ok?
+    local t, n, result
+    if type(bash) == "table" then t, n = bash(), bash.nesting
+    else t, n = bash, 0
+    end
+    result = makeBdsl({}, "", "", t, n)
+    result.typ = "separator"
+    return result
+end
+
+local function bDslEval(bash)
+    local t, n
+    if type(bash) == "table" then t, n = bash.payload, bash.nesting
+    else t, n = bash, 0
+    end
+    result = makeBdsl({}, "", "", t, n)
+    result.typ = "eval"
+    return result
+end
 
 local function bDslAll(str)
     return makeBdsl({"\"", "'", "`", "{", "}", "(", ")", "$"},
@@ -74,7 +95,31 @@ local function bDslConcat(l, r)
     return makeBdsl({}, "", "", l() .. r(), max(l.nesting, r.nesting))
 end
 
-local function bashStringEmit(bstring)
+local function bDslExecEval(bstring)
+    local result = ""
+    local repCount = bstring.nesting
+    local rest
+    if type(bstring.payload) == "table" then
+        rest = bstring.payload() -- recurse into tree
+    else
+        rest = bstring.payload
+    end
+    result = result .. string.rep("eval ", repCount) .. rest
+    return result
+end
+
+local function bDslExecWord(bstring)
+    local result = ""
+    local rest
+    if type(bstring.payload) == "table" then
+        rest = bstring.payload() -- recurse into tree
+    else
+        rest = bstring.payload
+    end
+    return rest .. " "
+end
+
+local function bDslExecNormal(bstring)
     local result = ""
     local ac = bstring.activeChars
     local begin = bstring.begin
@@ -106,6 +151,18 @@ local function bashStringEmitCmd(bstring)
         bstring())
 end
 
+local dispatchTable = {
+    normal = bDslExecNormal,
+    eval = bDslExecEval,
+    separator = bDslExecWord
+}
+
+local function bDslCallDispatch(s)
+    return dispatchTable[s.typ](s)
+end
+
+bDsl.w = bDslWord
+bDsl.e = bDslEval
 bDsl.c = bDslString
 bDsl.pE = bDslParamExpansion
 bDsl.sQ = bDslSingleQuotes
@@ -116,12 +173,15 @@ bDsl.cEp = bDslCommandExpansionParen
 bDsl.cEt = bDslCommandExpansionTicks
 bDsl.aE = bDslArithExpansion
 bDsl.bE = bDslBraceExpansion
-bDsl.lift = bDslAll
 
 bashDslMtab.__concat = bDslConcat
-bashDslMtab.__call = bashStringEmit
+bashDslMtab.__call = bDslCallDispatch
 
---print(getmetatable(bDsl.c("foo")).__call)
---print(((bDsl.c("foo") .. iterate(bDsl.pE, "moo", 5)) .. bDsl.pE("moo"))())
+b = bDsl
+
+--local t
+--t = b.e(b.w("echo") .. b.w(iterate(bDsl.sQ, "foo", 2))
+--            .. b.pE(b.c("TL") .. b.pE("E2") .. b.c("_26")))
+--print(t())
 
 return bDsl
