@@ -17,7 +17,7 @@ function emitNumber(ast, env, lines)
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, b.c("NUM"), b.c(ast[1])) }
+    return { emitTempVal(ast, env, lines, b.c("NUM"), b.c(tostring(ast[1]))) }
 end
 
 function emitNil(ast, env, lines)

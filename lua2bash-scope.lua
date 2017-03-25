@@ -1,3 +1,23 @@
+function CreateScope(config)
+    -- empty object
+    local result = {}
+    local envPrefix = config.environmentPrefix
+    -- init
+    function result:init(occasion, name, pathPrefix)
+        result.occasion = occasion
+        result.name = name
+        result.scope = {}
+        environmentCounter = envPrefix .. getUniqueId(config)
+        result.pathPrefix = pathPrefix
+    end
+    -- sets scope at the top for the first time
+    function result:setFirstTime(idString)
+        
+    end
+    --
+    return result
+end
+
 function pushScope(env, occasion, name)
     local joinChar = ''
     local envId = getUniqueId(env)
