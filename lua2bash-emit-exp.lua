@@ -162,30 +162,13 @@ function emitCall(ast, env, lines)
     end
 end
 
+-- we can do ((Ex = Ex + 1)) even as first comman line because
+-- bash will use 0 as value for Ex if the variable is not declared.
 function emitEnvCounter(env, lines, envName)
     lines[#lines + 1] = augmentLine(
         env, string.format("((%s = %s + 1))", envName, envName),
         "Environment counter")
 end
-
--- function emitEnvCounter(env, lines, envName)
---     imap({string.format("if [ -z $%s ]; then", envName),
---           string.format("%s%s=0;",
---                         string.rep(" ", env.indentSize),
---                         envName),
---           string.format("else"),
---           string.format("%s((%s++))",
---                         string.rep(" ", env.indentSize),
---                         envName,
---                         envName),
---           string.format("fi")},
---         compose(
---             function(e)
---                 lines[#lines + 1] =
---                     augmentLine(env, e, "environment counter")
---                 return lines
---         end)(fillup(50)))
--- end
 
 function snapshotEnvironment(ast, env, lines, usedSyms)
     return imap(
