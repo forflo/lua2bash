@@ -182,7 +182,7 @@ bDsl.p = bDslParentheses
 bashDslMtab.__concat = bDslConcat
 bashDslMtab.__call = bDslCallDispatch
 
-b = bDsl
+--b = bDsl
 
 --local t
 --t = b.e(b.w("echo") .. b.w(iterate(bDsl.sQ, "foo", 2))

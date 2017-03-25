@@ -66,14 +66,6 @@ function topScope(env)
     return env.scopeStack[#env.scopeStack]
 end
 
-function scopeGetScopeNamelistScopeStack(scopeStack)
-    result = {}
-    for i = 1, #scopeStack do
-        result[#result + 1] = scopeStack[i].name
-    end
-    return result
-end
-
 function isInSameScope(env, varName)
     local topScope = env.scopeStack[#env.scopeStack].scope
 

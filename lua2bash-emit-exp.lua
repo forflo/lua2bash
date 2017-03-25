@@ -304,12 +304,14 @@ function emitUnop(ast, env, lines)
     lines[#lines + 1] = augmentLine(
         env,
         b.e(tempVal
-                .. "="
-                .. b.p(b.dQ(b.aE(
-                                b.c(strToOpstring(ast[1])) ..
-                                    derefValToValue(operand2))) ..
-                           b.c(" ") ..
-                           derefValToType(operand2)))())
+                .. b.c("=")
+                .. b.p(
+                    b.dQ(
+                        b.aE(
+                            b.c(strToOpstring(ast[1])) ..
+                                derefValToValue(operand2))) ..
+                        b.c(" ") ..
+                        derefValToType(operand2)))())
 
     return { tempVal }
 end
@@ -321,12 +323,17 @@ function emitBinop(ast, env, lines)
     local right = emitExpression(ast[3], env, lines)[1]
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("eval %s=\\(\"\\$((%s%s%s))\" %s\\)",
-                      tempVal,
-                      derefValToValue(left),
-                      strToOpstring(ast[1]),
-                      derefValToValue(right),
-                      derefValToType(right)))
+        (b.e(
+             tempVal
+                 .. b.c("=")
+                 .. b.p(
+                     b.dQ(
+                         b.aE(
+                             derefValToValue(left) ..
+                                 b.c(strToOpstring(ast[1])) ..
+                                 derefValToValue(right)) ..
+                             b.c(" ") ..
+                             derefValToType(right)))))())
     return { tempVal }
 end
 
@@ -392,20 +399,19 @@ end
 
 function emitVarUpdate(env, lines, varname, valuename, value, typ)
     lines[#lines + 1] = augmentLine(
-        env, string.format("eval %s=%s", varname, valuename))
+        env, b.e(varname, valuename)())
     lines[#lines + 1] = augmentLine(
-        env, string.format("eval %s=\\(\"%s\" %s\\)",
-                           valuename, value, typ))
+        env, b.e(valuename .. b.p(b.dQ(value) .. typ))())
 end
 
 function emitGlobalVar(varname, valuename, lines, env)
     lines[#lines + 1] = augmentLine(
-        env, string.format("eval %s=%s", varname, valuename))
+        env, b.e(varname .. b.c("=") .. valuename)())
 end
 
 function emitUpdateGlobVar(valuename, value, lines, env, typ)
     lines[#lines + 1] = augmentLine(
-        env, string.format([[eval %s=\(%s %s\)]], valuename, value, typ))
+        env, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
 end
 
 function emitSet(ast, env, lines)
@@ -482,8 +488,8 @@ function emitExecutePrefixexp(prefixExp, env, lines, asLval)
             else
                 temp[i] = emitTempVal(
                     ast, env, lines,
-                    string.format([[$(eval echo \\\${%s[1]})]], index),
-                    string.format([[$(eval echo \\\${%s})]], index))
+                    b.pE(index .. b.c("[1]")),
+                    b.pE(index))
             end
         end
     end
