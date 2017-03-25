@@ -68,26 +68,6 @@ function join(strings, char)
     return result
 end
 
-function derefVarToValue(varname)
-    return string.format("\\${!%s}", varname)
-end
-
-function derefVarToType(varname)
-    return string.format([[$(eval echo \\\${\${%s}[1]})]], varname)
-end
-
-function derefValToEnv(valuename)
-    return string.format([[\${%s[2]}]], valname)
-end
-
-function derefValToValue(valuename)
-    return string.format("\\${%s}", valuename)
-end
-
-function derefValToType(valname)
-    return string.format([[\${%s[1]}]], valname)
-end
-
 function getUniqueId(env)
     env.globalIdCount = env.globalIdCount + 1
     return env.globalIdCount

@@ -50,6 +50,10 @@ local function bDslString(str)
     return makeBdsl({}, "", "", str, 0)
 end
 
+local function bDslParentheses(str)
+    return makeBdsl({"(", ")"}, "(", ")", str, (str.nesting or -1) + 1)
+end
+
 local function bDslParamExpansion(str)
     return makeBdsl({"$"}, "${", "}", str, (str.nesting or -1) + 1)
 end
@@ -173,6 +177,7 @@ bDsl.cEp = bDslCommandExpansionParen
 bDsl.cEt = bDslCommandExpansionTicks
 bDsl.aE = bDslArithExpansion
 bDsl.bE = bDslBraceExpansion
+bDsl.p = bDslParentheses
 
 bashDslMtab.__concat = bDslConcat
 bashDslMtab.__call = bDslCallDispatch

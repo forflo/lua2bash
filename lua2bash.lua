@@ -25,6 +25,7 @@ require "lua2bash-emit-stmt"
 require "lua2bash-emit-exp"
 require "lua2bash-util"
 require "lua2bash-scope"
+b = require "bashEdsl"
 
 if #arg ~= 1 then
     print("Usage: lua2bash.lua <string>")

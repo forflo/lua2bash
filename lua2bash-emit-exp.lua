@@ -17,7 +17,7 @@ function emitNumber(ast, env, lines)
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, "NUM", ast[1]) }
+    return { emitTempVal(ast, env, lines, b.c("NUM"), b.c(ast[1])) }
 end
 
 function emitNil(ast, env, lines)
@@ -25,27 +25,50 @@ function emitNil(ast, env, lines)
         print("emitNil(): not a Nil node")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, "NIL", "") }
+    return { emitTempVal(ast, env, lines, b.c("NIL"), b.c("")) }
 end
 
 function getEnvSuffix(env)
-    return "${" .. topScope(env).environmentCounter .. "}"
+    return b.pE(topScope(env).environmentCounter)
 end
 
 function getTempValname(env, simple)
     local commonSuffix
     if not simple then
-        commonSuffix = getEnvSuffix(env) .. "_" .. getUniqueId(env)
+        commonSuffix = b.c(getEnvSuffix(env)) ..
+            b.c("_") ..
+            b.c(tostring(getUniqueId(env)))
     else
-        commonSuffix = "_" .. getUniqueId(env)
+        commonSuffix = b.c("_") .. b.c(getUniqueId(env))
     end
-    return env.tempValPrefix .. commonSuffix
+--    dbg()
+    return b.c(env.tempValPrefix) .. commonSuffix
+end
+
+function derefVarToValue(varname)
+    return b.pE(b.c("!") .. b.c(varname))
+end
+
+function derefVarToType(varname)
+    return b.pE(b.pE(varname) .. b.c("[1]"))
+end
+
+function derefValToEnv(valuename)
+    return b.pE(valuename .. b.c("[2]"))
+end
+
+function derefValToValue(valuename)
+    return b.pE(valuename)
+end
+
+function derefValToType(valname)
+    return b.pE(valname .. b.c("[1]"))
 end
 
 function emitTempVal(ast, env, lines, typ, content, simple)
-    tempVal = getTempValname(env, simple)
-    lines[#lines + 1] = augmentLine(
-        env, string.format("eval %s=\\(%s %s\\)", tempVal, content, typ))
+    local tempVal = getTempValname(env, simple)
+    local cmdLine = b.e(tempVal .. b.c("=") .. b.p(content .. b.c(" ") .. typ))
+    lines[#lines + 1] = augmentLine(env, cmdLine())
     return tempVal
 end
 
@@ -54,7 +77,7 @@ function emitString(ast, env, lines)
         print("emitString(): not a string node")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, "STR", ast[1]) }
+    return { emitTempVal(ast, env, lines, b.c("STR"), b.c(ast[1])) }
 end
 
 function emitFalse(ast, env, lines)
@@ -62,7 +85,7 @@ function emitFalse(ast, env, lines)
         print("emitFalse(): not a False node!")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, "FLS", "0") }
+    return { emitTempVal(ast, env, lines, b.c("FLS"), b.c("0")) }
 end
 
 function emitTrue(ast, env, lines)
@@ -70,18 +93,19 @@ function emitTrue(ast, env, lines)
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, "TRU", "1") }
+    return { emitTempVal(ast, env, lines, b.c("TRU"), b.c("1")) }
 end
 
 function emitTableValue(env, lines, suffix, value, typ)
-    local typeString = "Table"
+    local typeString = b.c("Table")
     local envSuffix = getEnvSuffix(env)
-    local valueName = env.tablePrefix .. envSuffix .. suffix
-    addLine(
-        env, lines,
-        string.format("eval %s=\\(%s %s\\)",
-                      valueName, value or valueName,
-                      typ or typeString))
+    local valueName = b.c(env.tablePrefix) .. envSuffix .. suffix
+    local cmdline = b.e(
+        valueName .. b.c("=")
+            .. b.p((value or valueName)
+                    .. b.c(" ") ..
+                    (typ or typeString)))
+    addLine(env, lines, cmdline())
     return valueName
 end
 
@@ -127,11 +151,9 @@ end
 -- TODO: argValueList!
 -- returns a tempvalue of the result
 function emitCallClosure(env, lines, closureValue, argValueList)
-    addLine(
-        env, lines,
-        string.format("eval %s %s",
-                      derefValToValue(closureValue),
-                      derefValToType(closureValue)))
+    local cmdLine = b.e(derefValToValue(closureValue) .. b.c(" ")
+                            .. derefValToType(closureValue))
+    addLine(env, lines, cmdLine())
 end
 
 -- TODO: return und argumente
@@ -198,8 +220,8 @@ function emitFunction(ast, env, lines)
     addLine(env, lines, "# Closure defintion")
     local tempVal =
         emitTempVal(ast, env, lines,
-                    "${" .. topScope(env).environmentCounter .. "}",
-                    "BF" .. functionId)
+                    b.pE(topScope(env).environmentCounter),
+                    b.c("BF") .. b.c(tostring(functionId)))
     addLine(env, lines, "# Environment Snapshotting")
     snapshotEnvironment(ast, env, lines, usedSyms)
     topScope(env).environmentCounter = newEnv
@@ -207,7 +229,7 @@ function emitFunction(ast, env, lines)
     addLine(env, lines,
             string.format("function BF%s {", functionId))
     incCC(env)
-    addLine(env, lines, string.format("%s=$1", oldEnv))
+    addLine(env, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
     decCC(env)
 
     -- recurse into block
@@ -215,6 +237,7 @@ function emitFunction(ast, env, lines)
     incCC(env)
     lines[#lines + 1] = augmentLine(
         env,
+        --TODO:
         string.format("%s=$1", topScope(env).environmentCounter))
     decCC(env)
     -- end of function definition
@@ -277,13 +300,16 @@ function emitUnop(ast, env, lines)
     operand2, lines = emitExpression(ast[2], env, lines)[1]
     tempVal = getTempValname(env)
 
+
     lines[#lines + 1] = augmentLine(
         env,
-        string.format("eval %s=\\(\"\\$((%s%s))\" %s\\)",
-                      tempVal,
-                      strToOpstring(ast[1]),
-                      derefValToValue(operand2),
-                      derefValToType(operand2)))
+        b.e(tempVal
+                .. "="
+                .. b.p(b.dQ(b.aE(
+                                b.c(strToOpstring(ast[1])) ..
+                                    derefValToValue(operand2))) ..
+                           b.c(" ") ..
+                           derefValToType(operand2)))())
 
     return { tempVal }
 end

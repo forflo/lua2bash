@@ -219,6 +219,7 @@ end
 function strToOpstr(str)
     if str == "add" then return "+"
     elseif str== "sub" then return "-"
+    elseif str== "unm" then return "-"
     elseif str == "mul" then return "*"
     elseif str == "div" then return "/"
     elseif str == "pow" then return "^"
