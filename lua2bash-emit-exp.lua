@@ -163,23 +163,29 @@ function emitCall(ast, env, lines)
 end
 
 function emitEnvCounter(env, lines, envName)
-    imap({string.format("if [ -z $%s ]; then", envName),
-          string.format("%s%s=0;",
-                        string.rep(" ", env.indentSize),
-                        envName),
-          string.format("else"),
-          string.format("%s((%s++))",
-                        string.rep(" ", env.indentSize),
-                        envName,
-                        envName),
-          string.format("fi")},
-        compose(
-            function(e)
-                lines[#lines + 1] =
-                    augmentLine(env, e, "environment counter")
-                return lines
-        end)(fillup(50)))
+    lines[#lines + 1] = augmentLine(
+        env, string.format("((%s = %s + 1))", envName, envName),
+        "Environment counter")
 end
+
+-- function emitEnvCounter(env, lines, envName)
+--     imap({string.format("if [ -z $%s ]; then", envName),
+--           string.format("%s%s=0;",
+--                         string.rep(" ", env.indentSize),
+--                         envName),
+--           string.format("else"),
+--           string.format("%s((%s++))",
+--                         string.rep(" ", env.indentSize),
+--                         envName,
+--                         envName),
+--           string.format("fi")},
+--         compose(
+--             function(e)
+--                 lines[#lines + 1] =
+--                     augmentLine(env, e, "environment counter")
+--                 return lines
+--         end)(fillup(50)))
+-- end
 
 function snapshotEnvironment(ast, env, lines, usedSyms)
     return imap(
