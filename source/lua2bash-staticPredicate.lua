@@ -179,3 +179,5 @@ end
 function statcheck.statcheck.isStaticPrefix(ast)
     return statcheck.isStaticPrefix(ast[1]) .. statcheck.isStaticPrefix(ast[2])
 end
+
+return statcheck
