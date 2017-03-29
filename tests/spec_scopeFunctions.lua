@@ -77,5 +77,17 @@ describe(
                assert.Truthy(result.symbol)
                assert.True(result.exists)
                assert.are.equal(result.scope, stack:bottom())
+
+               assert.are.same([[V${E0}globalS1I1goo]],
+                               result.symbol:getEmitVarname())
+
+               scope.setGlobal(config, stack, "goo")
+               local result2 = scope.getMostCurrentBinding(stack, "goo")
+               assert.are.not_equal(result.symbol, result2.symbol)
+        end)
+
+        it("tests whether setLocalFirstTime does set correctly first time",
+           function()
+               scope.setLocalFirstTime(config, stack, "moo")
         end)
 end)

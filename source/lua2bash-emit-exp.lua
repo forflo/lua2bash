@@ -18,12 +18,13 @@ function emitId(indent, ast, config, stack, lines)
 end
 
 function emitNumber(indent, ast, config, stack, lines)
+    local value = tostring(ast[1])
     if ast.tag ~= "Number" then
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-    -- TODO:
-    return { emitTempVal(indent, config, lines, b.c("NUM"), b.c(tostring(ast[1]))) }
+    return { emitTempVal(indent, config, lines,
+                         b.c("NUM"), b.c(value)) }
 end
 
 function emitNil(indent, ast, config, stack, lines)
@@ -31,7 +32,6 @@ function emitNil(indent, ast, config, stack, lines)
         print("emitNil(): not a Nil node")
         os.exit(1)
     end
-    -- TODO:
     return { emitTempVal(indent, config, lines, b.c("NIL"), b.c("")) }
 end
 
@@ -76,7 +76,7 @@ end
 function emitTempVal(indent, config, lines, typ, content, simple)
     local tempVal = getTempValname(env, simple)
     local cmdLine = b.e(tempVal .. b.c("=") .. b.p(content .. b.c(" ") .. typ))
-    lines[#lines + 1] = augmentLine(indent, cmdLine())
+    util.addLine(indent, lines, cmdLine())
     return tempVal
 end
 
@@ -229,12 +229,10 @@ function emitFunction(indent, ast, config, stack, lines)
     local block = ast[2]
     local functionId = util.getUniqueId()
     local oldEnv = stack:top():getEnvironmentId()
-
     local scopeName = "F" .. functionId()
-    local newScope = compiler.Scope():init(
-        "function", scopeName, util.getUniqueId(),
-        compiler.Scope():CONCATNAMES(stack) .. scopeName)
-
+    local newScope = compiler.Scope(
+        compiler.occasions.FUNCTION, scopeName,
+        util.getUniqueId(), scope.getPathPrefix(stack) .. scopeName)
     stack:push(newScope)
     local newEnv = stack:top():getEnvironmentId()
     -- temporary set to old for snapshotting
@@ -243,6 +241,7 @@ function emitFunction(indent, ast, config, stack, lines)
     local tempVal =
         emitTempVal(indent, config, lines,
                     b.pE("E" .. stack:top():getEnvironmentId()),
+                    -- adjust symbol string?
                     b.c("BF") .. b.c(tostring(functionId)))
     addLine(indent, lines, "# Environment Snapshotting")
     snapshotEnvironment(indent, ast, config, stack, lines)
@@ -252,7 +251,7 @@ function emitFunction(indent, ast, config, stack, lines)
     addLine(indent, lines, string.format("function BF%s {", functionId))
     addLine(indent, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
     -- recurse into block
-    emitBlock(indent, ast[2], config, stack, lines)
+    emitBlock(indent, block, config, stack, lines)
     addLine(
         indent, lines,
         string.format("%s=$1", "E" .. scope:top():getEnvironmentId()))
@@ -347,8 +346,8 @@ function emitBinop(indent, ast, config, stack, lines)
     local tempVal = getTempValname(env)
     local left = emitExpression(ast[2], env, lines)[1]
     local right = emitExpression(ast[3], env, lines)[1]
-    lines[#lines + 1] = augmentLine(
-        env,
+    addLine(
+        indent, lines
         (b.e(
              tempVal
                  .. b.c("=")
@@ -384,7 +383,7 @@ function emitExplist(indent, ast, config, stack, lines)
     return locations
 end
 
-
+-- TODO: really blongs not here but in lua2bash-emit-stmt
 function emitLocal(indent, ast, config, stack, lines)
     local topScope = stack:top()
     local varNames = {}
@@ -397,59 +396,55 @@ function emitLocal(indent, ast, config, stack, lines)
         locations[#locations + 1] = "DUMMY"
     end
     local iter = statefulIIterator(locations)
-    for _, idString in pairs(varNames) do
-        local inSome, attr1 = isInSomeScope(config, stack, idString)
-        local inSame, attr2 = isInSameScope(config, stack, idString)
-        if inSame then
+    for _, varName in pairs(varNames) do
+        local bindingQuery = scope.getMostCurrentBinding(stack, idString)
+        local someWhereDefined = bindingQuery ~= nil
+        local scope, symbol
+        if someWhereDefined then
+            scope = bindingQuery.scope
+            symbol = bindingQuery.symbol
+        end
+        if someWhereDefined and (scope ~= stack:top()) then
             local t = iter()
-            scopeSetLocalAgain(ast, env, attr2)
-            emitVarUpdate(env,
-                          lines,
-                          topScope[idString].emitVarname,
-                          topScope[idString].emitCurSlot,
+            local newsym = scope.updateSymbol(config, stack, symbol, varName)
+            emitVarUpdate(indent, lines,
+                          newsym:getEmitVarname(),
+                          newsym:getCurSlot(),
                           derefValToValue(t),
                           derefValToType(t))
-        elseif inSome == true or inSome == false then
+        elseif someWhereDefined and (scope == stack:top()) then
             local t = iter()
             -- in both cases, define in top scope
-            scopeSetLocalFirstTime(ast, env,
-                                   env.scopeStack[#env.scopeStack],
-                                   idString)
-            emitVarUpdate(env,
-                          lines,
-                          topScope[idString].emitVarname,
-                          topScope[idString].emitCurSlot,
+            local newsym = scope.setLocalFirstTime(config, stack, varName)
+            emitVarUpdate(indent, lines,
+                          newsym:getEmitVarname(),
+                          newSym:getCurSlot(),
                           derefValToValue(t),
                           derefValToType(t))
+        else
+            local newsym = scope.setLocalFirstTime(config, stack, varName)
         end
     end
 end
 
--- TODO:
-function emitVarUpdate(indent, config, lines, varname, valuename, value, typ)
-    lines[#lines + 1] = augmentLine(
-        env, b.e(varname, valuename)())
-    lines[#lines + 1] = augmentLine(
-        env, b.e(valuename .. b.p(b.dQ(value) .. typ))())
+function emitVarUpdate(indent, lines, varname, valuename, value, typ)
+    addLine(indent, lines, b.e(varname, valuename)())
+    addLine(indent, lines, b.e(valuename .. b.p(b.dQ(value) .. typ))())
 end
 
--- TODO:
-function emitGlobalVar(varname, valuename, lines, env)
-    lines[#lines + 1] = augmentLine(
-        env, b.e(varname .. b.c("=") .. valuename)())
+function emitGlobalVar(indent, varname, valuename, lines, env)
+    addLine(indent, lines, b.e(varname .. b.c("=") .. valuename)())
 end
 
--- TODO:
-function emitUpdateGlobVar(valuename, value, lines, env, typ)
-    lines[#lines + 1] = augmentLine(
-        env, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
+function emitUpdateGlobVar(indent, valuename, value, lines, env, typ)
+    addLine(indent, lines, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
 end
 
 -- TODO
 function emitSet(indent, ast, config, stack, lines)
-    addLine(env, lines, "# " .. serSet(ast))
+    addLine(indent, lines, "# " .. serSet(ast))
     local explist, varlist = ast[2], ast[1]
-    local rhsTempresults = emitExplist(explist, env, lines)
+    local rhsTempresults = emitExplist(indent, explist, config, stack, lines)
     local iterator = statefulIIterator(rhsTempresults)
     for k, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
