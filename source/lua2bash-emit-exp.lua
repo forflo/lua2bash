@@ -440,7 +440,6 @@ function emitUpdateGlobVar(indent, valuename, value, lines, env, typ)
     addLine(indent, lines, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
 end
 
--- TODO
 function emitSet(indent, ast, config, stack, lines)
     addLine(indent, lines, "# " .. serSet(ast))
     local explist, varlist = ast[2], ast[1]
@@ -448,18 +447,21 @@ function emitSet(indent, ast, config, stack, lines)
     local iterator = statefulIIterator(rhsTempresults)
     for k, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
-            emitSimpleAssign(lhs, env, lines, iterator())
+            emitSimpleAssign(indent, lhs, config,
+                             stack, lines, iterator())
         else
-            emitComplexAssign(lhs, env, lines, iterator())
+            emitComplexAssign(indent, lhs, config,
+                              stack, lines, iterator())
         end
     end
 end
 
 function emitSimpleAssign(indent, ast, config, stack, lines, rhs)
-    local idString = ast[1]
+    local varName = ast[1]
+    local scopeQuery = scope.getMostCurrentBinding(stack, varName)
     local inSome, coordinate = isInSomeScope(env, idString)
-    if not inSome then -- make var in global
-        scopeSetGlobal(env, idString)
+    if scopeQuery == nil then -- make var in global
+        local symbol = scope.setGlobal(config, stack, varName)
         inSome, coordinate = isInSomeScope(env, idString)
         emitGlobalVar(coordinate[2].emitVarname,
                       coordinate[2].emitCurSlot,

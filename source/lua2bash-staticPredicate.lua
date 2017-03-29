@@ -1,3 +1,4 @@
+local util = require("lua2bash-util")
 -- this module implements a predicate function
 -- which can be used to determine whether an AST
 -- can be statically evaluated
@@ -15,24 +16,57 @@ function isStaticPair(ast)
 end
 
 function isStaticCall(ast)
+    local prefixExpr = ast[1]
+    local arguments = util.tableSlice(ast, 2, #ast, 1)
+    return isStaticPrefix(prefixExpr) and
+        util.ifold(
+            util.imap(
+                arguments,
+                function(exp)
+                    return isStaticExp(exp) end),
+            function(b, acc)
+                return acc and b end,
+            true)
 end
 
 function isStaticFun(ast)
+    local namelist = ast[1]
+    local block = ast[2]
+    return isStaticNamelist(namelist) and
+        isStaticBlock(block)
 end
 
 function isStaticVarlist(ast)
+    return util.ifold(
+        util.imap(
+            ast,
+            function(pExp)
+                return isStaticPrefix(pExp) end),
+        function(b, acc)
+            return acc and b end,
+        true)
 end
 
 function isStaticExplist(ast)
+    local bools = util.imap(ast, function(exp) return isStaticExp(exp) end)
+    return util.ifold(bools, function(b, acc) return acc and b end, true)
 end
 
 function isStaticNamelist(ast)
+    --TODO
+    return true
 end
 
-function isStaticLcl(ast)
+function isStaticLocal(ast)
+    return isStaticNamelist(ast[1]) and
+        isStaticExplist(ast[2])
 end
 
 function isStaticSet(ast)
+    local varlist = ast[1]
+    local explist = ast[2]
+    return isStaticVarlist(varlist) and
+        isStaticExplist(explist)
 end
 
 function isStaticFor(ast)
@@ -49,8 +83,12 @@ function isStaticFor(ast)
 end
 
 function isStaticForIn(ast)
-    return "for " .. serNamelist(ast[1]) .. " in " .. serExplist(ast[2])
-    .. " do " .. serBlock(ast[3]) .. "end"
+    local namelist = ast[1]
+    local explist = ast[2]
+    local block = ast[3]
+    return isStaticNamelist(namelist) and
+        isStaticExplist(explist) and
+        isStaticBlock(block)
 end
 
 function isStaticWhile(ast)
@@ -82,8 +120,15 @@ function isStaticDo(ast)
     return result
 end
 
--- TODO:
 function isStaticRet(ast)
+    return util.ifold(
+        util.imap(
+            ast,
+            function(exp)
+                return isStaticExp(exp) end),
+        function(b, acc)
+            return acc and b end,
+        true)
 end
 
 function isStaticStm(ast)

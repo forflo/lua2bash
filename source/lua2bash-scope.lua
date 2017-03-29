@@ -44,6 +44,7 @@ function scope.setGlobal(config, stack, varName)
     symbol:setEmitVarname(emitVarname)
     symbol:setCurSlot(config.valPrefix .. emitVarname)
     bottom:getSymbolTable():addNewSymbol(varName, symbol)
+    return symbol
 end
 
 function scope.whereInScope(stack, varName)
