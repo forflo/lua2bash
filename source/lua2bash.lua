@@ -2,25 +2,21 @@ parser = require "lua-parser.parser"
 pp = require "lua-parser.pp"
 dbg = require "debugger"
 
-stack = {}
-stack.tempVarPrefix = "TV" -- Temp Variable
-stack.tempValPrefix = "TL" -- Temp vaLue
-stack.environmentPrefix = "E"
-stack.functionPrefix = "AFUN"
-stack.ergCnt = 0
-stack.tablePrefix = "TB" -- TaBle
-stack.varPrefix = "V" -- Variable
-stack.valPrefix = "L" -- vaLue
-stack.indentSize = 4
-stack.columnCount = -env.indentSize
-stack.scopeStack = {}
-stack.funcArglist = {}
+config = {}
+config.tempVarPrefix = "TV" -- Temp Variable
+config.tempValPrefix = "TL" -- Temp vaLue
+config.environmentPrefix = "E"
+config.functionPrefix = "AFUN"
+config.tablePrefix = "TB" -- TaBle
+config.varPrefix = "V" -- Variable
+config.valPrefix = "L" -- vaLue
+config.indentSize = 4
 
-require "lua2bash-serialize-ast"
+serializer = require "lua2bash-serialize-ast"
 require "lua2bash-emit-stmt"
 require "lua2bash-emit-exp"
-require "lua2bash-util"
-require "lua2bash-scope"
+util = require "lua2bash-util"
+scope = require "lua2bash-scope"
 compiler = require("lua2bash-comp")
 b = require "bashEdsl"
 

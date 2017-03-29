@@ -1,19 +1,20 @@
 local util = require("lua2bash-util")
+local scope = require("lua2bash-scope")
 
 function emitId(indent, ast, config, stack, lines)
     if ast.tag ~= "Id" then
         print("emitId(): not a Id node")
         os.exit(1)
     end
-    -- TODO
-    local inSome, coordinate = isInSomeScope(config, ast[1])
-    if inSome == false then
-        return "VAR_NIL", lines -- TODO: check
+    local varname = ast[1]
+    local binding = scope.getMostCurrentBinding(config, stack, varname)
+    local emitVn = binding.symbol:getEmitVarname()
+    if binding == nil then
+        return "VAR_NIL" -- TODO
     end
-    -- TODO
     return { emitTempVal(indent, config, lines,
-                         derefVarToType(coordinate[2].emitVarname),
-                         derefVarToValue(coordinate[2].emitVarname)) }
+                         derefVarToType(emitVn),
+                         derefVarToValue(emitVn)) }
 end
 
 function emitNumber(indent, ast, config, stack, lines)

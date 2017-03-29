@@ -130,6 +130,10 @@ function comp.Stack()
         if self._et[1] then return self._et[1]
         else return nil end
     end
+    function t:getNth(n)
+        if n < 0 or n > #self._et then return nil
+        else return self._et[n] end
+    end
     function t:getn()
         return #self._et
     end

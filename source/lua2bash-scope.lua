@@ -44,13 +44,23 @@ function scope.setGlobal(config, stack, varName)
     bottom:addNewSymbol(varName, symbol)
 end
 
-function scope.isInSomeScope(config, stack, varName)
-    local key, symbol
+function scope.whereInScope(stack, varName)
     local entries = stack:map(
         function(scope)
-            return scope.getSymbolTable():isInSymtab(varName) end)
-    return entries[#entries]
+            local result = scope:getSymbolTable():isInSymtab(varName)
+            local t1, t2
+            if result == nil then t1, t2 = false, scope
+            else t1, t2 = true, scope end
+            return { ["exists"] = t1, ["symbol"] = result, ["scope"] = t2 }
+    end)
+    return entries
     -- only the most current entry (topmost on stack is wanted here)
+end
+
+function scope.getMostCurrentBinding(stack, varName)
+    local entries = scope.whereInScope(stack, varName)
+    if #entries == 0 then return nil
+    else return entries[#entries] end
 end
 
 return scope
