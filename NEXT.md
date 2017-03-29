@@ -1,0 +1,2 @@
+# forschleife fixen
+# funktionien implementieen

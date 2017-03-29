@@ -1,48 +1,54 @@
-function emitId(ast, env, lines)
+local util = require("lua2bash-util")
+
+function emitId(indent, ast, config, stack, lines)
     if ast.tag ~= "Id" then
         print("emitId(): not a Id node")
         os.exit(1)
     end
-    local inSome, coordinate = isInSomeScope(env, ast[1])
+    -- TODO
+    local inSome, coordinate = isInSomeScope(config, ast[1])
     if inSome == false then
         return "VAR_NIL", lines -- TODO: check
     end
-    return { emitTempVal(ast, env, lines,
+    -- TODO
+    return { emitTempVal(indent, config, lines,
                          derefVarToType(coordinate[2].emitVarname),
                          derefVarToValue(coordinate[2].emitVarname)) }
 end
 
-function emitNumber(ast, env, lines)
+function emitNumber(indent, ast, config, stack, lines)
     if ast.tag ~= "Number" then
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, b.c("NUM"), b.c(tostring(ast[1]))) }
+    -- TODO:
+    return { emitTempVal(indent, config, lines, b.c("NUM"), b.c(tostring(ast[1]))) }
 end
 
-function emitNil(ast, env, lines)
+function emitNil(indent, ast, config, stack, lines)
     if ast.tag ~= "Nil" then
         print("emitNil(): not a Nil node")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, b.c("NIL"), b.c("")) }
+    -- TODO:
+    return { emitTempVal(indent, config, lines, b.c("NIL"), b.c("")) }
 end
 
-function getEnvSuffix(env)
-    return b.pE(topScope(env).environmentCounter)
+function getEnvVar(config, stack)
+    return b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
 end
 
-function getTempValname(env, simple)
+function getTempValname(config, stack, simple)
     local commonSuffix
     if not simple then
-        commonSuffix = b.c(getEnvSuffix(env)) ..
+        commonSuffix = b.c(getEnvVar(config, stack)) ..
             b.c("_") ..
-            b.c(tostring(getUniqueId(env)))
+            b.c(tostring(util.getUniqueId()))
     else
-        commonSuffix = b.c("_") .. b.c(getUniqueId(env))
+        commonSuffix = b.c("_") .. b.c(util.getUniqueId())
     end
 --    dbg()
-    return b.c(env.tempValPrefix) .. commonSuffix
+    return b.c(config.tempValPrefix) .. commonSuffix
 end
 
 function derefVarToValue(varname)
@@ -65,205 +71,226 @@ function derefValToType(valname)
     return b.pE(valname .. b.c("[1]"))
 end
 
-function emitTempVal(ast, env, lines, typ, content, simple)
+-- typ and content must be values from bash EDSL
+function emitTempVal(indent, config, lines, typ, content, simple)
     local tempVal = getTempValname(env, simple)
     local cmdLine = b.e(tempVal .. b.c("=") .. b.p(content .. b.c(" ") .. typ))
-    lines[#lines + 1] = augmentLine(env, cmdLine())
+    lines[#lines + 1] = augmentLine(indent, cmdLine())
     return tempVal
 end
 
-function emitString(ast, env, lines)
+function emitString(indent, ast, config, stack, lines)
     if ast.tag ~= "String" then
         print("emitString(): not a string node")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, b.c("STR"), b.c(ast[1])) }
+    return { emitTempVal(indent, config, lines,
+                         b.c("STR"), b.c(ast[1]), false) }
 end
 
-function emitFalse(ast, env, lines)
+function emitFalse(indent, ast, config, stack, lines)
     if ast.tag ~= "False" then
         print("emitFalse(): not a False node!")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, b.c("FLS"), b.c("0")) }
+    return { emitTempVal(indent, config, lines,
+                         b.c("FLS"), b.c("0"), false) }
 end
 
-function emitTrue(ast, env, lines)
+function emitTrue(indent, ast, config, stack, lines)
     if ast.tag ~= "True" then
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-    return { emitTempVal(ast, env, lines, b.c("TRU"), b.c("1")) }
+    return { emitTempVal(indent, config, lines,
+                         b.c("TRU"), b.c("1"), false) }
 end
 
-function emitTableValue(env, lines, suffix, value, typ)
-    local typeString = b.c("Table")
-    local envSuffix = getEnvSuffix(env)
-    local valueName = b.c(env.tablePrefix) .. envSuffix .. suffix
+function emitTableValue(indent, config, stack, lines, tblIdx, value, typ)
+    local typeString = b.c("TBL")
+    local envVar = getEnvVar(config, stack)
+    local valueName = b.c(config.tablePrefix) .. envVar .. tblIdx
     local cmdline = b.e(
         valueName .. b.c("=")
             .. b.p((value or valueName)
                     .. b.c(" ") ..
                     (typ or typeString)))
-    addLine(env, lines, cmdline())
+    util.addLine(indent, lines, cmdline())
     return valueName
 end
 
 -- prefixes each table member with env.tablePrefix
-function emitTable(ast, env, lines, firstCall)
+function emitTable(indent, ast, config, stack, lines, firstCall)
     if ast.tag ~= "Table" then
         print("emitTable(): not a Table!")
         os.exit(1)
     end
     if firstCall == nil then
-        addLine(env, lines, "# " .. serTbl(ast))
+        addLine(indent, lines, "# " .. serTbl(ast))
     end
-    local tableId = getUniqueId(env)
+    local tableId = utilgetUniqueId(env)
     local tempValues
-    emitTableValue(env, lines, tableId)
+    emitTableValue(indent, config, stack, lines, tableId)
     for k, v in ipairs(ast) do
         local fieldExp = ast[k]
         if (v.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif v.tag ~= "Table" then
-            tempValues = emitExpression(fieldExp, env, lines)
+            tempValues = emitExpression(indent, fieldExp, config, stack, lines)
             imap(
                 tempValues,
                 function(v)
-                    emitTableValue(env, lines, tableId .. k,
+                    emitTableValue(indent, config, stack,
+                                   lines, tableId .. k,
                                    derefValToValue(v),
                                    derefValToType(v)) end)
         else
             -- tempValues possibly is a list of tempValue
-            tempValues = emitTable(ast[k], env, lines, false)
+            tempValues = emitTable(indent, ast[k], config,
+                                   stack, lines, false)
             imap(
                 tempValues,
                 function(v)
-                    emitTableValue(env, lines, tableId .. k,
+                    emitTableValue(indent, config, stack,
+                                   lines, tableId .. k,
                                    derefValToValue(v),
                                    derefValToType(v)) end)
         end
     end
-    return { env.tablePrefix .. getEnvSuffix(env) .. tableId }
+    return { env.tablePrefix .. getEnvVar(config, stack) .. tableId }
 end
 
 -- TODO: argValueList!
 -- returns a tempvalue of the result
-function emitCallClosure(env, lines, closureValue, argValueList)
+function emitCallClosure(indent, config, lines, closureValue, argValueList)
     local cmdLine = b.e(derefValToValue(closureValue) .. b.c(" ")
                             .. derefValToType(closureValue))
-    addLine(env, lines, cmdLine())
+    addLine(indent, lines, cmdLine())
 end
 
 -- TODO: return und argumente
-function emitCall(ast, env, lines)
-    addLine(env, lines, "# " .. serCall(ast))
+function emitCall(indent, ast, config, stack, lines)
+    addLine(indent, lines, "# " .. serCall(ast))
     local functionName = ast[1][1]
     local functionExp = ast[1]
     local arguments = ast[2]
     if functionName == "print" then
     --    dbg()
-        local tempValues = emitExpression(arguments, env, lines)
+        local tempValues = emitExpression(indent, arguments, config, stack, lines)
         local dereferenced =
-            join(imap(tempValues, derefValToValue), "\t")
+            join(
+                imap(
+                    tempValues,
+                    derefValToValue), "\t")
         addLine(
-            env, lines,
+            indent, lines,
             string.format("eval echo %s", dereferenced))
     elseif functionName == "type" then
         -- TODO: table!
-        local value = emitExpression(arguments, env, lines)[1]
-        local typeStrValue = emitTempVal(ast, env, lines,
-                                         "STR", derefValToType(value))
+        local value = emitExpression(indent, arguments, config, stack, lines)[1]
+        local typeStrValue = emitTempVal(indent, config, lines,
+                                         b.c("STR"), derefValToType(value))
 
         return typeStrValue
     else
         -- TODO: table
-        local c = emitExpression(functionExp, env, lines)[1]
-        return emitCallClosure(env, lines, c)
+        local c = emitExpression(indent, functionExp, config, stack, lines)[1]
+        return emitCallClosure(indent, config, lines, c)
     end
 end
 
 -- we can do ((Ex = Ex + 1)) even as first comman line because
 -- bash will use 0 as value for Ex if the variable is not declared.
-function emitEnvCounter(env, lines, envName)
-    lines[#lines + 1] = augmentLine(
-        env, string.format("((%s = %s + 1))", envName, envName),
+function emitEnvCounter(indent, config, lines, envId)
+    addLine(
+        indent, lines,
+        string.format("((%s = %s + 1))",
+                      config.environmentPrefix .. envId,
+                      config.environmentPrefix .. envId),
         "Environment counter")
 end
 
-function snapshotEnvironment(ast, env, lines, usedSyms)
+function snapshotEnvironment(indent, ast, config, stack, lines)
+    local usedSyms = util.getUsedSymbols(ast)
     return imap(
         usedSyms,
         function(sym)
             local assignmentAst = parser.parse(
-                string.format("local %s = %s;",
-                              sym,
-                              sym))
-
+                string.format("local %s = %s;", sym, sym))
             -- we only need the local ast not the block surrounding it
-            return emitLocal(assignmentAst[1], env, lines)
+            return emitLocal(indent, assignmentAst[1], config, stack, lines)
     end)
 end
 
-function emitFunction(ast, env, lines)
+function emitFunction(indent, ast, config, stack, lines)
     local namelist = ast[1]
     local block = ast[2]
-    local functionId = getUniqueId(env)
-    local usedSyms = getUsedSymbols(block)
-    local oldEnv = topScope(env).environmentCounter
+    local functionId = util.getUniqueId()
+    local oldEnv = stack:top():getEnvironmentId()
 
-    pushScope(env, "function", "F" .. functionId)
-    local newEnv = topScope(env).environmentCounter
-    topScope(env).environmentCounter = oldEnv
+    local scopeName = "F" .. functionId()
+    local newScope = compiler.Scope():init(
+        "function", scopeName, util.getUniqueId(),
+        compiler.Scope():CONCATNAMES(stack) .. scopeName)
 
-    addLine(env, lines, "# Closure defintion")
+    stack:push(newScope)
+    local newEnv = stack:top():getEnvironmentId()
+    -- temporary set to old for snapshotting
+    stack:top():setEnvironmentId(oldEnv)
+    addLine(indent, lines, "# Closure defintion")
     local tempVal =
-        emitTempVal(ast, env, lines,
-                    b.pE(topScope(env).environmentCounter),
+        emitTempVal(indent, config, lines,
+                    b.pE("E" .. stack:top():getEnvironmentId()),
                     b.c("BF") .. b.c(tostring(functionId)))
-    addLine(env, lines, "# Environment Snapshotting")
-    snapshotEnvironment(ast, env, lines, usedSyms)
-    topScope(env).environmentCounter = newEnv
-
-    addLine(env, lines,
-            string.format("function BF%s {", functionId))
-    incCC(env)
-    addLine(env, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
-    decCC(env)
-
+    addLine(indent, lines, "# Environment Snapshotting")
+    snapshotEnvironment(indent, ast, config, stack, lines)
+    -- set again to new envid
+    stack:top():setEnvironmentId(newEnv)
+    -- translate to bash function including environment set code
+    addLine(indent, lines, string.format("function BF%s {", functionId))
+    addLine(indent, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
     -- recurse into block
-    emitBlock(ast[2], env, lines)
-    incCC(env)
-    lines[#lines + 1] = augmentLine(
-        env,
-        --TODO:
-        string.format("%s=$1", topScope(env).environmentCounter))
-    decCC(env)
+    emitBlock(indent, ast[2], config, stack, lines)
+    addLine(
+        indent, lines,
+        string.format("%s=$1", "E" .. scope:top():getEnvironmentId()))
     -- end of function definition
-    addLine(env, lines, "}")
-    popScope(env)
+    addLine(indent, lines, "}")
+    scope:pop()
     return { tempVal }
 end
 
-function emitParen(ast, env, lines)
-    return emitExpression(ast[1], env, lines)
+function emitParen(indent, ast, config, stack, lines)
+    return emitExpression(indent, ast[1], config, stack, lines)
 end
 
 -- always returns a table of location "strings" and the lines table
-function emitExpression(ast, env, lines)
-    if ast.tag == "Op" then return emitOp(ast, env, lines)
-    elseif ast.tag == "Id" then return emitId(ast, env, lines)
-    elseif ast.tag == "True" then return emitTrue(ast, env, lines)
-    elseif ast.tag == "False" then return emitFalse(ast, env, lines)
-    elseif ast.tag == "Nil" then return emitNil(ast, env, lines)
-    elseif ast.tag == "Number" then return emitNumber(ast, env, lines)
-    elseif ast.tag == "String" then return emitString(ast, env, lines)
-    elseif ast.tag == "Table" then return emitTable(ast, env, lines)
-    elseif ast.tag == "Function" then return emitFunction(ast, env, lines)
-    elseif ast.tag == "Call" then return emitCall(ast, env, lines)
-    elseif ast.tag == "Paren" then return emitParen(ast, env, lines)
-    elseif ast.tag == "Index" then return emitPrefixexp(ast, env, lines)
+function emitExpression(indent, ast, config, stack, lines)
+    if ast.tag == "Op" then
+        return emitOp(indent, ast, config, stack, lines)
+    elseif ast.tag == "Id" then
+        return emitId(indent, ast, config, stack, lines)
+    elseif ast.tag == "True" then
+        return emitTrue(indent, ast, config, stack, lines)
+    elseif ast.tag == "False" then
+        return emitFalse(indent, ast, config, stack, lines)
+    elseif ast.tag == "Nil" then
+        return emitNil(indent, ast, config, stack, lines)
+    elseif ast.tag == "Number" then
+        return emitNumber(indent, ast, config, stack, lines)
+    elseif ast.tag == "String" then
+        return emitString(indent, ast, config, stack, lines)
+    elseif ast.tag == "Table" then
+        return emitTable(indent, ast, config, stack, lines)
+    elseif ast.tag == "Function" then
+        return emitFunction(indent, ast, config, stack, lines)
+    elseif ast.tag == "Call" then
+        return emitCall(indent, ast, config, stack, lines)
+    elseif ast.tag == "Paren" then
+        return emitParen(indent, ast, config, stack, lines)
+    elseif ast.tag == "Index" then
+        return emitPrefixexp(indent, ast, config, stack, lines)
     else
         print("emitExpresison(): error!")
         os.exit(1)
@@ -287,22 +314,20 @@ function strToOpstring(str)
     end
 end
 
-function emitOp(ast, env, lines)
-    if #ast == 3 then return emitBinop(ast, env, lines)
-    elseif #ast == 2 then return emitUnop(ast, env, lines)
+function emitOp(indent, ast, config, stack, lines)
+    if #ast == 3 then return emitBinop(indent, ast, config, stack, lines)
+    elseif #ast == 2 then return emitUnop(indent, ast, config, stack, lines)
     else
         print("Not supported!")
         os.exit(1)
     end
 end
 
-function emitUnop(ast, env, lines)
-    operand2, lines = emitExpression(ast[2], env, lines)[1]
-    tempVal = getTempValname(env)
-
-
-    lines[#lines + 1] = augmentLine(
-        env,
+function emitUnop(indent, ast, config, stack, lines)
+    operand2, lines = emitExpression(indent, ast[2], config, stack, lines)[1]
+    tempVal = getTempValname(config, stack, false)
+    addLine(
+        indent, lines,
         b.e(tempVal
                 .. b.c("=")
                 .. b.p(
@@ -316,7 +341,7 @@ function emitUnop(ast, env, lines)
     return { tempVal }
 end
 
-function emitBinop(ast, env, lines)
+function emitBinop(indent, ast, config, stack, lines)
     local ergId1 = getUniqueId(env)
     local tempVal = getTempValname(env)
     local left = emitExpression(ast[2], env, lines)[1]
@@ -337,41 +362,43 @@ function emitBinop(ast, env, lines)
     return { tempVal }
 end
 
-function emitExplist(ast, env, lines)
+function emitExplist(indent, ast, config, stack, lines)
+    local locations = {}
     if ast.tag ~= "ExpList" then
         print("emitExplist(): not an explist node!")
         os.exit(1)
     end
-    local locations = {}
     for k, expression in ipairs(ast) do
-        local tempValues = emitExpression(expression, env, lines)
+        local tempValues = emitExpression(indent, expression,
+                                          config, stack, lines)
         local tempVnRhs =
             imap(tempValues,
                  function(v)
-                     return emitTempVal(ast, env, lines,
-                                        derefValToType(v),
-                                        derefValToValue(v)) end)
+                     return emitTempVal(
+                         indent, config, lines,
+                         derefValToType(v),
+                         derefValToValue(v)) end)
         tableIAddInplace(locations, tempVnRhs)
     end
     return locations
 end
 
 
-function emitLocal(ast, env, lines)
+function emitLocal(indent, ast, config, stack, lines)
+    local topScope = stack:top()
     local varNames = {}
     for i = 1, #ast[1] do
         varNames[i] = ast[1][i][1]
     end
-    local topScope = env.scopeStack[#env.scopeStack].scope
-    local locations = emitExplist(ast[2], env, lines)
+    local locations = emitExplist(indent, ast[2], config, stack, lines)
     local memNumDiff = tblCountAll(varNames) - tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
         locations[#locations + 1] = "DUMMY"
     end
     local iter = statefulIIterator(locations)
     for _, idString in pairs(varNames) do
-        local inSome, attr1 = isInSomeScope(env, idString)
-        local inSame, attr2 = isInSameScope(env, idString)
+        local inSome, attr1 = isInSomeScope(config, stack, idString)
+        local inSame, attr2 = isInSameScope(config, stack, idString)
         if inSame then
             local t = iter()
             scopeSetLocalAgain(ast, env, attr2)
@@ -397,24 +424,28 @@ function emitLocal(ast, env, lines)
     end
 end
 
-function emitVarUpdate(env, lines, varname, valuename, value, typ)
+-- TODO:
+function emitVarUpdate(indent, config, lines, varname, valuename, value, typ)
     lines[#lines + 1] = augmentLine(
         env, b.e(varname, valuename)())
     lines[#lines + 1] = augmentLine(
         env, b.e(valuename .. b.p(b.dQ(value) .. typ))())
 end
 
+-- TODO:
 function emitGlobalVar(varname, valuename, lines, env)
     lines[#lines + 1] = augmentLine(
         env, b.e(varname .. b.c("=") .. valuename)())
 end
 
+-- TODO:
 function emitUpdateGlobVar(valuename, value, lines, env, typ)
     lines[#lines + 1] = augmentLine(
         env, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
 end
 
-function emitSet(ast, env, lines)
+-- TODO
+function emitSet(indent, ast, config, stack, lines)
     addLine(env, lines, "# " .. serSet(ast))
     local explist, varlist = ast[2], ast[1]
     local rhsTempresults = emitExplist(explist, env, lines)
@@ -428,7 +459,7 @@ function emitSet(ast, env, lines)
     end
 end
 
-function emitSimpleAssign(ast, env, lines, rhs)
+function emitSimpleAssign(indent, ast, config, stack, lines, rhs)
     local idString = ast[1]
     local inSome, coordinate = isInSomeScope(env, idString)
     if not inSome then -- make var in global
@@ -444,6 +475,7 @@ function emitSimpleAssign(ast, env, lines, rhs)
                       derefValToType(rhs))
 end
 
+-- TODO:
 function emitComplexAssign(lhs, env, lines, rhs)
     local setValue = emitExecutePrefixexp(lhs, env, lines, true)[1]
     emitUpdateGlobVar(string.format([[$(eval echo %s)]], setValue),
@@ -452,14 +484,14 @@ function emitComplexAssign(lhs, env, lines, rhs)
                       derefValToType(rhs))
 end
 
-function emitPrefixexp(ast, env, lines)
+function emitPrefixexp(indent, ast, config, stack, lines)
     return emitExecutePrefixexp(ast, env, lines)
 end
 
 --
 -- dereferences expressions like getTable()[1]
 -- and returns the values to be written to
-function emitExecutePrefixexp(prefixExp, env, lines, asLval)
+function emitExecutePrefixexp(indent, prefixExp, config, stack, lines, asLval)
     local indirections = linearizePrefixTree(prefixExp, env)
     local temp = {}
     for i = 1, #indirections do
@@ -481,13 +513,13 @@ function emitExecutePrefixexp(prefixExp, env, lines, asLval)
             local funArgs
             temp[i] = emitCallClosure(env, lines, temp[i - 1], funArgs)[1]
         elseif indirection.typ == "Index" then
-            local index = emitExpression(indirection.exp, env, lines)[1]
+            local index = emitExpression(indirection.exp, config, lines)[1]
             index =  derefValToValue(temp[i-1]) .. derefValToValue(index)
             if i == #indirections and asLval then
                 temp[i] = index
             else
                 temp[i] = emitTempVal(
-                    ast, env, lines,
+                    ast, config, lines,
                     b.pE(index .. b.c("[1]")),
                     b.pE(index))
             end
@@ -496,7 +528,7 @@ function emitExecutePrefixexp(prefixExp, env, lines, asLval)
     return { temp[#temp] }
 end
 
-function linearizePrefixTree(ast, env, result)
+function linearizePrefixTree(indent, ast, config, stack, result)
     local result = result or {}
     if type(ast) ~= "table" then return result end
     if ast.tag == "Id" then
@@ -524,7 +556,7 @@ function linearizePrefixTree(ast, env, result)
               exp = ast[2]}
     end
     if ast.tag ~= "Id" then
-        linearizePrefixTree(ast[1], env, result)
+        linearizePrefixTree(ast[1], config, result)
     end
     return tableReverse(result)
 end
