@@ -73,5 +73,9 @@ describe(
         it("tests whether setGlobal really updates a symbol",
            function()
                scope.setGlobal(config, stack, "goo")
+               local result = scope.getMostCurrentBinding(stack, "goo")
+               assert.Truthy(result.symbol)
+               assert.True(result.exists)
+               assert.are.equal(result.scope, stack:bottom())
         end)
 end)

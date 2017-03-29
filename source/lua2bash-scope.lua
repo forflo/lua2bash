@@ -39,9 +39,9 @@ function scope.setGlobal(config, stack, varName)
         .. bottom:getEnvironmentId() .. "}"
         .. varName
     local symbol = compiler.Symbol(value, 1)
-    symbol.setEmitVarname(emitVarname)
-    symbol.setCurSlot(config.valPrefix .. emitVarname)
-    bottom:addNewSymbol(varName, symbol)
+    symbol:setEmitVarname(emitVarname)
+    symbol:setCurSlot(config.valPrefix .. emitVarname)
+    bottom:getSymbolTable():addNewSymbol(varName, symbol)
 end
 
 function scope.whereInScope(stack, varName)
@@ -54,11 +54,11 @@ function scope.whereInScope(stack, varName)
             return { ["exists"] = t1, ["symbol"] = result, ["scope"] = t2 }
     end)
     return entries
-    -- only the most current entry (topmost on stack is wanted here)
 end
 
 function scope.getMostCurrentBinding(stack, varName)
     local entries = scope.whereInScope(stack, varName)
+    entries = util.filter(entries, function(e) return e.exists end)
     if #entries == 0 then return nil
     else return entries[#entries] end
 end
