@@ -2,5 +2,5 @@
 
 while read i; do
     echo -- AST: --
-    lua lua2tree.lua "$i"
+    lua source/lua2tree.lua "$i"
 done

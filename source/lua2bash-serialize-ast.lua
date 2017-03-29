@@ -1,30 +1,32 @@
-function serId(ast)
+local serializer = {}
+
+function serializer.serId(ast)
     return ast[1]
 end
 
-function serNum(ast)
+function serializer.serNum(ast)
     return ast[1]
 end
 
-function serNil(ast)
+function serializer.serNil(ast)
     return "nil"
 end
 
-function serStr(ast)
+function serializer.serStr(ast)
     return "\"" .. ast[1] .. "\""
 end
 
-function serFal(ast)
+function serializer.serFal(ast)
     return "false"
 end
 
-function serTru(ast)
+function serializer.serTru(ast)
     return "true"
 end
 
 -- prefixes each table member with env.tablePrefix
 -- uses env.tablePath
-function serTbl(ast)
+function serializer.serTbl(ast)
     local params = {}
 
     for i = 1, #ast do
@@ -35,11 +37,11 @@ function serTbl(ast)
     return "{" .. params .. "}"
 end
 
-function serPair(ast)
+function serializer.serPair(ast)
     return "[" .. serExp(ast[1]) .. "] = " .. serExp(ast[2])
 end
 
-function serCall(ast)
+function serializer.serCall(ast)
     local params = {}
     for i = 2, #ast do
         params[#params + 1] = serExp(ast[i])
@@ -49,12 +51,12 @@ function serCall(ast)
     return serExp(ast[1]) .. "(" .. (params or "") .. ")"
 end
 
-function serFun(ast)
+function serializer.serFun(ast)
     return "function(" .. serNamelist(ast[1]) .. ") "
         .. serBlock(ast[2]) .. "end"
 end
 
-function serVarlist(ast)
+function serializer.serVarlist(ast)
     local result = imap(
         ast,
         function(elem)
@@ -64,7 +66,7 @@ function serVarlist(ast)
     return join(result, ', ')
 end
 
-function serExplist(ast)
+function serializer.serExplist(ast)
     local result = imap(
         ast,
         function(elem)
@@ -74,7 +76,7 @@ function serExplist(ast)
     return join(result, ', ')
 end
 
-function serNamelist(ast)
+function serializer.serNamelist(ast)
     return join(
         imap(
             ast,
@@ -83,15 +85,15 @@ function serNamelist(ast)
         end), ', ')
 end
 
-function serLcl(ast)
+function serializer.serLcl(ast)
     return "local " .. serNamelist(ast[1]) .. " = " .. serExplist(ast[2])
 end
 
-function serSet(ast)
+function serializer.serSet(ast)
     return serVarlist(ast[1]) .. " = " .. serExplist(ast[2])
 end
 
-function serFor(ast)
+function serializer.serFor(ast)
     return "for " .. serExp(ast[1]) .. " = "
         .. serExp(ast[2]) .. ", " .. serExp(ast[3])
         .. expIf(
@@ -105,18 +107,18 @@ function serFor(ast)
         .. "end"
 end
 
-function serForIn(ast)
+function serializer.serForIn(ast)
     return "for " .. serNamelist(ast[1]) .. " in " .. serExplist(ast[2])
     .. " do " .. serBlock(ast[3]) .. "end"
 end
 
-function serWhi(ast)
+function serializer.serWhi(ast)
     return "while " .. "(" .. serExp(ast[1]) .. ")"
     .. " do " .. serBlock(ast[2]) .. "end"
 end
 
 -- Well, ...
-function serIf(ast)
+function serializer.serIf(ast)
     local elseB = #ast % 2 == 1
     return "if " .. serExp(ast[1]) .. " then "
         .. serBlock(ast[2])
@@ -144,11 +146,11 @@ function serIf(ast)
                 end)
 end
 
-function serRep(ast)
+function serializer.serRep(ast)
     return "repeat " .. serBlock(ast[1]) .. "until " .. serExp(ast[2])
 end
 
-function serDo(ast)
+function serializer.serDo(ast)
     return "do "
         .. join(
             imap(
@@ -159,7 +161,7 @@ function serDo(ast)
             '; ') .. "; end"
 end
 
-function serRet(ast)
+function serializer.serRet(ast)
     return "return " .. join(
         imap(
             ast,
@@ -167,7 +169,7 @@ function serRet(ast)
                 return serExp(e) end), ', ')
 end
 
-function serStm(ast)
+function serializer.serStm(ast)
     if ast.tag == "Call" then return serCall(ast)
     elseif ast.tag == "Fornum" then return serFor(ast)
     elseif ast.tag == "Local" then return serLcl(ast)
@@ -181,7 +183,7 @@ function serStm(ast)
     end
 end
 
-function serBlock(ast)
+function serializer.serBlock(ast)
     local parts = imap(
         ast,
         function(elem) return serStm(elem) end)
@@ -189,12 +191,12 @@ function serBlock(ast)
     return join(parts, '; ') .. '; '
 end
 
-function serPar(ast)
+function serializer.serPar(ast)
     return "(" .. serExp(ast[1]) .. ")"
 end
 
 -- always returns a location "string" and the result table
-function serExp(ast)
+function serializer.serExp(ast)
     --dbg()
     if ast.tag == "Op" then return serOp(ast)
     elseif ast.tag == "Id" then return serId(ast)
@@ -216,7 +218,7 @@ function serExp(ast)
     end
 end
 
-function strToOpstr(str)
+function serializer.strToOpstr(str)
     if str == "add" then return "+"
     elseif str== "sub" then return "-"
     elseif str== "unm" then return "-"
@@ -236,7 +238,7 @@ function strToOpstr(str)
     end
 end
 
-function serOp(ast)
+function serializer.serOp(ast)
     if (#ast == 3) then
         -- binop
         return serExp(ast[2]) .. strToOpstr(ast[1]) .. serExp(ast[3])
@@ -246,6 +248,8 @@ function serOp(ast)
     end
 end
 
-function serIdx(ast)
+function serializer.serIdx(ast)
     return serExp(ast[1]) .. "[" .. serExp(ast[2]) .. "]"
 end
+
+return serializer

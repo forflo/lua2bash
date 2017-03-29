@@ -18,7 +18,6 @@ local function makeBdsl(activeChars, begin, ending, str, nesting)
     return result
 end
 
-
 local function bDslWord(bash)
     if not bash then print("error!"); os.exit(1) end
     -- TODO: ok?
@@ -33,7 +32,7 @@ end
 
 local function bDslEval(bash)
     local t, n
-    if type(bash) == "table" then t, n = bash.payload, bash.nesting
+    if type(bash) == "table" then t, n = bash(), bash.nesting
     else t, n = bash, 0
     end
     result = makeBdsl({}, "", "", t, n)
@@ -41,9 +40,19 @@ local function bDslEval(bash)
     return result
 end
 
-local function bDslAll(str)
-    return makeBdsl({"\"", "'", "`", "{", "}", "(", ")", "$"},
-        "" , str, "", 1)
+local function allAscii()
+    local result = {}
+    for i = 0, 127 do
+        result[#result + 1] = string.char(i)
+    end
+    return result
+end
+
+local function bDslAll(str, nest)
+    local result = makeBdsl({}, "" , "", str, 0)
+    result.typ = "all"
+    result.allnesting = nest or 1
+    return result
 end
 
 local function bDslString(str)
@@ -100,7 +109,6 @@ local function bDslConcat(l, r)
 end
 
 local function bDslExecEval(bstring)
-    local result = ""
     local repCount = bstring.nesting
     local rest
     if type(bstring.payload) == "table" then
@@ -108,8 +116,7 @@ local function bDslExecEval(bstring)
     else
         rest = bstring.payload
     end
-    result = result .. string.rep("eval ", repCount) .. rest
-    return result
+    return string.rep("eval ", repCount) .. rest
 end
 
 local function bDslExecWord(bstring)
@@ -148,23 +155,30 @@ local function bDslExecNormal(bstring)
     return result
 end
 
-local function bashStringEmitCmd(bstring)
-    return string.format(
-        "%s%s",
-        string.rep("eval ", bstring.nesting),
-        bstring())
+local function bDslExecAll(bstring)
+    local payload = bstring.payload
+    local middle, result = nil, ""
+    if type(payload) == "table" then middle = payload()
+    else middle = payload end
+    local repCount = 2 ^ bstring.allnesting - 1
+    for c in middle:gmatch(".") do
+        result = result .. string.rep("\\", repCount) .. c
+    end
+    return result
 end
 
 local dispatchTable = {
     normal = bDslExecNormal,
     eval = bDslExecEval,
-    separator = bDslExecWord
+    separator = bDslExecWord,
+    all = bDslExecAll
 }
 
 local function bDslCallDispatch(s)
     return dispatchTable[s.typ](s)
 end
 
+bDsl.a = bDslAll
 bDsl.w = bDslWord
 bDsl.e = bDslEval
 bDsl.c = bDslString
@@ -181,12 +195,5 @@ bDsl.p = bDslParentheses
 
 bashDslMtab.__concat = bDslConcat
 bashDslMtab.__call = bDslCallDispatch
-
---b = bDsl
-
---local t
---t = b.e(b.w("echo") .. b.w(iterate(bDsl.sQ, "foo", 2))
---            .. b.pE(b.c("TL") .. b.pE("E2") .. b.c("_26")))
---print(t())
 
 return bDsl
