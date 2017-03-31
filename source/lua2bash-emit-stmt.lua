@@ -14,7 +14,7 @@ function emitBlock(indent, ast, config, stack, lines, occasion)
         occasion, scopeName, envId,
         scope.getPathPrefix(config, stack) .. scopeName)
     stack:push(newScope)
-    addLine(
+    util.addLine(
         indent, lines,
         "# Begin of Scope: " .. stack:top():getPath())
     emitEnvCounter(indent + config.indentSize, config,
@@ -122,22 +122,26 @@ function emitIf(indent, ast, config, stack, lines)
     elseif #ast > 1 then
         -- calculate expression
         local location = emitExpression(indent, ast[1], config, stack, lines)
-        addLine(
+        util.addLine(
             indent, lines,
             string.format("if [ \"%s\" = 1 ]; then",
                           derefLocation(location)))
         emitBlock(indent, ast[2], config, stack, lines)
-        addLine(indent, lines, "else")
+        util.addLine(indent, lines, "else")
         emitIf(indent, tableSlice(ast, 3, nil, 1), config, stack, lines)
-        addLine(indent, lines, "true", "to prevent empty stmt block")
-        addLine(indent, lines, "fi")
+        util.addLine(indent, lines, "true", "to prevent empty stmt block")
+        util.addLine(indent, lines, "fi")
     end
 end
 
+-- should completely be eliminated before the emit process
+-- begins. This shall be realized as a additional compiler pass
+-- that modifies the AST directly
 function emitForIn(indent, ast, config, stack, lines)
     -- TODO:
 end
 
+-- TODO: nil?
 function emitWhile(indent, ast, config, stack, lines)
     local loopExpr = ast[1]
     local loopBlock = ast[2]
@@ -146,17 +150,17 @@ function emitWhile(indent, ast, config, stack, lines)
     local simpleValue = emitTempVal(indent, config, lines,
                                     derefValToType(tempValue),
                                     derefValToValue(tempValue), true)
-    addLine(indent, lines, string.format(
+    util.addLine(indent, lines, string.format(
                 "while [ \"${%s}\" != 0 ]; do",
                 simpleValue))
     emitBlock(indent, loopBlock, config, stack, lines)
     -- recalculate expression for next loop
     local tempValue2 = emitExpression(indent, loopExpr, config, stack, lines)[1]
-    addLine(indent, lines, string.format("eval %s=%s",
+    util.addLine(indent, lines, string.format("eval %s=%s",
                                          simpleValue,
                                          derefValToValue(tempValue2)))
-    addLine(indent, lines, "true", "to prevent empty block")
-    addLine(indent, lines, "done")
+    util.addLine(indent, lines, "true", "to prevent empty block")
+    util.addLine(indent, lines, "done")
 end
 
 function emitRepeat(indent, ast, config, stack, lines)
@@ -164,7 +168,7 @@ function emitRepeat(indent, ast, config, stack, lines)
 end
 
 function emitBreak(indent, ast, config, stack, lines)
-    addLine(indent, lines, "break;")
+    util.addLine(indent, lines, "break;")
 end
 
 function emitStatement(indent, ast, config, stack, lines)
@@ -172,7 +176,7 @@ function emitStatement(indent, ast, config, stack, lines)
         emitCall(ast, config, stack, lines)
     -- HACK: This was used to "Simplyfy implementation"
     elseif ast.tag == "SPECIAL" then
-        addLine(indent, lines, ast.special)
+        util.addLine(indent, lines, ast.special)
     elseif ast.tag == "Fornum" then
         emitFornum(indent, ast, config, stack, lines)
     elseif ast.tag == "Local" then
@@ -188,9 +192,9 @@ function emitStatement(indent, ast, config, stack, lines)
     elseif ast.tag == "While" then
         emitWhile(indent, ast, config, stack, lines)
     elseif ast.tag == "Do" then
-        addLine(indent, lines, "# do ")
+        util.addLine(indent, lines, "# do ")
         emitBlock(indent, ast, config, stack, lines)
-        addLine(indent, lines, "# end ")
+        util.addLine(indent, lines, "# end ")
     elseif ast.tag == "Set" then
         emitSet(indent, ast, config, stack, lines)
     end

@@ -233,8 +233,8 @@ function emitFunction(indent, ast, config, stack, lines)
     local functionId = util.getUniqueId()
     local oldEnv = stack:top():getEnvironmentId()
     local scopeName = "F" .. functionId()
-    local newScope = compiler.Scope(
-        compiler.occasions.FUNCTION, scopeName,
+    local newScope = datatypes.Scope(
+        datatypes.occasions.FUNCTION, scopeName,
         util.getUniqueId(), scope.getPathPrefix(stack) .. scopeName)
     stack:push(newScope)
     local newEnv = stack:top():getEnvironmentId()
