@@ -53,8 +53,8 @@ function serializer.serCall(ast)
 end
 
 function serializer.serFun(ast)
-    return "function(" .. serNamelist(ast[1]) .. ") "
-        .. serBlock(ast[2]) .. "end"
+    return "function(" .. serializer.serNamelist(ast[1]) .. ") "
+        .. serializer.serBlock(ast[2]) .. "end"
 end
 
 function serializer.serVarlist(ast)
