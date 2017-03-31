@@ -1,5 +1,6 @@
 local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
+local serializer = require("lua2bash-serialize-ast")
 
 function emitId(indent, ast, config, stack, lines)
     if ast.tag ~= "Id" then
@@ -129,7 +130,7 @@ function emitTable(indent, ast, config, stack, lines, firstCall)
     if firstCall == nil then
         addLine(indent, lines, "# " .. serTbl(ast))
     end
-    local tableId = utilgetUniqueId(env)
+    local tableId = util.getUniqueId(env)
     local tempValues
     emitTableValue(indent, config, stack, lines, tableId)
     for k, v in ipairs(ast) do
@@ -159,7 +160,8 @@ function emitTable(indent, ast, config, stack, lines, firstCall)
                                    derefValToType(v)) end)
         end
     end
-    return { env.tablePrefix .. getEnvVar(config, stack) .. tableId }
+    return { b.c(env.tablePrefix) .. getEnvVar(config, stack)
+                 .. b.c(tostring(tableId))}
 end
 
 -- TODO: argValueList!
@@ -167,12 +169,12 @@ end
 function emitCallClosure(indent, config, lines, closureValue, argValueList)
     local cmdLine = b.e(derefValToValue(closureValue) .. b.c(" ")
                             .. derefValToType(closureValue))
-    addLine(indent, lines, cmdLine())
+    util.addLine(indent, lines, cmdLine())
 end
 
 -- TODO: return und argumente
 function emitCall(indent, ast, config, stack, lines)
-    addLine(indent, lines, "# " .. serCall(ast))
+    util.addLine(indent, lines, "# " .. serializer.serCall(ast))
     local functionName = ast[1][1]
     local functionExp = ast[1]
     local arguments = ast[2]
@@ -180,11 +182,11 @@ function emitCall(indent, ast, config, stack, lines)
     --    dbg()
         local tempValues = emitExpression(indent, arguments, config, stack, lines)
         local dereferenced =
-            join(
-                imap(
+            util.join(
+                util.imap(
                     tempValues,
                     derefValToValue), "\t")
-        addLine(
+        util.addLine(
             indent, lines,
             string.format("eval echo %s", dereferenced))
     elseif functionName == "type" then
@@ -204,7 +206,7 @@ end
 -- we can do ((Ex = Ex + 1)) even as first comman line because
 -- bash will use 0 as value for Ex if the variable is not declared.
 function emitEnvCounter(indent, config, lines, envId)
-    addLine(
+    util.addLine(
         indent, lines,
         string.format("((%s = %s + 1))",
                       config.environmentPrefix .. envId,
@@ -214,7 +216,7 @@ end
 
 function snapshotEnvironment(indent, ast, config, stack, lines)
     local usedSyms = util.getUsedSymbols(ast)
-    return imap(
+    return util.imap(
         usedSyms,
         function(sym)
             local assignmentAst = parser.parse(
@@ -237,26 +239,26 @@ function emitFunction(indent, ast, config, stack, lines)
     local newEnv = stack:top():getEnvironmentId()
     -- temporary set to old for snapshotting
     stack:top():setEnvironmentId(oldEnv)
-    addLine(indent, lines, "# Closure defintion")
+    util.addLine(indent, lines, "# Closure defintion")
     local tempVal =
         emitTempVal(indent, config, lines,
                     b.pE("E" .. stack:top():getEnvironmentId()),
                     -- adjust symbol string?
                     b.c("BF") .. b.c(tostring(functionId)))
-    addLine(indent, lines, "# Environment Snapshotting")
+    util.addLine(indent, lines, "# Environment Snapshotting")
     snapshotEnvironment(indent, ast, config, stack, lines)
     -- set again to new envid
     stack:top():setEnvironmentId(newEnv)
     -- translate to bash function including environment set code
-    addLine(indent, lines, string.format("function BF%s {", functionId))
-    addLine(indent, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
+    util.addLine(indent, lines, string.format("function BF%s {", functionId))
+    util.addLine(indent, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
     -- recurse into block
     emitBlock(indent, block, config, stack, lines)
-    addLine(
+    util.addLine(
         indent, lines,
         string.format("%s=$1", "E" .. scope:top():getEnvironmentId()))
     -- end of function definition
-    addLine(indent, lines, "}")
+    util.addLine(indent, lines, "}")
     scope:pop()
     return { tempVal }
 end
@@ -307,9 +309,10 @@ function emitOp(indent, ast, config, stack, lines)
 end
 
 function emitUnop(indent, ast, config, stack, lines)
-    operand2, lines = emitExpression(indent, ast[2], config, stack, lines)[1]
-    tempVal = getTempValname(config, stack, false)
-    addLine(
+    local operand2, lines =
+        emitExpression(indent, ast[2], config, stack, lines)[1]
+    local tempVal = getTempValname(config, stack, false)
+    util.addLine(
         indent, lines,
         b.e(tempVal
                 .. b.c("=")
@@ -329,7 +332,7 @@ function emitBinop(indent, ast, config, stack, lines)
     local tempVal = getTempValname(env)
     local left = emitExpression(ast[2], env, lines)[1]
     local right = emitExpression(ast[3], env, lines)[1]
-    addLine(
+    util.addLine(
         indent, lines
         (b.e(
              tempVal
@@ -361,7 +364,7 @@ function emitExplist(indent, ast, config, stack, lines)
                          indent, config, lines,
                          derefValToType(v),
                          derefValToValue(v)) end)
-        tableIAddInplace(locations, tempVnRhs)
+        util.tableIAddInplace(locations, tempVnRhs)
     end
     return locations
 end
@@ -374,11 +377,11 @@ function emitLocal(indent, ast, config, stack, lines)
         varNames[i] = ast[1][i][1]
     end
     local locations = emitExplist(indent, ast[2], config, stack, lines)
-    local memNumDiff = tblCountAll(varNames) - tblCountAll(locations)
+    local memNumDiff = util.tblCountAll(varNames) - tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
         locations[#locations + 1] = "DUMMY"
     end
-    local iter = statefulIIterator(locations)
+    local iter = util.statefulIIterator(locations)
     for _, varName in pairs(varNames) do
         local bindingQuery = scope.getMostCurrentBinding(stack, idString)
         local someWhereDefined = bindingQuery ~= nil
@@ -439,6 +442,7 @@ function emitSet(indent, ast, config, stack, lines)
     end
 end
 
+--TODO:
 function emitSimpleAssign(indent, ast, config, stack, lines, rhs)
     local varName = ast[1]
     local scopeQuery = scope.getMostCurrentBinding(stack, varName)
@@ -528,7 +532,7 @@ function linearizePrefixTree(indent, ast, config, stack, result)
             { callee = ast[1],
               typ = ast.tag,
               ast = ast,
-              exp = tableSlice(ast, 2, #ast, 1)}
+              exp = util.tableSlice(ast, 2, #ast, 1)}
     elseif ast.tag == "Index" then
         result[#result + 1] =
             { indexee = ast[1],
@@ -539,5 +543,5 @@ function linearizePrefixTree(indent, ast, config, stack, result)
     if ast.tag ~= "Id" then
         linearizePrefixTree(ast[1], config, result)
     end
-    return tableReverse(result)
+    return util.tableReverse(result)
 end
