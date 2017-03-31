@@ -297,23 +297,6 @@ function emitExpression(indent, ast, config, stack, lines)
     end
 end
 
-function strToOpstring(str)
-    if str == "add" then return "+"
-    elseif str== "sub" then return "-"
-    elseif str == "mul" then return "*"
-    elseif str == "div" then return "/"
-    elseif str == "pow" then return "^"
-    elseif str == "mod" then return "%"
-    elseif str == "concat" then return ".." -- probably special case
-    elseif str == "lt" then return "<"
-    elseif str == "gt" then return ">"
-    elseif str == "le" then return "<="
-    elseif str == "le" then return "<="
-    elseif str == "eq" then return "=="
-    elseif str == "not" then return "!"
-    end
-end
-
 function emitOp(indent, ast, config, stack, lines)
     if #ast == 3 then return emitBinop(indent, ast, config, stack, lines)
     elseif #ast == 2 then return emitUnop(indent, ast, config, stack, lines)
@@ -333,7 +316,7 @@ function emitUnop(indent, ast, config, stack, lines)
                 .. b.p(
                     b.dQ(
                         b.aE(
-                            b.c(strToOpstring(ast[1])) ..
+                            b.c(util.strToOpstring(ast[1])) ..
                                 derefValToValue(operand2))) ..
                         b.c(" ") ..
                         derefValToType(operand2)))())
@@ -355,7 +338,7 @@ function emitBinop(indent, ast, config, stack, lines)
                      b.dQ(
                          b.aE(
                              derefValToValue(left) ..
-                                 b.c(strToOpstring(ast[1])) ..
+                                 b.c(util.strToOpstring(ast[1])) ..
                                  derefValToValue(right)) ..
                              b.c(" ") ..
                              derefValToType(right)))))())
