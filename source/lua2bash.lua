@@ -17,7 +17,7 @@ require "lua2bash-emit-stmt"
 require "lua2bash-emit-exp"
 util = require "lua2bash-util"
 scope = require "lua2bash-scope"
-compiler = require("lua2bash-comp")
+datatypes = require("lua2bash-datatypes")
 b = require "bashEdsl"
 
 if #arg ~= 1 then
@@ -33,10 +33,10 @@ if not ast then
 end
 
 lines = {}
-stack = compiler.Stack()
+stack = datatypes.Stack()
 --TODO: ID
-stack:push(compiler.Scope(
-               {}, compiler.occasion.BLOCK,
+stack:push(datatypes.Scope(
+               {}, datatypes.occasion.BLOCK,
                "G", ID, "G"))
 emitBlock(ast, config, stack, lines)
 

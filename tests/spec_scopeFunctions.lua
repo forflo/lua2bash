@@ -16,7 +16,7 @@ describe(
                   config.valPrefix = "L" -- vaLue
                   config.indentSize = 4
 
-                  compiler = require("lua2bash-comp")
+                  compiler = require("lua2bash-datatypes")
                   scope = require("lua2bash-scope")
                   stack = compiler.Stack()
                   scope1 = compiler.Scope(compiler.occasions.BLOCK,

@@ -1,5 +1,5 @@
 util = require("lua2bash-util")
-compiler = require("lua2bash-comp")
+compiler = require("lua2bash-datatypes")
 
 local scope = {}
 

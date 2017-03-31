@@ -1,4 +1,4 @@
-compiler = require("lua2bash-compiler")
+datatypes = require("lua2bash-datatypes")
 util = require("lua2bash-util")
 scope = require("lua2bash-scope")
 
@@ -7,10 +7,10 @@ scope = require("lua2bash-scope")
 function emitBlock(indent, ast, config, stack, lines, occasion)
     local scopeNumber = util.getUniqueId()
     local envId = util.getUniqueId()
-    local occasion = occasion or compiler.Scope():BLOCK()
+    local occasion = occasion or datatypes.Scope():BLOCK()
     local scopeName = "S" .. scopeNumber
     -- push new scope on top
-    local newScope = compiler.Scope(
+    local newScope = datatypes.Scope(
         occasion, scopeName, envId,
         scope.getPathPrefix(config, stack) .. scopeName)
     stack:push(newScope)
@@ -118,7 +118,7 @@ function emitIf(indent, ast, config, stack, lines)
         -- make else
         emitBlock(indent + config.indentSize,
                   ast[1], config, stack, lines,
-                  compiler.occasion.IF)
+                  datatypes.occasion.IF)
     elseif #ast > 1 then
         -- calculate expression
         local location = emitExpression(indent, ast[1], config, stack, lines)

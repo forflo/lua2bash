@@ -6,7 +6,7 @@ describe(
         setup("builds a symbol table with three scopes " ..
                   "each of which containing three symbols",
               function()
-                  compiler = require("lua2bash-comp")
+                  compiler = require("lua2bash-datatypes")
                   scope = require("lua2bash-scope")
                   stack = compiler.Stack()
                   scope1 = compiler.Scope(compiler.occasions.BLOCK,

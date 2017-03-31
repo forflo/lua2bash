@@ -1,5 +1,6 @@
 local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
+local datatypes = require("lua2bash-datatypes")
 local serializer = require("lua2bash-serialize-ast")
 
 function emitId(indent, ast, config, stack, lines)
@@ -358,7 +359,7 @@ function emitExplist(indent, ast, config, stack, lines)
         local tempValues = emitExpression(indent, expression,
                                           config, stack, lines)
         local tempVnRhs =
-            imap(tempValues,
+            util.imap(tempValues,
                  function(v)
                      return emitTempVal(
                          indent, config, lines,
@@ -414,20 +415,20 @@ function emitLocal(indent, ast, config, stack, lines)
 end
 
 function emitVarUpdate(indent, lines, varname, valuename, value, typ)
-    addLine(indent, lines, b.e(varname, valuename)())
-    addLine(indent, lines, b.e(valuename .. b.p(b.dQ(value) .. typ))())
+    util.addLine(indent, lines, b.e(varname, valuename)())
+    util.addLine(indent, lines, b.e(valuename .. b.p(b.dQ(value) .. typ))())
 end
 
 function emitGlobalVar(indent, varname, valuename, lines, env)
-    addLine(indent, lines, b.e(varname .. b.c("=") .. valuename)())
+    util.addLine(indent, lines, b.e(varname .. b.c("=") .. valuename)())
 end
 
 function emitUpdateGlobVar(indent, valuename, value, lines, env, typ)
-    addLine(indent, lines, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
+    util.addLine(indent, lines, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
 end
 
 function emitSet(indent, ast, config, stack, lines)
-    addLine(indent, lines, "# " .. serSet(ast))
+    util.addLine(indent, lines, "# " .. serSet(ast))
     local explist, varlist = ast[2], ast[1]
     local rhsTempresults = emitExplist(indent, explist, config, stack, lines)
     local iterator = statefulIIterator(rhsTempresults)
