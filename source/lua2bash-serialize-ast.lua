@@ -202,7 +202,6 @@ end
 
 -- always returns a location "string" and the result table
 function serializer.serExp(ast)
-    --dbg()
     if ast.tag == "Op" then return serializer.serOp(ast)
     elseif ast.tag == "Id" then return serializer.serId(ast)
     elseif ast.tag == "True" then return serializer.serTru(ast)
@@ -222,7 +221,6 @@ function serializer.serExp(ast)
         os.exit(1)
     end
 end
-
 
 function serializer.serOp(ast)
     if (#ast == 3) then
