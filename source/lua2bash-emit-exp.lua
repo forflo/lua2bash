@@ -10,11 +10,9 @@ function emitId(indent, ast, config, stack, lines)
     end
     local varname = ast[1]
     local binding = scope.getMostCurrentBinding(config, stack, varname)
+    if binding == nil then return "NIL" end -- better solution?
     local emitVn = binding.symbol:getEmitVarname()
-    if binding == nil then
-        return "VAR_NIL" -- TODO
-    end
-    return { emitTempVal(indent, config, lines,
+    return { emitTempVal(indent, config, stack, lines,
                          derefVarToType(emitVn),
                          derefVarToValue(emitVn)) }
 end
@@ -25,7 +23,7 @@ function emitNumber(indent, ast, config, stack, lines)
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, lines,
+    return { emitTempVal(indent, config, stack, lines,
                          b.c("NUM"), b.c(value)) }
 end
 
@@ -50,8 +48,15 @@ function getTempValname(config, stack, simple)
     else
         commonSuffix = b.c("_") .. b.c(util.getUniqueId())
     end
---    dbg()
     return b.c(config.tempValPrefix) .. commonSuffix
+end
+
+-- typ and content must be values from bash EDSL
+function emitTempVal(indent, config, stack, lines, typ, content, simple)
+    local tempVal = getTempValname(config, stack, simple)
+    local cmdLine = b.e(tempVal .. b.c("=") .. b.p(content .. b.c(" ") .. typ))
+    util.addLine(indent, lines, cmdLine())
+    return tempVal
 end
 
 function derefVarToValue(varname)
@@ -74,20 +79,12 @@ function derefValToType(valname)
     return b.pE(valname .. b.c("[1]"))
 end
 
--- typ and content must be values from bash EDSL
-function emitTempVal(indent, config, lines, typ, content, simple)
-    local tempVal = getTempValname(env, simple)
-    local cmdLine = b.e(tempVal .. b.c("=") .. b.p(content .. b.c(" ") .. typ))
-    util.addLine(indent, lines, cmdLine())
-    return tempVal
-end
-
 function emitString(indent, ast, config, stack, lines)
     if ast.tag ~= "String" then
         print("emitString(): not a string node")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, lines,
+    return { emitTempVal(indent, config, stack, lines,
                          b.c("STR"), b.c(ast[1]), false) }
 end
 
@@ -96,7 +93,7 @@ function emitFalse(indent, ast, config, stack, lines)
         print("emitFalse(): not a False node!")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, lines,
+    return { emitTempVal(indent, config, stack, lines,
                          b.c("FLS"), b.c("0"), false) }
 end
 
@@ -105,7 +102,7 @@ function emitTrue(indent, ast, config, stack, lines)
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, lines,
+    return { emitTempVal(indent, config, stack, lines,
                          b.c("TRU"), b.c("1"), false) }
 end
 
@@ -193,7 +190,7 @@ function emitCall(indent, ast, config, stack, lines)
     elseif functionName == "type" then
         -- TODO: table!
         local value = emitExpression(indent, arguments, config, stack, lines)[1]
-        local typeStrValue = emitTempVal(indent, config, lines,
+        local typeStrValue = emitTempVal(indent, config, stack, lines,
                                          b.c("STR"), derefValToType(value))
 
         return typeStrValue
@@ -242,7 +239,7 @@ function emitFunction(indent, ast, config, stack, lines)
     stack:top():setEnvironmentId(oldEnv)
     util.addLine(indent, lines, "# Closure defintion")
     local tempVal =
-        emitTempVal(indent, config, lines,
+        emitTempVal(indent, config, stack, lines,
                     b.pE("E" .. stack:top():getEnvironmentId()),
                     -- adjust symbol string?
                     b.c("BF") .. b.c(tostring(functionId)))
@@ -324,7 +321,6 @@ function emitUnop(indent, ast, config, stack, lines)
                                 derefValToValue(operand2))) ..
                         b.c(" ") ..
                         derefValToType(operand2)))())
-
     return { tempVal }
 end
 
@@ -362,7 +358,7 @@ function emitExplist(indent, ast, config, stack, lines)
             util.imap(tempValues,
                  function(v)
                      return emitTempVal(
-                         indent, config, lines,
+                         indent, config, stack, lines,
                          derefValToType(v),
                          derefValToValue(v)) end)
         util.tableIAddInplace(locations, tempVnRhs)
@@ -372,15 +368,19 @@ end
 
 -- TODO: really blongs not here but in lua2bash-emit-stmt
 function emitLocal(indent, ast, config, stack, lines)
+    -- functions
+    -- local vars
     local topScope = stack:top()
     local varNames = {}
     for i = 1, #ast[1] do
         varNames[i] = ast[1][i][1]
     end
     local locations = emitExplist(indent, ast[2], config, stack, lines)
-    local memNumDiff = util.tblCountAll(varNames) - tblCountAll(locations)
+    local memNumDiff = util.tblCountAll(varNames) - util.tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
-        locations[#locations + 1] = "DUMMY"
+        for i = 1, memNumDiff do
+            locations[#locations + 1] = { b.c("VAR_NIL") }
+        end
     end
     local iter = util.statefulIIterator(locations)
     for _, varName in pairs(varNames) do
@@ -388,50 +388,55 @@ function emitLocal(indent, ast, config, stack, lines)
         local someWhereDefined = bindingQuery ~= nil
         local scope, symbol
         if someWhereDefined then
-            scope = bindingQuery.scope
-            symbol = bindingQuery.symbol
+            scope, symbol = bindingQuery.scope, bindingQuery.symbol
         end
         if someWhereDefined and (scope ~= stack:top()) then
             local t = iter()
-            local newsym = scope.updateSymbol(config, stack, symbol, varName)
+            symbol:replaceBy(
+                scope.getUpdatedSymbol(
+                    config, stack, symbol, varName))
             emitVarUpdate(indent, lines,
-                          newsym:getEmitVarname(),
-                          newsym:getCurSlot(),
+                          symbol:getEmitVarname(),
+                          symbol:getCurSlot(),
                           derefValToValue(t),
                           derefValToType(t))
         elseif someWhereDefined and (scope == stack:top()) then
             local t = iter()
-            -- in both cases, define in top scope
-            local newsym = scope.setLocalFirstTime(config, stack, varName)
+            symbol:replaceBy(
+                scope.getNewLocalSymbol(
+                    config, stack, varName))
             emitVarUpdate(indent, lines,
-                          newsym:getEmitVarname(),
-                          newSym:getCurSlot(),
+                          newSymbol:getEmitVarname(),
+                          newSymbol:getCurSlot(),
                           derefValToValue(t),
                           derefValToType(t))
         else
-            local newsym = scope.setLocalFirstTime(config, stack, varName)
+            symbol:replaceBy(
+                scope.getNewLocalSymbol(
+                    config, stack, varName))
+            -- TODO emit firs time
         end
     end
 end
 
 function emitVarUpdate(indent, lines, varname, valuename, value, typ)
-    util.addLine(indent, lines, b.e(varname, valuename)())
+    util.addLine(indent, lines, b.e(varname .. valuename)())
     util.addLine(indent, lines, b.e(valuename .. b.p(b.dQ(value) .. typ))())
 end
 
-function emitGlobalVar(indent, varname, valuename, lines, env)
+function emitGlobalVar(indent, varname, valuename, lines)
     util.addLine(indent, lines, b.e(varname .. b.c("=") .. valuename)())
 end
 
-function emitUpdateGlobVar(indent, valuename, value, lines, env, typ)
+function emitUpdateGlobVar(indent, valuename, value, lines, typ)
     util.addLine(indent, lines, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
 end
 
 function emitSet(indent, ast, config, stack, lines)
-    util.addLine(indent, lines, "# " .. serSet(ast))
+    util.addLine(indent, lines, "# " .. serializer.serSet(ast))
     local explist, varlist = ast[2], ast[1]
     local rhsTempresults = emitExplist(indent, explist, config, stack, lines)
-    local iterator = statefulIIterator(rhsTempresults)
+    local iterator = util.statefulIIterator(rhsTempresults)
     for k, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
             emitSimpleAssign(indent, lhs, config,
@@ -443,31 +448,32 @@ function emitSet(indent, ast, config, stack, lines)
     end
 end
 
---TODO:
 function emitSimpleAssign(indent, ast, config, stack, lines, rhs)
     local varName = ast[1]
-    local scopeQuery = scope.getMostCurrentBinding(stack, varName)
-    local inSome, coordinate = isInSomeScope(env, idString)
-    if scopeQuery == nil then -- make var in global
-        local symbol = scope.setGlobal(config, stack, varName)
-        inSome, coordinate = isInSomeScope(env, idString)
-        emitGlobalVar(coordinate[2].emitVarname,
-                      coordinate[2].emitCurSlot,
-                      lines, env)
+    local bindingQuery = scope.getMostCurrentBinding(stack, varName)
+    local someWhereDefined = bindingQuery ~= nil
+    local symbol
+    if someWhereDefined then
+        symbol = bindingQuery.scope
+    else
+        symbol = scope.getGlobalSymbol(config, stack, varName)
+        stack:bottom():getSymbolTable():addNewSymbol(varName, symbol)
     end
-    emitUpdateGlobVar(coordinate[2].emitCurSlot,
+    if someWhereDefined then -- make new var in global
+        emitGlobalVar(indent, symbol:getEmitVarname(),
+                      symbol:getCurSlot(), lines)
+    end
+    emitUpdateGlobVar(indent, symbol:getCurSlot(),
                       derefValToValue(rhs),
-                      lines, env,
-                      derefValToType(rhs))
+                      lines, derefValToType(rhs))
 end
 
 -- TODO:
 function emitComplexAssign(lhs, env, lines, rhs)
     local setValue = emitExecutePrefixexp(lhs, env, lines, true)[1]
-    emitUpdateGlobVar(string.format([[$(eval echo %s)]], setValue),
+    emitUpdateGlobVar(indent, setValue,
                       derefValToValue(rhs),
-                      lines, env,
-                      derefValToType(rhs))
+                      lines, derefValToType(rhs))
 end
 
 function emitPrefixexp(indent, ast, config, stack, lines)
@@ -486,26 +492,29 @@ function emitExecutePrefixexp(indent, prefixExp, config, stack, lines, asLval)
         -- in prefix expressions a paren or id node can only occur once
         -- on the left
         if indirection.typ == "Id" then
-            local inSome, coordinate = isInSomeScope(env, indirection.id)
-            if not inSome then
+            local bindingQuery =
+                scope.getMostCurrentBinding(env, indirection.id)
+            if not bindingQuery then
                 print("Must be in one scope!");
                 os.exit(1);
             end
-            temp[i] = emitId(indirection.ast, env, lines)[1]
+            temp[i] = emitId(indent, indirection.ast, config, stack, lines)[1]
         elseif indirection.typ == "Paren" then
-            temp[i] = emitExpression(indirection.exp, env, lines)[1]
+            temp[i] = emitExpression(indent, indirection.exp,
+                                     config, stack, lines)[1]
         elseif indirection.typ == "Call"  then
             -- TODO function arguments!
             local funArgs
-            temp[i] = emitCallClosure(env, lines, temp[i - 1], funArgs)[1]
+            temp[i] = emitCallClosure(indent, env, lines, temp[i - 1], funArgs)[1]
         elseif indirection.typ == "Index" then
-            local index = emitExpression(indirection.exp, config, lines)[1]
+            local index = emitExpression(indent, indirection.exp,
+                                         config, stack, lines)[1]
             index =  derefValToValue(temp[i-1]) .. derefValToValue(index)
             if i == #indirections and asLval then
                 temp[i] = index
             else
                 temp[i] = emitTempVal(
-                    ast, config, lines,
+                    ast, config, stack, lines,
                     b.pE(index .. b.c("[1]")),
                     b.pE(index))
             end

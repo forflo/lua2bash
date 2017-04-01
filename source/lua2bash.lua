@@ -36,9 +36,9 @@ lines = {}
 stack = datatypes.Stack()
 --TODO: ID
 stack:push(datatypes.Scope(
-               {}, datatypes.occasion.BLOCK,
-               "G", ID, "G"))
-emitBlock(ast, config, stack, lines)
+               datatypes.occasions.BLOCK, "G",
+               util.getUniqueId(), "G"))
+emitBlock(0, ast, config, stack, lines)
 
 for k,v in ipairs(lines) do
     print(v)

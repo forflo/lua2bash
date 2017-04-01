@@ -1,19 +1,21 @@
 local util = {}
 
 local ntostring
-function ntostring(x)
-    local s
+function ntostring(tbl, indent)
+    local function rep(i) return string.rep(" ", i) end
+    local indent = indent or 0
     if type(x) == "table" then
-        s = "{ "
-        local i, v = next(x)
-        while i do
-            s = s .. ntostring(i) .. " = " .. ntostring(v)
-            i, v = next(x, i)
-            if i then s = s .. ", " end
+        local s = rep(indent) .. "{"
+        for k, v in pairs(tbl) do
+            print(k, v)
+            s = rep(indent) .. "\n"
+            s = rep(indent + 2) .. tostring(k)
+                .. " = " .. ntostring(v, indent + 2)
         end
-        return s .. " }"
+        s = s .. rep(indent) .. "}"
+        return s
     else
-        return tostring(x)
+        return tostring(tbl)
     end
 end
 util.tostring = ntostring
@@ -111,7 +113,7 @@ function util.join(strings, char)
     local result = strings[1]
     if #strings == 1 then return strings[1] end
     for i=2, #strings do
-            result = result .. char .. strings[i]
+        result = result .. char .. strings[i]
     end
     return result
 end
@@ -134,7 +136,7 @@ function util.zipI(left, right)
 end
 
 function util.addLine(indent, lines, line, comment)
-    lines[#lines + 1] = augmentLine(indent, line, comment)
+    lines[#lines + 1] = util.augmentLine(indent, line, comment)
 end
 
 function util.tableIAddInplace(dest, source)

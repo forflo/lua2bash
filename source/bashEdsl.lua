@@ -1,5 +1,5 @@
 dbg = require "debugger"
-require "lua2bash-util"
+util = require("lua2bash-util")
 
 local bashDslMtab = { }
 
@@ -105,6 +105,8 @@ local function max(x, y)
 end
 
 local function bDslConcat(l, r)
+    print("foo")
+    print(util.tostring(l))
     return makeBdsl({}, "", "", l() .. r(), max(l.nesting, r.nesting))
 end
 

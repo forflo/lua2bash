@@ -7,12 +7,12 @@ scope = require("lua2bash-scope")
 function emitBlock(indent, ast, config, stack, lines, occasion)
     local scopeNumber = util.getUniqueId()
     local envId = util.getUniqueId()
-    local occasion = occasion or datatypes.Scope():BLOCK()
+    local occasion = occasion or datatypes.occasions.BLOCK
     local scopeName = "S" .. scopeNumber
     -- push new scope on top
     local newScope = datatypes.Scope(
         occasion, scopeName, envId,
-        scope.getPathPrefix(config, stack) .. scopeName)
+        scope.getPathPrefix(stack) .. scopeName)
     stack:push(newScope)
     util.addLine(
         indent, lines,
@@ -173,8 +173,8 @@ end
 
 function emitStatement(indent, ast, config, stack, lines)
     if ast.tag == "Call" then
-        emitCall(ast, config, stack, lines)
-    -- HACK: This was used to "Simplyfy implementation"
+        emitCall(indent, ast, config, stack, lines)
+    -- HACK: This was used to "Simplify implementation"
     elseif ast.tag == "SPECIAL" then
         util.addLine(indent, lines, ast.special)
     elseif ast.tag == "Fornum" then
