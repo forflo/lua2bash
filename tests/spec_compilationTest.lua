@@ -20,9 +20,10 @@ testUtil.config.varPrefix = "V" -- Variable
 testUtil.config.valPrefix = "L" -- vaLue
 testUtil.config.indentSize = 4
 
+-- lua library for reading and writing to processes!!
 function testUtil.evaluateByLua(filename)
     local result
-
+    local ast, error_msg = parser.parse(filename)
     return result
 end
 
@@ -52,8 +53,8 @@ describe(
         it("test whether test codes can be compiled correctly",
            function()
                for _, v in pairs(testcode) do
-                   local luaResult = testUtil.evaluateByLua(testcode[1])
-                   local bashResult = testUtil.evaluateByBash(testcode[1])
+                   local luaResult = testUtil.evaluateByLua(v)
+                   local bashResult = testUtil.evaluateByBash(v)
                end
         end)
 end)
