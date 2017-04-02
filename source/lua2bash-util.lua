@@ -4,13 +4,11 @@ local ntostring
 function ntostring(tbl, indent)
     local function rep(i) return string.rep(" ", i) end
     local indent = indent or 0
-    if type(x) == "table" then
-        local s = rep(indent) .. "{"
+    if type(tbl) == "table" then
+        local s = "{" .. "\n"
         for k, v in pairs(tbl) do
-            print(k, v)
-            s = rep(indent) .. "\n"
-            s = rep(indent + 2) .. tostring(k)
-                .. " = " .. ntostring(v, indent + 2)
+            s = s .. rep(indent + 2) .. tostring(k)
+                .. " = " .. ntostring(v, indent + 2) .. "\n"
         end
         s = s .. rep(indent) .. "}"
         return s
@@ -19,6 +17,11 @@ function ntostring(tbl, indent)
     end
 end
 util.tostring = ntostring
+
+--print(util.tostring{1,2,3})
+--print(util.tostring{"foo", "bar"})
+--print(util.tostring{1,{"foo", "bar"},2,3,{3,4,{4,5,6}}})
+--print(util.tostring({1,{"foo", "bar"},2,3,{3,4,{4,5,6}}}))
 
 function util.max(n1, n2)
     return expIfStrict(n1 <= n2, n2, n1)
