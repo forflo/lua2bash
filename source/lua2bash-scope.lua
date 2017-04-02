@@ -18,24 +18,21 @@ function scope.getNewLocalSymbol(config, stack, varName)
                 .. stack:top():getEnvironmentId() .. "}"
                 .. currentPathPrefix .. "_" .. varName)
     newSymbol:setEmitVarname(emitVarname)
-    newSymbol:setCurSlot(
-        b.c(config.valPrefix .. "D1" .. emitVarname))
+    newSymbol:setCurSlot(b.c(config.valPrefix .. "D1") .. emitVarname)
     return newSymbol
 end
 
 -- @pure
 function scope.getUpdatedSymbol(config, stack, oldSymbol, varName)
-    local definitionInfix = "D"
     local newSymbol = datatypes.Symbol(0, 1)
     local currentPathPrefix = scope.getPathPrefix(stack)
     newSymbol:setRedefCount(oldSymbol:getRedefCnt() + 1)
     newSymbol:setEmitVarname(oldSymbol:getEmitVarname())
     newSymbol:setCurSlot(
-        b.c(
-            config.valPrefix
-                .. definitionInfix
-                .. oldSymbol:getRedefCount()
-                .. oldSymbol:getEmitVarname()))
+        b.c(config.valPrefix)
+            .. b.c("D")
+            .. oldSymbol:getRedefCount()
+            .. oldSymbol:getEmitVarname())
     return newSymbol
 end
 
@@ -60,6 +57,7 @@ function scope.getGlobalSymbol(config, stack, varName)
 end
 
 function scope.whereInScope(stack, varName)
+    assert(stack or varName, "Arguments must not be nil")
     local entries = stack:map(
         function(scope)
             local result = scope:getSymbolTable():isInSymtab(varName)
@@ -72,6 +70,7 @@ function scope.whereInScope(stack, varName)
 end
 
 function scope.getMostCurrentBinding(stack, varName)
+    assert(varName or stack, "Arguments must not be nil")
     local entries = scope.whereInScope(stack, varName)
     entries = util.filter(entries, function(e) return e.exists end)
     if #entries == 0 then return nil

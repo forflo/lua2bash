@@ -384,37 +384,39 @@ function emitLocal(indent, ast, config, stack, lines)
     end
     local iter = util.statefulIIterator(locations)
     for _, varName in pairs(varNames) do
-        local bindingQuery = scope.getMostCurrentBinding(stack, idString)
+        local bindingQuery = scope.getMostCurrentBinding(stack, varName)
         local someWhereDefined = bindingQuery ~= nil
-        local scope, symbol
+        local s, symbol
+        local location = iter()
         if someWhereDefined then
-            scope, symbol = bindingQuery.scope, bindingQuery.symbol
+            symScope, symbol = bindingQuery.scope, bindingQuery.symbol
         end
-        if someWhereDefined and (scope ~= stack:top()) then
-            local t = iter()
+        if someWhereDefined and (symScope ~= stack:top()) then
             symbol:replaceBy(
                 scope.getUpdatedSymbol(
                     config, stack, symbol, varName))
             emitVarUpdate(indent, lines,
                           symbol:getEmitVarname(),
                           symbol:getCurSlot(),
-                          derefValToValue(t),
-                          derefValToType(t))
-        elseif someWhereDefined and (scope == stack:top()) then
-            local t = iter()
+                          derefValToValue(location),
+                          derefValToType(location))
+        elseif someWhereDefined and (symScope == stack:top()) then
             symbol:replaceBy(
                 scope.getNewLocalSymbol(
                     config, stack, varName))
             emitVarUpdate(indent, lines,
-                          newSymbol:getEmitVarname(),
-                          newSymbol:getCurSlot(),
-                          derefValToValue(t),
-                          derefValToType(t))
+                          symbol:getEmitVarname(),
+                          symbol:getCurSlot(),
+                          derefValToValue(location),
+                          derefValToType(location))
         else
-            symbol:replaceBy(
-                scope.getNewLocalSymbol(
-                    config, stack, varName))
-            -- TODO emit firs time
+            symbol = scope.getNewLocalSymbol(config, stack, varName)
+            stack:top():getSymbolTable():addNewSymbol(symbol, varName)
+            emitVarUpdate(indent, lines,
+                          symbol:getEmitVarname(),
+                          symbol:getCurSlot(),
+                          derefValToValue(location),
+                          derefValToType(location))
         end
     end
 end

@@ -66,7 +66,7 @@ function comp.Scope(occasion, name, id, path)
     t._symbolTable = comp.SymbolTable()
     -- getter
     function t:getPath() return self._path end
-    function t:getName() print(self._name); return self._name end
+    function t:getName() return self._name end
     function t:getOccasion() return self._occasion end
     function t:getEnvironmentId() return self._environmentId end
     function t:getSymbolTable() return self._symbolTable end
