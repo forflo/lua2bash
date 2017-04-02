@@ -105,7 +105,7 @@ local function max(x, y)
 end
 
 local function bDslConcat(l, r)
-    print("foo")
+    print("concat l content")
     print(util.tostring(l))
     return makeBdsl({}, "", "", l() .. r(), max(l.nesting, r.nesting))
 end

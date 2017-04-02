@@ -54,7 +54,7 @@ function scope.getGlobalSymbol(config, stack, varName)
     local newSymbol = datatypes.Symbol(0, 1)
     newSymbol:setEmitVarname(emitVarname)
     newSymbol:setCurSlot(
-        b.c(config.valPrefix .. emitVarname))
+        b.c(config.valPrefix) .. emitVarname)
 --    bottom:getSymbolTable():addNewSymbol(varName, symbol)
     return newSymbol
 end
