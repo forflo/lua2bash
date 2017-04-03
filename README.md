@@ -3,7 +3,7 @@
 Yes, this is a lua to BASH translator.
 It takes lua code and gives you BASH code.
 
-## Don't use yet. This is still a very proof of concept
+## Don't use yet. This is still a very early proof of concept
 
 # Why?
 
