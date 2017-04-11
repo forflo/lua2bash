@@ -2,9 +2,11 @@ datatypes = require("lua2bash-datatypes")
 util = require("lua2bash-util")
 scope = require("lua2bash-scope")
 
+local se = {}
+
 -- occasion is the reason for the block
 -- can be "do", "function", "for", "while", ...
-function emitBlock(indent, ast, config, stack, lines, occasion)
+function se.emitBlock(indent, ast, config, stack, lines, occasion)
     local scopeNumber = util.getUniqueId()
     local envId = util.getUniqueId()
     local occasion = occasion or datatypes.occasions.BLOCK
@@ -33,7 +35,7 @@ function emitBlock(indent, ast, config, stack, lines, occasion)
 end
 
 -- TODO: komplett neu schreiben
-function emitFornum(indent, ast, config, stack, lines)
+function se.emitFornum(indent, ast, config, stack, lines)
     -- push new scope only for the loop counter
     pushScope(env,
               "for",
@@ -113,7 +115,7 @@ function emitFornum(indent, ast, config, stack, lines)
     popScope(env)
 end
 
-function emitIf(indent, ast, config, stack, lines)
+function se.emitIf(indent, ast, config, stack, lines)
     if #ast == 1 then
         -- make else
         emitBlock(indent + config.indentSize,
@@ -137,12 +139,12 @@ end
 -- should completely be eliminated before the emit process
 -- begins. This shall be realized as a additional compiler pass
 -- that modifies the AST directly
-function emitForIn(indent, ast, config, stack, lines)
+function se.emitForIn(indent, ast, config, stack, lines)
     -- TODO:
 end
 
 -- TODO: nil?
-function emitWhile(indent, ast, config, stack, lines)
+function se.emitWhile(indent, ast, config, stack, lines)
     local loopExpr = ast[1]
     local loopBlock = ast[2]
     -- only the first tempValue is significant
@@ -163,15 +165,15 @@ function emitWhile(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "done")
 end
 
-function emitRepeat(indent, ast, config, stack, lines)
+function se.emitRepeat(indent, ast, config, stack, lines)
     -- TODO:
 end
 
-function emitBreak(indent, ast, config, stack, lines)
+function se.emitBreak(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "break;")
 end
 
-function emitStatement(indent, ast, config, stack, lines)
+function se.emitStatement(indent, ast, config, stack, lines)
     if ast.tag == "Call" then
         emitCall(indent, ast, config, stack, lines)
     -- HACK: This was used to "Simplify implementation"
@@ -199,3 +201,5 @@ function emitStatement(indent, ast, config, stack, lines)
         emitSet(indent, ast, config, stack, lines)
     end
 end
+
+return se

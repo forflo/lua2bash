@@ -1,16 +1,15 @@
-local testUtil = {}
-local bp = require "lua-shepi"
-local parser = require "lua-parser.parser"
-local pp = require "lua-parser.pp"
-local dbg = require "debugger"
-local serializer = require "lua2bash-serialize-ast"
-local util = require "lua2bash-util"
-local scope = require "lua2bash-scope"
+local bp = require("lua-shepi")
+local b = require("bashEdsl")
+local parser = require("lua-parser.parser")
+local pp = require("lua-parser.pp")
+local dbg = require("debugger")
+local serializer = require("lua2bash-serialize-ast")
+local util = require("lua2bash-util")
+local scope = require("lua2bash-scope")
 local datatypes = require("lua2bash-datatypes")
-local b = require "bashEdsl"
-require "lua2bash-emit-stmt"
-require "lua2bash-emit-exp"
+local stmtEmitter = require("lua2bash-emit-stmt")
 
+local testUtil = {}
 testUtil.config = {}
 testUtil.config.tempVarPrefix = "TV" -- Temp Variable
 testUtil.config.tempValPrefix = "TL" -- Temp vaLue
@@ -31,9 +30,10 @@ end
 function testUtil.evaluateByBash(filename)
     local result
     local ast, error_msg = parser.parse(filename)
+    local bashCode = stmtEmitter.emitBlock(ast)
+    local bashProc = bp.cmd('bash')
 
-
-    return result
+    return bashProc(bashCode)
 end
 
 describe(
@@ -45,7 +45,7 @@ describe(
               function()
                   testcode = {
                       closure = "testcode/closure.lua",
-                      "testcode/closureUp.lua",
+                      closureUp = "testcode/closureUp.lua",
                       for1 = "testcode/for1.lua",
                       realClosure = "testcode/realClosure.lua",
                       scoping = "testcode/scoping.lua",
@@ -55,7 +55,8 @@ describe(
 
         it("test whether a simple closure can be compiled correctly",
            function()
-               assert.are.same(testUtil.evaluateByLua(testcode.simpleClosure),
-                               testUtil.evaluateByBash(testcode.simpleClosure))
+               assert.are.same(
+                   testUtil.evaluateByLua(testcode.simpleClosure),
+                   testUtil.evaluateByBash(testcode.simpleClosure))
         end)
 end)
