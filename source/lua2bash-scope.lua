@@ -1,5 +1,6 @@
-util = require("lua2bash-util")
-datatypes = require("lua2bash-datatypes")
+local util = require("lua2bash-util")
+local datatypes = require("lua2bash-datatypes")
+local b = require("bashEdsl")
 
 local scope = {}
 

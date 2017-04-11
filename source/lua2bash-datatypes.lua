@@ -28,10 +28,10 @@ function comp.Symbol(value, redefCount, curSlot, emitVarname)
     obj._value = value
     obj._redefCount = redefCount
     -- getter
-    function obj:getCurSlot(v) return obj._curSlot end
-    function obj:getEmitVarname(v) return obj._emitVarname end
-    function obj:getValue(v) return obj._value end
-    function obj:getRedefCnt(v) return obj._redefCount end
+    function obj:getCurSlot() return obj._curSlot end
+    function obj:getEmitVarname() return obj._emitVarname end
+    function obj:getValue() return obj._value end
+    function obj:getRedefCnt() return obj._redefCount end
     -- misc functions
     function obj:replaceBy(v)
         self._curSlot = v:getCurSlot(v)

@@ -15,12 +15,11 @@ describe(
                   config.varPrefix = "V" -- Variable
                   config.valPrefix = "L" -- vaLue
                   config.indentSize = 4
-
                   compiler = require("lua2bash-datatypes")
                   scope = require("lua2bash-scope")
                   stack = compiler.Stack()
-                  scope1 = compiler.Scope(compiler.occasions.BLOCK,
-                                          "global", 0, "global")
+                  scope1 = compiler.Scope(
+                      compiler.occasions.BLOCK, "global", 0, "global")
                   stack:push(scope1)
                   scope2 = compiler.Scope(compiler.occasions.FOR, "S1", 1,
                                           scope.getPathPrefix(stack) .. "S1")
@@ -72,22 +71,22 @@ describe(
 
         it("tests whether setGlobal really updates a symbol",
            function()
-               scope.setGlobal(config, stack, "goo")
-               local result = scope.getMostCurrentBinding(stack, "goo")
-               assert.Truthy(result.symbol)
-               assert.True(result.exists)
-               assert.are.equal(result.scope, stack:bottom())
-
+               local symbol = scope.getGlobalSymbol(config, stack, "goo")
+               stack:bottom():getSymbolTable():addNewSymbol("goo", symbol)
+               local temp1 = scope.getMostCurrentBinding(stack, "goo")
+               assert.Truthy(temp1.symbol)
+               assert.True(temp1.exists)
+               assert.are.equal(temp1.scope, stack:bottom())
                assert.are.same([[V${E0}globalS1I1goo]],
-                               result.symbol:getEmitVarname())
-
-               scope.setGlobal(config, stack, "goo")
-               local result2 = scope.getMostCurrentBinding(stack, "goo")
-               assert.are.not_equal(result.symbol, result2.symbol)
+                               temp1.symbol:getEmitVarname())
+               symbol = scope.getGlobalSymbol(config, stack, "goo")
+               stack:bottom():getSymbolTable():addNewSymbol("goo", symbol)
+               local temp2 = scope.getMostCurrentBinding(stack, "goo")
+               assert.are.not_equal(temp1.symbol, temp2.symbol)
         end)
 
-        it("tests whether setLocalFirstTime does set correctly first time",
+        it("tests whether getNewLocalSymbol does correctly return a value",
            function()
-               scope.setLocalFirstTime(config, stack, "moo")
+               -- TODO:
         end)
 end)

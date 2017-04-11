@@ -16,8 +16,8 @@ function ee.emitId(indent, ast, config, stack, lines)
     if binding == nil then return "NIL" end -- better solution?
     local emitVn = binding.symbol:getEmitVarname()
     return { emitTempVal(indent, config, stack, lines,
-                         derefVarToType(emitVn),
-                         derefVarToValue(emitVn)) }
+                         ee.derefVarToType(emitVn),
+                         ee.derefVarToValue(emitVn)) }
 end
 
 function ee.emitNumber(indent, ast, config, stack, lines)
