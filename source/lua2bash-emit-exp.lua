@@ -3,7 +3,8 @@ local scope = require("lua2bash-scope")
 local datatypes = require("lua2bash-datatypes")
 local serializer = require("lua2bash-serialize-ast")
 
-local se= require("lua2bash-emit-stmt")
+local emitUtil = require("lua2bash-emit-util")
+local se = require("lua2bash-emit-stmt")
 local ee = {}
 
 function ee.emitId(indent, ast, config, stack, lines)
@@ -16,8 +17,8 @@ function ee.emitId(indent, ast, config, stack, lines)
     if binding == nil then return "NIL" end -- better solution?
     local emitVn = binding.symbol:getEmitVarname()
     return { emitTempVal(indent, config, stack, lines,
-                         ee.derefVarToType(emitVn),
-                         ee.derefVarToValue(emitVn)) }
+                         emitUtil.derefVarToType(emitVn),
+                         emitUtil.derefVarToValue(emitVn)) }
 end
 
 function ee.emitNumber(indent, ast, config, stack, lines)
@@ -60,26 +61,6 @@ function ee.emitTempVal(indent, config, stack, lines, typ, content, simple)
     local cmdLine = b.e(tempVal .. b.c("=") .. b.p(content .. b.c(" ") .. typ))
     util.addLine(indent, lines, cmdLine())
     return tempVal
-end
-
-function ee.derefVarToValue(varname)
-    return b.pE(b.c("!") .. b.c(varname))
-end
-
-function ee.derefVarToType(varname)
-    return b.pE(b.pE(varname) .. b.c("[1]"))
-end
-
-function ee.derefValToEnv(valuename)
-    return b.pE(valuename .. b.c("[2]"))
-end
-
-function ee.derefValToValue(valuename)
-    return b.pE(valuename)
-end
-
-function ee.derefValToType(valname)
-    return b.pE(valname .. b.c("[1]"))
 end
 
 function ee.emitString(indent, ast, config, stack, lines)
@@ -169,9 +150,9 @@ end
 -- TODO: argValueList!
 -- returns a tempvalue of the result
 function ee.emitCallClosure(indent, config, lines, closureValue, argValueList)
-    local cmdLine = b.e(ee.derefValToValue(closureValue)
+    local cmdLine = b.e(emitUtil.derefValToValue(closureValue)
                             .. b.c(" ")
-                            .. ee.derefValToType(closureValue))
+                            .. emitUtil.derefValToType(closureValue))
     util.addLine(indent, lines, cmdLine())
 end
 
@@ -189,7 +170,7 @@ function ee.emitCall(indent, ast, config, stack, lines)
             util.join(
                 util.imap(
                     tempValues,
-                    ee.derefValToValue), "\t")
+                    emitUtil.derefValToValue), "\t")
         util.addLine(
             indent, lines,
             string.format("eval echo %s", dereferenced))
@@ -198,24 +179,13 @@ function ee.emitCall(indent, ast, config, stack, lines)
         local value = ee.emitExpression(
             indent, arguments, config, stack, lines)[1]
         local typeStrValue = ee.emitTempVal(
-            indent, config, stack, lines, b.c("STR"), ee.derefValToType(value))
+            indent, config, stack, lines, b.c("STR"), emitUtil.derefValToType(value))
         return typeStrValue
     else
         -- TODO: table
         local c = ee.emitExpression(indent, functionExp, config, stack, lines)[1]
         return ee.emitCallClosure(indent, config, lines, c)
     end
-end
-
--- we can do ((Ex = Ex + 1)) even as first comman line because
--- bash will use 0 as value for Ex if the variable is not declared.
-function ee.emitEnvCounter(indent, config, lines, envId)
-    util.addLine(
-        indent, lines,
-        string.format("((%s = %s + 1))",
-                      config.environmentPrefix .. envId,
-                      config.environmentPrefix .. envId),
-        "Environment counter")
 end
 
 function ee.snapshotEnvironment(indent, ast, config, stack, lines)
@@ -226,7 +196,7 @@ function ee.snapshotEnvironment(indent, ast, config, stack, lines)
             local assignmentAst = parser.parse(
                 string.format("local %s = %s;", sym, sym))
             -- we only need the local ast not the block surrounding it
-            return ee.emitLocal(indent, assignmentAst[1], config, stack, lines)
+            return se.emitLocal(indent, assignmentAst[1], config, stack, lines)
     end)
 end
 
@@ -324,9 +294,9 @@ function ee.emitUnop(indent, ast, config, stack, lines)
                     b.dQ(
                         b.aE(
                             b.c(util.strToOpstring(ast[1])) ..
-                                ee.derefValToValue(operand2))) ..
+                                emitUtil.derefValToValue(operand2))) ..
                         b.c(" ") ..
-                        ee.derefValToType(operand2)))())
+                        emitUtil.derefValToType(operand2)))())
     return { tempVal }
 end
 
@@ -343,11 +313,11 @@ function ee.emitBinop(indent, ast, config, stack, lines)
                  .. b.p(
                      b.dQ(
                          b.aE(
-                             ee.derefValToValue(left) ..
+                             emitUtil.derefValToValue(left) ..
                                  b.c(util.strToOpstring(ast[1])) ..
-                                 ee.derefValToValue(right)) ..
+                                 emitUtil.derefValToValue(right)) ..
                              b.c(" ") ..
-                             ee.derefValToType(right)))))())
+                             emitUtil.derefValToType(right)))))())
     return { tempVal }
 end
 
@@ -365,123 +335,13 @@ function ee.emitExplist(indent, ast, config, stack, lines)
                  function(v)
                      return ee.emitTempVal(
                          indent, config, stack, lines,
-                         ee.derefValToType(v),
-                         ee.derefValToValue(v)) end)
+                         emitUtil.derefValToType(v),
+                         emitUtil.derefValToValue(v)) end)
         util.tableIAddInplace(locations, tempVnRhs)
     end
     return locations
 end
 
--- TODO: really blongs not here but in lua2bash-emit-stmt
-function emitLocal(indent, ast, config, stack, lines)
-    -- functions
-    -- local vars
-    local topScope = stack:top()
-    local varNames = {}
-    for i = 1, #ast[1] do
-        varNames[i] = ast[1][i][1]
-    end
-    local locations = ee.emitExplist(indent, ast[2], config, stack, lines)
-    local memNumDiff = util.tblCountAll(varNames) - util.tblCountAll(locations)
-    if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
-        for i = 1, memNumDiff do
-            locations[#locations + 1] = { b.c("VAR_NIL") }
-        end
-    end
-    local iter = util.statefulIIterator(locations)
-    for _, varName in pairs(varNames) do
-        local bindingQuery = scope.getMostCurrentBinding(stack, varName)
-        local someWhereDefined = bindingQuery ~= nil
-        local s, symbol
-        local location = iter()
-        if someWhereDefined then
-            symScope, symbol = bindingQuery.scope, bindingQuery.symbol
-        end
-        if someWhereDefined and (symScope ~= stack:top()) then
-            symbol:replaceBy(
-                scope.getUpdatedSymbol(
-                    config, stack, symbol, varName))
-            emitVarUpdate(indent, lines,
-                          symbol:getEmitVarname(),
-                          symbol:getCurSlot(),
-                          ee.derefValToValue(location),
-                          ee.derefValToType(location))
-        elseif someWhereDefined and (symScope == stack:top()) then
-            symbol:replaceBy(
-                scope.getNewLocalSymbol(
-                    config, stack, varName))
-            emitVarUpdate(indent, lines,
-                          symbol:getEmitVarname(),
-                          symbol:getCurSlot(),
-                          ee.derefValToValue(location),
-                          ee.derefValToType(location))
-        else
-            symbol = scope.getNewLocalSymbol(config, stack, varName)
-            stack:top():getSymbolTable():addNewSymbol(symbol, varName)
-            emitVarUpdate(indent, lines,
-                          symbol:getEmitVarname(),
-                          symbol:getCurSlot(),
-                          ee.derefValToValue(location),
-                          ee.derefValToType(location))
-        end
-    end
-end
-
-function ee.emitVarUpdate(indent, lines, varname, valuename, value, typ)
-    util.addLine(indent, lines, b.e(varname .. valuename)())
-    util.addLine(indent, lines, b.e(valuename .. b.p(b.dQ(value) .. typ))())
-end
-
-function ee.emitGlobalVar(indent, varname, valuename, lines)
-    util.addLine(indent, lines, b.e(varname .. b.c("=") .. valuename)())
-end
-
-function ee.emitUpdateGlobVar(indent, valuename, value, lines, typ)
-    util.addLine(indent, lines, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
-end
-
-function ee.emitSet(indent, ast, config, stack, lines)
-    util.addLine(indent, lines, "# " .. serializer.serSet(ast))
-    local explist, varlist = ast[2], ast[1]
-    local rhsTempresults = ee.emitExplist(indent, explist, config, stack, lines)
-    local iterator = util.statefulIIterator(rhsTempresults)
-    for k, lhs in ipairs(varlist) do
-        if lhs.tag == "Id" then
-            ee.emitSimpleAssign(
-                indent, lhs, config, stack, lines, iterator())
-        else
-            ee.emitComplexAssign(
-                indent, lhs, config, stack, lines, iterator())
-        end
-    end
-end
-
-function ee.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
-    local varName = ast[1]
-    local bindingQuery = scope.getMostCurrentBinding(stack, varName)
-    local someWhereDefined = bindingQuery ~= nil
-    local symbol
-    if someWhereDefined then
-        symbol = bindingQuery.scope
-    else
-        symbol = scope.getGlobalSymbol(config, stack, varName)
-        stack:bottom():getSymbolTable():addNewSymbol(varName, symbol)
-    end
-    if someWhereDefined then -- make new var in global
-        ee.emitGlobalVar(
-            indent, symbol:getEmitVarname(), symbol:getCurSlot(), lines)
-    end
-    ee.emitUpdateGlobVar(indent, symbol:getCurSlot(),
-                         derefValToValue(rhs),
-                         lines, derefValToType(rhs))
-end
-
--- TODO:
-function ee.emitComplexAssign(lhs, env, lines, rhs)
-    local setValue = ee.emitExecutePrefixexp(lhs, env, lines, true)[1]
-    ee.emitUpdateGlobVar(
-        indent, setValue, derefValToValue(rhs), lines, derefValToType(rhs))
-end
 
 function ee.emitPrefixexp(indent, ast, config, stack, lines)
     return ee.emitExecutePrefixexp(ast, env, lines)
@@ -491,7 +351,7 @@ end
 -- dereferences expressions like getTable()[1]
 -- and returns the values to be written to
 function ee.emitExecutePrefixexp(indent, prefixExp, config, stack, lines, asLval)
-    local indirections = linearizePrefixTree(prefixExp, env)
+    local indirections = emitUtil.linearizePrefixTree(prefixExp, env)
     local temp = {}
     for i = 1, #indirections do
         local indirection = indirections[i]
@@ -517,7 +377,8 @@ function ee.emitExecutePrefixexp(indent, prefixExp, config, stack, lines, asLval
         elseif indirection.typ == "Index" then
             local index = ee.emitExpression(
                 indent, indirection.exp, config, stack, lines)[1]
-            index =  ee.derefValToValue(temp[i-1]) .. ee.derefValToValue(index)
+            index =  emitUtil.derefValToValue(temp[i-1])
+                .. emitUtil.derefValToValue(index)
             if i == #indirections and asLval then
                 temp[i] = index
             else
@@ -529,39 +390,6 @@ function ee.emitExecutePrefixexp(indent, prefixExp, config, stack, lines, asLval
         end
     end
     return { temp[#temp] }
-end
-
-local function linearizePrefixTree(indent, ast, config, stack, result)
-    local result = result or {}
-    if type(ast) ~= "table" then return result end
-    if ast.tag == "Id" then
-        result[#result + 1] =
-            { id = ast[1],
-              typ = ast.tag,
-              ast = ast,
-              exp = nil}
-    elseif ast.tag == "Paren" then
-        result[#result + 1] =
-            { exp = ast[1],
-              typ = ast.tag,
-              ast = ast}
-    elseif ast.tag == "Call"  then
-        result[#result + 1] =
-            { callee = ast[1],
-              typ = ast.tag,
-              ast = ast,
-              exp = util.tableSlice(ast, 2, #ast, 1)}
-    elseif ast.tag == "Index" then
-        result[#result + 1] =
-            { indexee = ast[1],
-              typ = ast.tag,
-              ast = ast,
-              exp = ast[2]}
-    end
-    if ast.tag ~= "Id" then
-        linearizePrefixTree(ast[1], config, result)
-    end
-    return util.tableReverse(result)
 end
 
 return ee

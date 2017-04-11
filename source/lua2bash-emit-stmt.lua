@@ -1,8 +1,13 @@
 local datatypes = require("lua2bash-datatypes")
 local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
+local emitUtil = require("lua2bash-emit-util")
 
+local ee = require("lua2bash-emit-exp")
 local se = {}
+
+-- TODO: How should I fix the packaging problem?
+
 
 -- occasion is the reason for the block
 -- can be "do", "function", "for", "while", ...
@@ -19,7 +24,7 @@ function se.emitBlock(indent, ast, config, stack, lines, occasion)
     util.addLine(
         indent, lines,
         "# Begin of Scope: " .. stack:top():getPath())
-    emitEnvCounter(indent + config.indentSize, config,
+    emitUtil.emitEnvCounter(indent + config.indentSize, config,
                    lines, stack:top():getEnvironmentId())
     -- emit all enclosed statements
     for k, v in ipairs(ast) do
@@ -127,7 +132,7 @@ function se.emitIf(indent, ast, config, stack, lines)
         util.addLine(
             indent, lines,
             string.format("if [ \"%s\" = 1 ]; then",
-                          derefLocation(location)))
+                          emitUtil.derefLocation(location)))
         emitBlock(indent, ast[2], config, stack, lines)
         util.addLine(indent, lines, "else")
         emitIf(indent, tableSlice(ast, 3, nil, 1), config, stack, lines)
@@ -150,8 +155,8 @@ function se.emitWhile(indent, ast, config, stack, lines)
     -- only the first tempValue is significant
     local tempValue = emitExpression(indent, loopExpr, config, stack, lines)[1]
     local simpleValue = emitTempVal(indent, config, lines,
-                                    derefValToType(tempValue),
-                                    derefValToValue(tempValue), true)
+                                    emitUtil.derefValToType(tempValue),
+                                    emitUtil.derefValToValue(tempValue), true)
     util.addLine(indent, lines, string.format(
                 "while [ \"${%s}\" != 0 ]; do",
                 simpleValue))
@@ -160,7 +165,7 @@ function se.emitWhile(indent, ast, config, stack, lines)
     local tempValue2 = emitExpression(indent, loopExpr, config, stack, lines)[1]
     util.addLine(indent, lines, string.format("eval %s=%s",
                                          simpleValue,
-                                         derefValToValue(tempValue2)))
+                                         emitUtil.derefValToValue(tempValue2)))
     util.addLine(indent, lines, "true", "to prevent empty block")
     util.addLine(indent, lines, "done")
 end
@@ -175,31 +180,128 @@ end
 
 function se.emitStatement(indent, ast, config, stack, lines)
     if ast.tag == "Call" then
-        emitCall(indent, ast, config, stack, lines)
+        ee.emitCall(indent, ast, config, stack, lines)
     -- HACK: This was used to "Simplify implementation"
     elseif ast.tag == "SPECIAL" then
         util.addLine(indent, lines, ast.special)
     elseif ast.tag == "Fornum" then
-        emitFornum(indent, ast, config, stack, lines)
+        se.emitFornum(indent, ast, config, stack, lines)
     elseif ast.tag == "Local" then
         emitLocal(indent, ast, config, stack, lines)
     elseif ast.tag == "ForIn" then
-        emitForIn(indent, ast, config, stack, lines)
+        se.emitForIn(indent, ast, config, stack, lines)
     elseif ast.tag == "Repeat" then
-        emitRepeat(indent, ast, config, stack, lines)
+        se.emitRepeat(indent, ast, config, stack, lines)
     elseif ast.tag == "If" then
-        emitIf(indent, ast, config, stack, lines)
+        se.emitIf(indent, ast, config, stack, lines)
     elseif ast.tag == "Break" then
-        emitBreak(indent, ast, config, stack, lines)
+        se.emitBreak(indent, ast, config, stack, lines)
     elseif ast.tag == "While" then
-        emitWhile(indent, ast, config, stack, lines)
+        se.emitWhile(indent, ast, config, stack, lines)
     elseif ast.tag == "Do" then
         util.addLine(indent, lines, "# do ")
-        emitBlock(indent, ast, config, stack, lines)
+        se.emitBlock(indent, ast, config, stack, lines)
         util.addLine(indent, lines, "# end ")
     elseif ast.tag == "Set" then
-        emitSet(indent, ast, config, stack, lines)
+        se.emitSet(indent, ast, config, stack, lines)
     end
+end
+
+function se.emitLocal(indent, ast, config, stack, lines)
+    -- functions
+    -- local vars
+    local topScope = stack:top()
+    local varNames = {}
+    for i = 1, #ast[1] do
+        varNames[i] = ast[1][i][1]
+    end
+    local locations = ee.emitExplist(indent, ast[2], config, stack, lines)
+    local memNumDiff = util.tblCountAll(varNames) - util.tblCountAll(locations)
+    if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
+        for i = 1, memNumDiff do
+            locations[#locations + 1] = { b.c("VAR_NIL") }
+        end
+    end
+    local iter = util.statefulIIterator(locations)
+    for _, varName in pairs(varNames) do
+        local bindingQuery = scope.getMostCurrentBinding(stack, varName)
+        local someWhereDefined = bindingQuery ~= nil
+        local s, symbol
+        local location = iter()
+        if someWhereDefined then
+            symScope, symbol = bindingQuery.scope, bindingQuery.symbol
+        end
+        if someWhereDefined and (symScope ~= stack:top()) then
+            symbol:replaceBy(
+                scope.getUpdatedSymbol(
+                    config, stack, symbol, varName))
+            emitVarUpdate(indent, lines,
+                          symbol:getEmitVarname(),
+                          symbol:getCurSlot(),
+                          emitUtil.derefValToValue(location),
+                          emitUtil.derefValToType(location))
+        elseif someWhereDefined and (symScope == stack:top()) then
+            symbol:replaceBy(
+                scope.getNewLocalSymbol(
+                    config, stack, varName))
+            emitVarUpdate(indent, lines,
+                          symbol:getEmitVarname(),
+                          symbol:getCurSlot(),
+                          emitUtil.derefValToValue(location),
+                          emitUtil.derefValToType(location))
+        else
+            symbol = scope.getNewLocalSymbol(config, stack, varName)
+            stack:top():getSymbolTable():addNewSymbol(symbol, varName)
+            emitVarUpdate(indent, lines,
+                          symbol:getEmitVarname(),
+                          symbol:getCurSlot(),
+                          emitUtil.derefValToValue(location),
+                          emitUtil.derefValToType(location))
+        end
+    end
+end
+
+function se.emitSet(indent, ast, config, stack, lines)
+    util.addLine(indent, lines, "# " .. serializer.serSet(ast))
+    local explist, varlist = ast[2], ast[1]
+    local rhsTempresults = ee.emitExplist(indent, explist, config, stack, lines)
+    local iterator = util.statefulIIterator(rhsTempresults)
+    for k, lhs in ipairs(varlist) do
+        if lhs.tag == "Id" then
+            ee.emitSimpleAssign(
+                indent, lhs, config, stack, lines, iterator())
+        else
+            ee.emitComplexAssign(
+                indent, lhs, config, stack, lines, iterator())
+        end
+    end
+end
+
+local function emitSimpleAssign(indent, ast, config, stack, lines, rhs)
+    local varName = ast[1]
+    local bindingQuery = scope.getMostCurrentBinding(stack, varName)
+    local someWhereDefined = bindingQuery ~= nil
+    local symbol
+    if someWhereDefined then
+        symbol = bindingQuery.scope
+    else
+        symbol = scope.getGlobalSymbol(config, stack, varName)
+        stack:bottom():getSymbolTable():addNewSymbol(varName, symbol)
+    end
+    if someWhereDefined then -- make new var in global
+        ee.emitGlobalVar(
+            indent, symbol:getEmitVarname(), symbol:getCurSlot(), lines)
+    end
+    ee.emitUpdateGlobVar(indent, symbol:getCurSlot(),
+                         derefValToValue(rhs),
+                         lines, derefValToType(rhs))
+end
+
+-- TODO:
+local function emitComplexAssign(lhs, env, lines, rhs)
+    local setValue = ee.emitExecutePrefixexp(lhs, env, lines, true)[1]
+    ee.emitUpdateGlobVar(
+        indent, setValue, derefValToValue(rhs), lines, derefValToType(rhs))
 end
 
 return se

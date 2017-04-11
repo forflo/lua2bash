@@ -9,28 +9,19 @@ local scope = require("lua2bash-scope")
 local datatypes = require("lua2bash-datatypes")
 local stmtEmitter = require("lua2bash-emit-stmt")
 
-local testUtil = {}
-testUtil.config = {}
-testUtil.config.tempVarPrefix = "TV" -- Temp Variable
-testUtil.config.tempValPrefix = "TL" -- Temp vaLue
-testUtil.config.environmentPrefix = "E"
-testUtil.config.functionPrefix = "AFUN"
-testUtil.config.tablePrefix = "TB" -- TaBle
-testUtil.config.varPrefix = "V" -- Variable
-testUtil.config.valPrefix = "L" -- vaLue
-testUtil.config.indentSize = 4
 
 -- lua library for reading and writing to processes!!
-function testUtil.evaluateByLua(filename)
+local function evaluateByLua(filename)
     local luaProc = bp.cmd("lua", "-")
     local fileContent = bp.cat('cat', filename)()
     return luaProc(fileContent)
 end
 
-function testUtil.evaluateByBash(filename)
+local function evaluateByBash(filename)
     local result
     local ast, error_msg = parser.parse(filename)
-    local bashCode = stmtEmitter.emitBlock(ast)
+    local bashCode = stmtEmitter.emitBlock(
+        0, ast, config, stack, lines)
     local bashProc = bp.cmd('bash')
 
     return bashProc(bashCode)
@@ -43,6 +34,25 @@ describe(
 
         setup("build table of file names",
               function()
+                  config = {}
+                  config.tempVarPrefix = "TV" -- Temp Variable
+                  config.tempValPrefix = "TL" -- Temp vaLue
+                  config.environmentPrefix = "E"
+                  config.functionPrefix = "AFUN"
+                  config.tablePrefix = "TB" -- TaBle
+                  config.varPrefix = "V" -- Variable
+                  config.valPrefix = "L" -- vaLue
+                  config.indentSize = 4
+
+                  lines = {}
+                  stack = datatypes.Stack()
+                  stack:push(
+                      datatypes.Scope(
+                          datatypes.occasions.BLOCK,
+                          "G",
+                          util.getUniqueId(),
+                          "G"))
+
                   testcode = {
                       closure = "testcode/closure.lua",
                       closureUp = "testcode/closureUp.lua",
@@ -56,7 +66,7 @@ describe(
         it("test whether a simple closure can be compiled correctly",
            function()
                assert.are.same(
-                   testUtil.evaluateByLua(testcode.simpleClosure),
-                   testUtil.evaluateByBash(testcode.simpleClosure))
+                   evaluateByLua(testcode.simpleClosure),
+                   evaluateByBash(testcode.simpleClosure))
         end)
 end)
