@@ -1,4 +1,5 @@
 local testUtil = {}
+local bp = require "lua-shepi"
 local parser = require "lua-parser.parser"
 local pp = require "lua-parser.pp"
 local dbg = require "debugger"
@@ -22,13 +23,15 @@ testUtil.config.indentSize = 4
 
 -- lua library for reading and writing to processes!!
 function testUtil.evaluateByLua(filename)
-    local result
-    local ast, error_msg = parser.parse(filename)
-    return result
+    local luaProc = bp.cmd("lua", "-")
+    local fileContent = bp.cat('cat', filename)()
+    return luaProc(fileContent)
 end
 
 function testUtil.evaluateByBash(filename)
     local result
+    local ast, error_msg = parser.parse(filename)
+
 
     return result
 end
@@ -41,20 +44,18 @@ describe(
         setup("build table of file names",
               function()
                   testcode = {
-                      "testcode/closure.lua",
+                      closure = "testcode/closure.lua",
                       "testcode/closureUp.lua",
-                      "testcode/for1.lua",
-                      "testcode/realClosure.lua",
-                      "testcode/scoping.lua",
-                      "testcode/simpleClosure.lua"
+                      for1 = "testcode/for1.lua",
+                      realClosure = "testcode/realClosure.lua",
+                      scoping = "testcode/scoping.lua",
+                      simpleClosure = "testcode/simpleClosure.lua"
                   }
         end)
 
-        it("test whether test codes can be compiled correctly",
+        it("test whether a simple closure can be compiled correctly",
            function()
-               for _, v in pairs(testcode) do
-                   local luaResult = testUtil.evaluateByLua(v)
-                   local bashResult = testUtil.evaluateByBash(v)
-               end
+               assert.are.same(testUtil.evaluateByLua(testcode.simpleClosure),
+                               testUtil.evaluateByBash(testcode.simpleClosure))
         end)
 end)
