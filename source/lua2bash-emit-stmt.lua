@@ -1,6 +1,6 @@
-datatypes = require("lua2bash-datatypes")
-util = require("lua2bash-util")
-scope = require("lua2bash-scope")
+local datatypes = require("lua2bash-datatypes")
+local util = require("lua2bash-util")
+local scope = require("lua2bash-scope")
 
 local se = {}
 

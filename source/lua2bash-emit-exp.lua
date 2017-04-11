@@ -2,8 +2,8 @@ local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
 local datatypes = require("lua2bash-datatypes")
 local serializer = require("lua2bash-serialize-ast")
-local sEmitter = require("lua2bash-emit-stmt")
 
+local se= require("lua2bash-emit-stmt")
 local ee = {}
 
 function ee.emitId(indent, ast, config, stack, lines)
@@ -26,8 +26,8 @@ function ee.emitNumber(indent, ast, config, stack, lines)
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, stack, lines,
-                         b.c("NUM"), b.c(value)) }
+    return { ee.emitTempVal(indent, config, stack, lines,
+                            b.c("NUM"), b.c(value)) }
 end
 
 function ee.emitNil(indent, ast, config, stack, lines)
@@ -35,7 +35,7 @@ function ee.emitNil(indent, ast, config, stack, lines)
         print("emitNil(): not a Nil node")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, lines, b.c("NIL"), b.c("")) }
+    return { ee.emitTempVal(indent, config, lines, b.c("NIL"), b.c("")) }
 end
 
 function ee.getEnvVar(config, stack)
@@ -45,7 +45,7 @@ end
 function ee.getTempValname(config, stack, simple)
     local commonSuffix
     if not simple then
-        commonSuffix = b.c(getEnvVar(config, stack)) ..
+        commonSuffix = b.c(ee.getEnvVar(config, stack)) ..
             b.c("_") ..
             b.c(tostring(util.getUniqueId()))
     else
@@ -56,7 +56,7 @@ end
 
 -- typ and content must be values from bash EDSL
 function ee.emitTempVal(indent, config, stack, lines, typ, content, simple)
-    local tempVal = getTempValname(config, stack, simple)
+    local tempVal = ee.getTempValname(config, stack, simple)
     local cmdLine = b.e(tempVal .. b.c("=") .. b.p(content .. b.c(" ") .. typ))
     util.addLine(indent, lines, cmdLine())
     return tempVal
@@ -87,8 +87,8 @@ function ee.emitString(indent, ast, config, stack, lines)
         print("emitString(): not a string node")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, stack, lines,
-                         b.c("STR"), b.c(ast[1]), false) }
+    return { ee.emitTempVal(indent, config, stack, lines,
+                            b.c("STR"), b.c(ast[1]), false) }
 end
 
 function ee.emitFalse(indent, ast, config, stack, lines)
@@ -96,8 +96,8 @@ function ee.emitFalse(indent, ast, config, stack, lines)
         print("emitFalse(): not a False node!")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, stack, lines,
-                         b.c("FLS"), b.c("0"), false) }
+    return { ee.emitTempVal(indent, config, stack, lines,
+                            b.c("FLS"), b.c("0"), false) }
 end
 
 function ee.emitTrue(indent, ast, config, stack, lines)
@@ -105,13 +105,13 @@ function ee.emitTrue(indent, ast, config, stack, lines)
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-    return { emitTempVal(indent, config, stack, lines,
-                         b.c("TRU"), b.c("1"), false) }
+    return { ee.emitTempVal(indent, config, stack, lines,
+                            b.c("TRU"), b.c("1"), false) }
 end
 
 function ee.emitTableValue(indent, config, stack, lines, tblIdx, value, typ)
     local typeString = b.c("TBL")
-    local envVar = getEnvVar(config, stack)
+    local envVar = ee.getEnvVar(config, stack)
     local valueName = b.c(config.tablePrefix) .. envVar .. tblIdx
     local cmdline = b.e(
         valueName .. b.c("=")
@@ -129,47 +129,49 @@ function ee.emitTable(indent, ast, config, stack, lines, firstCall)
         os.exit(1)
     end
     if firstCall == nil then
-        addLine(indent, lines, "# " .. serTbl(ast))
+        util.addLine(indent, lines, "# " .. serTbl(ast))
     end
     local tableId = util.getUniqueId(env)
     local tempValues
-    emitTableValue(indent, config, stack, lines, tableId)
+    ee.emitTableValue(indent, config, stack, lines, tableId)
     for k, v in ipairs(ast) do
         local fieldExp = ast[k]
         if (v.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif v.tag ~= "Table" then
-            tempValues = emitExpression(indent, fieldExp, config, stack, lines)
+            tempValues = ee.emitExpression(indent, fieldExp, config, stack, lines)
             imap(
                 tempValues,
                 function(v)
-                    emitTableValue(indent, config, stack,
-                                   lines, tableId .. k,
-                                   derefValToValue(v),
-                                   derefValToType(v)) end)
+                    ee.emitTableValue(indent, config, stack,
+                                      lines, tableId .. k,
+                                      derefValToValue(v),
+                                      derefValToType(v)) end)
         else
             -- tempValues possibly is a list of tempValue
-            tempValues = emitTable(indent, ast[k], config,
-                                   stack, lines, false)
+            tempValues = ee.emitTable(indent, ast[k], config,
+                                      stack, lines, false)
             imap(
                 tempValues,
                 function(v)
-                    emitTableValue(indent, config, stack,
-                                   lines, tableId .. k,
-                                   derefValToValue(v),
-                                   derefValToType(v)) end)
+                    ee.emitTableValue(indent, config, stack,
+                                      lines, tableId .. k,
+                                      derefValToValue(v),
+                                      derefValToType(v)) end)
         end
     end
-    return { b.c(env.tablePrefix) .. getEnvVar(config, stack)
+    return { b.c(env.tablePrefix)
+                 .. ee.getEnvVar(config, stack)
                  .. b.c(tostring(tableId))}
 end
 
 -- TODO: argValueList!
 -- returns a tempvalue of the result
 function ee.emitCallClosure(indent, config, lines, closureValue, argValueList)
-    local cmdLine = b.e(derefValToValue(closureValue) .. b.c(" ")
-                            .. derefValToType(closureValue))
+    local cmdLine = b.e(ee.derefValToValue(closureValue)
+                            .. b.c(" ")
+                            .. ee.derefValToType(closureValue))
     util.addLine(indent, lines, cmdLine())
 end
 
@@ -181,26 +183,27 @@ function ee.emitCall(indent, ast, config, stack, lines)
     local arguments = ast[2]
     if functionName == "print" then
     --    dbg()
-        local tempValues = emitExpression(indent, arguments, config, stack, lines)
+        local tempValues = ee.emitExpression(indent, arguments, config,
+                                             stack, lines)
         local dereferenced =
             util.join(
                 util.imap(
                     tempValues,
-                    derefValToValue), "\t")
+                    ee.derefValToValue), "\t")
         util.addLine(
             indent, lines,
             string.format("eval echo %s", dereferenced))
     elseif functionName == "type" then
         -- TODO: table!
-        local value = emitExpression(indent, arguments, config, stack, lines)[1]
-        local typeStrValue = emitTempVal(indent, config, stack, lines,
-                                         b.c("STR"), derefValToType(value))
-
+        local value = ee.emitExpression(
+            indent, arguments, config, stack, lines)[1]
+        local typeStrValue = ee.emitTempVal(
+            indent, config, stack, lines, b.c("STR"), ee.derefValToType(value))
         return typeStrValue
     else
         -- TODO: table
-        local c = emitExpression(indent, functionExp, config, stack, lines)[1]
-        return emitCallClosure(indent, config, lines, c)
+        local c = ee.emitExpression(indent, functionExp, config, stack, lines)[1]
+        return ee.emitCallClosure(indent, config, lines, c)
     end
 end
 
@@ -223,7 +226,7 @@ function ee.snapshotEnvironment(indent, ast, config, stack, lines)
             local assignmentAst = parser.parse(
                 string.format("local %s = %s;", sym, sym))
             -- we only need the local ast not the block surrounding it
-            return emitLocal(indent, assignmentAst[1], config, stack, lines)
+            return ee.emitLocal(indent, assignmentAst[1], config, stack, lines)
     end)
 end
 
@@ -247,14 +250,14 @@ function ee.emitFunction(indent, ast, config, stack, lines)
                     -- adjust symbol string?
                     b.c("BF") .. b.c(tostring(functionId)))
     util.addLine(indent, lines, "# Environment Snapshotting")
-    snapshotEnvironment(indent, ast, config, stack, lines)
+    ee.snapshotEnvironment(indent, ast, config, stack, lines)
     -- set again to new envid
     stack:top():setEnvironmentId(newEnv)
     -- translate to bash function including environment set code
     util.addLine(indent, lines, string.format("function BF%s {", functionId))
     util.addLine(indent, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
     -- recurse into block
-    emitBlock(indent, block, config, stack, lines)
+    se.emitBlock(indent, block, config, stack, lines)
     util.addLine(
         indent, lines,
         string.format("%s=$1", "E" .. scope:top():getEnvironmentId()))
@@ -265,35 +268,35 @@ function ee.emitFunction(indent, ast, config, stack, lines)
 end
 
 function ee.emitParen(indent, ast, config, stack, lines)
-    return emitExpression(indent, ast[1], config, stack, lines)
+    return ee.emitExpression(indent, ast[1], config, stack, lines)
 end
 
 -- always returns a table of location "strings" and the lines table
 function ee.emitExpression(indent, ast, config, stack, lines)
     if ast.tag == "Op" then
-        return emitOp(indent, ast, config, stack, lines)
+        return ee.emitOp(indent, ast, config, stack, lines)
     elseif ast.tag == "Id" then
-        return emitId(indent, ast, config, stack, lines)
+        return ee.emitId(indent, ast, config, stack, lines)
     elseif ast.tag == "True" then
-        return emitTrue(indent, ast, config, stack, lines)
+        return ee.emitTrue(indent, ast, config, stack, lines)
     elseif ast.tag == "False" then
-        return emitFalse(indent, ast, config, stack, lines)
+        return ee.emitFalse(indent, ast, config, stack, lines)
     elseif ast.tag == "Nil" then
-        return emitNil(indent, ast, config, stack, lines)
+        return ee.emitNil(indent, ast, config, stack, lines)
     elseif ast.tag == "Number" then
-        return emitNumber(indent, ast, config, stack, lines)
+        return ee.emitNumber(indent, ast, config, stack, lines)
     elseif ast.tag == "String" then
-        return emitString(indent, ast, config, stack, lines)
+        return ee.emitString(indent, ast, config, stack, lines)
     elseif ast.tag == "Table" then
-        return emitTable(indent, ast, config, stack, lines)
+        return ee.emitTable(indent, ast, config, stack, lines)
     elseif ast.tag == "Function" then
-        return emitFunction(indent, ast, config, stack, lines)
+        return ee.emitFunction(indent, ast, config, stack, lines)
     elseif ast.tag == "Call" then
-        return emitCall(indent, ast, config, stack, lines)
+        return ee.emitCall(indent, ast, config, stack, lines)
     elseif ast.tag == "Paren" then
-        return emitParen(indent, ast, config, stack, lines)
+        return ee.emitParen(indent, ast, config, stack, lines)
     elseif ast.tag == "Index" then
-        return emitPrefixexp(indent, ast, config, stack, lines)
+        return ee.emitPrefixexp(indent, ast, config, stack, lines)
     else
         print("emitExpresison(): error!")
         os.exit(1)
@@ -301,8 +304,8 @@ function ee.emitExpression(indent, ast, config, stack, lines)
 end
 
 function ee.emitOp(indent, ast, config, stack, lines)
-    if #ast == 3 then return emitBinop(indent, ast, config, stack, lines)
-    elseif #ast == 2 then return emitUnop(indent, ast, config, stack, lines)
+    if #ast == 3 then return ee.emitBinop(indent, ast, config, stack, lines)
+    elseif #ast == 2 then return ee.emitUnop(indent, ast, config, stack, lines)
     else
         print("Not supported!")
         os.exit(1)
@@ -311,8 +314,8 @@ end
 
 function ee.emitUnop(indent, ast, config, stack, lines)
     local operand2, lines =
-        emitExpression(indent, ast[2], config, stack, lines)[1]
-    local tempVal = getTempValname(config, stack, false)
+        ee.emitExpression(indent, ast[2], config, stack, lines)[1]
+    local tempVal = ee.getTempValname(config, stack, false)
     util.addLine(
         indent, lines,
         b.e(tempVal
@@ -321,17 +324,17 @@ function ee.emitUnop(indent, ast, config, stack, lines)
                     b.dQ(
                         b.aE(
                             b.c(util.strToOpstring(ast[1])) ..
-                                derefValToValue(operand2))) ..
+                                ee.derefValToValue(operand2))) ..
                         b.c(" ") ..
-                        derefValToType(operand2)))())
+                        ee.derefValToType(operand2)))())
     return { tempVal }
 end
 
 function ee.emitBinop(indent, ast, config, stack, lines)
-    local ergId1 = getUniqueId(env)
-    local tempVal = getTempValname(env)
-    local left = emitExpression(ast[2], env, lines)[1]
-    local right = emitExpression(ast[3], env, lines)[1]
+    local ergId1 = util.getUniqueId()
+    local tempVal = ee.getTempValname(env)
+    local left = ee.emitExpression(ast[2], env, lines)[1]
+    local right = ee.emitExpression(ast[3], env, lines)[1]
     util.addLine(
         indent, lines
         (b.e(
@@ -340,11 +343,11 @@ function ee.emitBinop(indent, ast, config, stack, lines)
                  .. b.p(
                      b.dQ(
                          b.aE(
-                             derefValToValue(left) ..
+                             ee.derefValToValue(left) ..
                                  b.c(util.strToOpstring(ast[1])) ..
-                                 derefValToValue(right)) ..
+                                 ee.derefValToValue(right)) ..
                              b.c(" ") ..
-                             derefValToType(right)))))())
+                             ee.derefValToType(right)))))())
     return { tempVal }
 end
 
@@ -355,15 +358,15 @@ function ee.emitExplist(indent, ast, config, stack, lines)
         os.exit(1)
     end
     for k, expression in ipairs(ast) do
-        local tempValues = emitExpression(indent, expression,
-                                          config, stack, lines)
+        local tempValues = ee.emitExpression(
+            indent, expression, config, stack, lines)
         local tempVnRhs =
             util.imap(tempValues,
                  function(v)
-                     return emitTempVal(
+                     return ee.emitTempVal(
                          indent, config, stack, lines,
-                         derefValToType(v),
-                         derefValToValue(v)) end)
+                         ee.derefValToType(v),
+                         ee.derefValToValue(v)) end)
         util.tableIAddInplace(locations, tempVnRhs)
     end
     return locations
@@ -378,7 +381,7 @@ function emitLocal(indent, ast, config, stack, lines)
     for i = 1, #ast[1] do
         varNames[i] = ast[1][i][1]
     end
-    local locations = emitExplist(indent, ast[2], config, stack, lines)
+    local locations = ee.emitExplist(indent, ast[2], config, stack, lines)
     local memNumDiff = util.tblCountAll(varNames) - util.tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
         for i = 1, memNumDiff do
@@ -401,8 +404,8 @@ function emitLocal(indent, ast, config, stack, lines)
             emitVarUpdate(indent, lines,
                           symbol:getEmitVarname(),
                           symbol:getCurSlot(),
-                          derefValToValue(location),
-                          derefValToType(location))
+                          ee.derefValToValue(location),
+                          ee.derefValToType(location))
         elseif someWhereDefined and (symScope == stack:top()) then
             symbol:replaceBy(
                 scope.getNewLocalSymbol(
@@ -410,16 +413,16 @@ function emitLocal(indent, ast, config, stack, lines)
             emitVarUpdate(indent, lines,
                           symbol:getEmitVarname(),
                           symbol:getCurSlot(),
-                          derefValToValue(location),
-                          derefValToType(location))
+                          ee.derefValToValue(location),
+                          ee.derefValToType(location))
         else
             symbol = scope.getNewLocalSymbol(config, stack, varName)
             stack:top():getSymbolTable():addNewSymbol(symbol, varName)
             emitVarUpdate(indent, lines,
                           symbol:getEmitVarname(),
                           symbol:getCurSlot(),
-                          derefValToValue(location),
-                          derefValToType(location))
+                          ee.derefValToValue(location),
+                          ee.derefValToType(location))
         end
     end
 end
@@ -440,15 +443,15 @@ end
 function ee.emitSet(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "# " .. serializer.serSet(ast))
     local explist, varlist = ast[2], ast[1]
-    local rhsTempresults = emitExplist(indent, explist, config, stack, lines)
+    local rhsTempresults = ee.emitExplist(indent, explist, config, stack, lines)
     local iterator = util.statefulIIterator(rhsTempresults)
     for k, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
-            emitSimpleAssign(indent, lhs, config,
-                             stack, lines, iterator())
+            ee.emitSimpleAssign(
+                indent, lhs, config, stack, lines, iterator())
         else
-            emitComplexAssign(indent, lhs, config,
-                              stack, lines, iterator())
+            ee.emitComplexAssign(
+                indent, lhs, config, stack, lines, iterator())
         end
     end
 end
@@ -465,24 +468,23 @@ function ee.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
         stack:bottom():getSymbolTable():addNewSymbol(varName, symbol)
     end
     if someWhereDefined then -- make new var in global
-        emitGlobalVar(indent, symbol:getEmitVarname(),
-                      symbol:getCurSlot(), lines)
+        ee.emitGlobalVar(
+            indent, symbol:getEmitVarname(), symbol:getCurSlot(), lines)
     end
-    emitUpdateGlobVar(indent, symbol:getCurSlot(),
-                      derefValToValue(rhs),
-                      lines, derefValToType(rhs))
+    ee.emitUpdateGlobVar(indent, symbol:getCurSlot(),
+                         derefValToValue(rhs),
+                         lines, derefValToType(rhs))
 end
 
 -- TODO:
 function ee.emitComplexAssign(lhs, env, lines, rhs)
-    local setValue = emitExecutePrefixexp(lhs, env, lines, true)[1]
-    emitUpdateGlobVar(indent, setValue,
-                      derefValToValue(rhs),
-                      lines, derefValToType(rhs))
+    local setValue = ee.emitExecutePrefixexp(lhs, env, lines, true)[1]
+    ee.emitUpdateGlobVar(
+        indent, setValue, derefValToValue(rhs), lines, derefValToType(rhs))
 end
 
 function ee.emitPrefixexp(indent, ast, config, stack, lines)
-    return emitExecutePrefixexp(ast, env, lines)
+    return ee.emitExecutePrefixexp(ast, env, lines)
 end
 
 --
@@ -503,22 +505,23 @@ function ee.emitExecutePrefixexp(indent, prefixExp, config, stack, lines, asLval
                 print("Must be in one scope!");
                 os.exit(1);
             end
-            temp[i] = emitId(indent, indirection.ast, config, stack, lines)[1]
+            temp[i] = ee.emitId(indent, indirection.ast, config, stack, lines)[1]
         elseif indirection.typ == "Paren" then
-            temp[i] = emitExpression(indent, indirection.exp,
-                                     config, stack, lines)[1]
+            temp[i] = ee.emitExpression(
+                indent, indirection.exp, config, stack, lines)[1]
         elseif indirection.typ == "Call"  then
             -- TODO function arguments!
             local funArgs
-            temp[i] = emitCallClosure(indent, env, lines, temp[i - 1], funArgs)[1]
+            temp[i] = ee.emitCallClosure(
+                indent, env, lines, temp[i - 1], funArgs)[1]
         elseif indirection.typ == "Index" then
-            local index = emitExpression(indent, indirection.exp,
-                                         config, stack, lines)[1]
-            index =  derefValToValue(temp[i-1]) .. derefValToValue(index)
+            local index = ee.emitExpression(
+                indent, indirection.exp, config, stack, lines)[1]
+            index =  ee.derefValToValue(temp[i-1]) .. ee.derefValToValue(index)
             if i == #indirections and asLval then
                 temp[i] = index
             else
-                temp[i] = emitTempVal(
+                temp[i] = ee.emitTempVal(
                     ast, config, stack, lines,
                     b.pE(index .. b.c("[1]")),
                     b.pE(index))
@@ -528,7 +531,7 @@ function ee.emitExecutePrefixexp(indent, prefixExp, config, stack, lines, asLval
     return { temp[#temp] }
 end
 
-function ee.linearizePrefixTree(indent, ast, config, stack, result)
+local function linearizePrefixTree(indent, ast, config, stack, result)
     local result = result or {}
     if type(ast) ~= "table" then return result end
     if ast.tag == "Id" then
