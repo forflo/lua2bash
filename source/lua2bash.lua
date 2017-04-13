@@ -13,8 +13,7 @@ config.valPrefix = "L" -- vaLue
 config.indentSize = 4
 
 serializer = require "lua2bash-serialize-ast"
-require "lua2bash-emit-stmt"
-require "lua2bash-emit-exp"
+emitter = require "lua2bash-emit-stmt"
 util = require "lua2bash-util"
 scope = require "lua2bash-scope"
 datatypes = require("lua2bash-datatypes")
@@ -38,7 +37,7 @@ stack = datatypes.Stack()
 stack:push(datatypes.Scope(
                datatypes.occasions.BLOCK, "G",
                util.getUniqueId(), "G"))
-emitBlock(0, ast, config, stack, lines)
+emitter.emitBlock(0, ast, config, stack, lines)
 
 for k,v in ipairs(lines) do
     print(v)
