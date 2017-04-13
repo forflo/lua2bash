@@ -9,6 +9,9 @@ do
         print(x)
         print(y)
         foo = 42
+        do
+            foo = foo - 1
+        end
     end
 end
 
