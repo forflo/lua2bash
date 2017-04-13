@@ -155,6 +155,7 @@ end
 
 local function bDslExecNormal(bstring)
     local result = ""
+    local middle = ""
     local ac = bstring.activeChars
     local begin = bstring.begin
     local payload

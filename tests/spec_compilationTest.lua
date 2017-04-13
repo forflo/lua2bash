@@ -19,6 +19,7 @@ end
 local function evaluateByBash(filename)
     local result
     local ast, error_msg = parser.parse(io.open(filename):read("a"))
+    lines = {}
     emitter.emitBlock(0, ast, config, stack, lines)
     local bashProc = bp.cmd('bash')
     return bashProc(util.join(lines, '\n'))
@@ -59,6 +60,13 @@ describe(
                       scoping = "testcode/scoping.lua",
                       simpleClosure = "testcode/simpleClosure.lua"
                   }
+        end)
+
+        it("tests whether scoping is implemented correctly",
+           function()
+               assert.are.same(
+                   evaluateByLua(testcode.scoping),
+                   evaluateByBash(testcode.scoping))
         end)
 
         it("test whether a few simple expressions can be compiled correctly",

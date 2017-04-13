@@ -19,7 +19,13 @@ function emitUtil.emitLocalVar(indent, lines, varname, valuename, value, typ)
     util.addLine(indent, lines, b.e(valuename .. b.p(b.dQ(value) .. typ))())
 end
 
-function emitUtil.emitLocalVarUpdate(indent, lines ) end
+function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
+    util.addLine(
+        indent, lines,
+        b.e(
+            b.lift(
+                symbol:getEmitVarname() .. b.c("=") .. symbol:getCurSlot()))())
+end
 
 function emitUtil.emitVar(indent, symbol, lines)
     util.addLine(

@@ -627,8 +627,7 @@ function emitter.emitStatement(indent, ast, config, stack, lines)
 end
 
 function emitter.emitLocal(indent, ast, config, stack, lines)
-    -- functions
-    -- local vars
+    util.addLine(indent, lines, "# " .. serializer.serLcl(ast))
     local topScope = stack:top()
     local varNames = {}
     for i = 1, #ast[1] do
@@ -650,26 +649,22 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
         if someWhereDefined then
             symScope, symbol = bindingQuery.scope, bindingQuery.symbol
         end
-        if someWhereDefined and (symScope ~= stack:top()) then
+        if someWhereDefined and (symScope == stack:top()) then
             symbol:replaceBy(
                 scope.getUpdatedSymbol(
                     config, stack, symbol, varName))
-            emitVarUpdate(
-                indent, lines,
-                symbol:getEmitVarname(),
-                symbol:getCurSlot(),
-                emitUtil.derefValToValue(location),
-                emitUtil.derefValToType(location))
-        elseif someWhereDefined and (symScope == stack:top()) then
-            symbol:replaceBy(
-                scope.getNewLocalSymbol(
-                    config, stack, varName))
-            emitVarUpdate(
-                indent, lines,
-                symbol:getEmitVarname(),
-                symbol:getCurSlot(),
-                emitUtil.derefValToValue(location),
-                emitUtil.derefValToType(location))
+            emitUtil.emitLocalVarUpdate(indent, lines, symbol)
+            emitUtil.emitUpdateVar(indent, symbol, location, lines)
+--        elseif someWhereDefined and (symScope ~= stack:top()) then
+--            symbol:replaceBy(
+--                scope.getUpdatedSymbol(
+--                    config, stack, symbol, varName))
+--            emitVarUpdate(
+--                indent, lines,
+--                symbol:getEmitVarname(),
+--                symbol:getCurSlot(),
+--                emitUtil.derefValToValue(location),
+--                emitUtil.derefValToType(location))
         else
             symbol = scope.getNewLocalSymbol(config, stack, varName)
             stack:top():getSymbolTable():addNewSymbol(varName, symbol)

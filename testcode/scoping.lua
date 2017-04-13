@@ -5,7 +5,11 @@ do
     local y = 2
     print(x) -- must be 4
     print(y) -- must be 2
+    do
+        foo = 42
+    end
 end
 
 print(x) -- must be 3
-print(y) -- must be nil
+--print(y) -- must be nil
+print(foo)

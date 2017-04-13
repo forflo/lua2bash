@@ -78,14 +78,14 @@ describe(
                assert.True(temp1.exists)
                assert.are.equal(temp1.scope, stack:bottom())
                assert.are.same(
-                   [[V${E0}globalS1I1goo]],
+                   [[V${E0}globalgoo]],
                    temp1.symbol:getEmitVarname()())
                symbol = scope.getGlobalSymbol(config, stack, "goo")
                stack:bottom():getSymbolTable():addNewSymbol("goo", symbol)
                local temp2 = scope.getMostCurrentBinding(stack, "goo")
                assert.are.not_equal(temp1.symbol, temp2.symbol)
                assert.are.same(
-                   [[V${E0}globalS1I1goo]],
+                   [[V${E0}globalgoo]],
                    temp2.symbol:getEmitVarname()())
         end)
 

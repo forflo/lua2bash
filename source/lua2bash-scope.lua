@@ -16,6 +16,7 @@ function scope.getNewLocalSymbol(config, stack, varName)
     local emitVarname =
         b.c(
             config.varPrefix .. "${"
+                .. config.environmentPrefix
                 .. stack:top():getEnvironmentId() .. "}"
                 .. currentPathPrefix .. "_" .. varName)
     newSymbol:setEmitVarname(emitVarname)
@@ -25,15 +26,13 @@ end
 
 -- @pure
 function scope.getUpdatedSymbol(config, stack, oldSymbol, varName)
-    local newSymbol = datatypes.Symbol(0, 1)
-    local currentPathPrefix = scope.getPathPrefix(stack)
-    newSymbol:setRedefCount(oldSymbol:getRedefCnt() + 1)
-    newSymbol:setEmitVarname(oldSymbol:getEmitVarname())
+    local newSymbol = datatypes.Symbol():replaceBy(oldSymbol)
+    newSymbol:setRedefCnt(newSymbol:getRedefCnt() + 1)
     newSymbol:setCurSlot(
         b.c(config.valPrefix)
             .. b.c("D")
-            .. b.c(oldSymbol:getRedefCount())
-            .. oldSymbol:getEmitVarname())
+            .. b.c(newSymbol:getRedefCnt())
+            .. newSymbol:getEmitVarname())
     return newSymbol
 end
 
