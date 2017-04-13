@@ -32,7 +32,7 @@ function scope.getUpdatedSymbol(config, stack, oldSymbol, varName)
     newSymbol:setCurSlot(
         b.c(config.valPrefix)
             .. b.c("D")
-            .. oldSymbol:getRedefCount()
+            .. b.c(oldSymbol:getRedefCount())
             .. oldSymbol:getEmitVarname())
     return newSymbol
 end

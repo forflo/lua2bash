@@ -19,13 +19,44 @@ end
 util.tostring = ntostring
 
 
---print(util.tostring{1,2,3})
---print(util.tostring{"foo", "bar"})
---print(util.tostring{1,{"foo", "bar"},2,3,{3,4,{4,5,6}}})
---print(util.tostring({1,{"foo", "bar"},2,3,{3,4,{4,5,6}}}))
+-- print(util.tostring{1,2,3})
+-- print(util.tostring{"foo", "bar"})
+-- print(util.tostring{1,{"foo", "bar"},2,3,{3,4,{4,5,6}}})
+-- print(util.tostring({1,{"foo", "bar"},2,3,{3,4,{4,5,6}}}))
 
 function util.max(n1, n2)
     return expIfStrict(n1 <= n2, n2, n1)
+end
+
+-- recursively traverses depth-first (left to right)
+-- and appends each non-table value to result
+function util.tableFlatten(tbl, result)
+    if type(tbl) ~= "table" then
+        result[#result + 1] = tbl
+    else
+        for _, v in pairs(tbl) do
+            util.tableFlatten(v, result)
+        end
+    end
+    return result
+end
+
+function util.tableIConcat(tbl1, result)
+    result = {}
+    for k, v in ipairs(tbl1) do
+        if type(v) == "table" then
+            for i, w in ipairs(v) do
+                result[#result + 1] = w
+            end
+        else
+            result[#result + 1] = v
+        end
+    end
+    return result
+end
+
+function util.call(callable)
+    return callable()
 end
 
 function util.strToOpstr(str)
@@ -286,6 +317,17 @@ function util.compose(funOuter)
         return function(x)
             return funOuter(funInner(x))
         end
+    end
+end
+
+function util.composeV(...)
+    local functions = table.pack(...)
+    return function(x)
+        local final = functions[#functions](x)
+        for i = #functions - 1, 1, -1 do
+            final = functions[i](final)
+        end
+        return final
     end
 end
 

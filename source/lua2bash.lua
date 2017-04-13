@@ -13,7 +13,7 @@ config.valPrefix = "L" -- vaLue
 config.indentSize = 4
 
 serializer = require "lua2bash-serialize-ast"
-emitter = require "lua2bash-emit-stmt"
+emitter = require "lua2bash-emit"
 util = require "lua2bash-util"
 scope = require "lua2bash-scope"
 datatypes = require("lua2bash-datatypes")

@@ -6,38 +6,6 @@ local serializer = require("lua2bash-serialize-ast")
 local emitter = {}
 local emitUtil = require("lua2bash-emit-util")
 
-function emitter.emitId(indent, ast, config, stack, lines)
-    if ast.tag ~= "Id" then
-        print("emitId(): not a Id node")
-        os.exit(1)
-    end
-    local varname = ast[1]
-    local binding = scope.getMostCurrentBinding(config, stack, varname)
-    if binding == nil then return "NIL" end -- better solution?
-    local emitVn = binding.symbol:getEmitVarname()
-    return { emitTempVal(indent, config, stack, lines,
-                         emitUtil.derefVarToType(emitVn),
-                         emitUtil.derefVarToValue(emitVn)) }
-end
-
-function emitter.emitNumber(indent, ast, config, stack, lines)
-    local value = tostring(ast[1])
-    if ast.tag ~= "Number" then
-        print("emitNumber(): not a Number node")
-        os.exit(1)
-    end
-    return { emitter.emitTempVal(indent, config, stack, lines,
-                            b.c("NUM"), b.c(value)) }
-end
-
-function emitter.emitNil(indent, ast, config, stack, lines)
-    if ast.tag ~= "Nil" then
-        print("emitNil(): not a Nil node")
-        os.exit(1)
-    end
-    return { emitter.emitTempVal(indent, config, lines, b.c("NIL"), b.c("")) }
-end
-
 function emitter.getEnvVar(config, stack)
     return b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
 end
@@ -62,13 +30,54 @@ function emitter.emitTempVal(indent, config, stack, lines, typ, content, simple)
     return tempVal
 end
 
+function emitter.emitId(indent, ast, config, stack, lines)
+    if ast.tag ~= "Id" then
+        print("emitId(): not a Id node")
+        os.exit(1)
+    end
+    local varname = ast[1]
+    local binding = scope.getMostCurrentBinding(stack, varname)
+    if binding == nil then return "NIL" end -- better solution?
+    local emitVn = binding.symbol:getEmitVarname()
+    return {
+        emitter.emitTempVal(
+            indent, config, stack, lines,
+            emitUtil.derefVarToType(emitVn),
+            emitUtil.derefVarToValue(emitVn)) }
+end
+
+function emitter.emitNumber(indent, ast, config, stack, lines)
+    local value = tostring(ast[1])
+    if ast.tag ~= "Number" then
+        print("emitNumber(): not a Number node")
+        os.exit(1)
+    end
+    return {
+        emitter.emitTempVal(
+            indent, config, stack, lines,
+            b.c("NUM"), b.c(value))}
+end
+
+function emitter.emitNil(indent, ast, config, stack, lines)
+    if ast.tag ~= "Nil" then
+        print("emitNil(): not a Nil node")
+        os.exit(1)
+    end
+    return {
+        emitter.emitTempVal(
+            indent, config, lines,
+            b.c("NIL"), b.c("")) }
+end
+
 function emitter.emitString(indent, ast, config, stack, lines)
     if ast.tag ~= "String" then
         print("emitString(): not a string node")
         os.exit(1)
     end
-    return { emitter.emitTempVal(indent, config, stack, lines,
-                            b.c("STR"), b.c(ast[1]), false) }
+    return {
+        emitter.emitTempVal(
+            indent, config, stack, lines,
+            b.c("STR"), b.c(ast[1]), false) }
 end
 
 function emitter.emitFalse(indent, ast, config, stack, lines)
@@ -76,8 +85,10 @@ function emitter.emitFalse(indent, ast, config, stack, lines)
         print("emitFalse(): not a False node!")
         os.exit(1)
     end
-    return { emitter.emitTempVal(indent, config, stack, lines,
-                            b.c("FLS"), b.c("0"), false) }
+    return {
+        emitter.emitTempVal(
+            indent, config, stack, lines,
+            b.c("FLS"), b.c("0"), false) }
 end
 
 function emitter.emitTrue(indent, ast, config, stack, lines)
@@ -85,8 +96,10 @@ function emitter.emitTrue(indent, ast, config, stack, lines)
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-    return { emitter.emitTempVal(indent, config, stack, lines,
-                            b.c("TRU"), b.c("1"), false) }
+    return {
+        emitter.emitTempVal(
+            indent, config, stack, lines,
+            b.c("TRU"), b.c("1"), false) }
 end
 
 function emitter.emitTableValue(indent, config, stack, lines, tblIdx, value, typ)
@@ -166,19 +179,27 @@ function emitter.emitCall(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "# " .. serializer.serCall(ast))
     local functionName = ast[1][1]
     local functionExp = ast[1]
-    local arguments = ast[2]
+    local arguments = util.tableSlice(ast, 2, #ast, 1)
+    local tempValues =
+        util.tableIConcat(
+            util.imap(
+                arguments,
+                function(exp)
+                    return emitter.emitExpression(
+                        indent, exp, config, stack, lines)
+            end), {})
     if functionName == "print" then
-    --    dbg()
-        local tempValues = emitter.emitExpression(indent, arguments, config,
-                                             stack, lines)
         local dereferenced =
             util.join(
                 util.imap(
                     tempValues,
-                    emitUtil.derefValToValue), "\t")
+                    util.composeV(
+                        util.call,
+                        emitUtil.derefValToValue)),
+                [[\\\\\\\t]])
         util.addLine(
             indent, lines,
-            string.format("eval echo %s", dereferenced))
+            string.format("eval echo -e %s", dereferenced))
     elseif functionName == "type" then
         -- TODO: table!
         local value = emitter.emitExpression(
@@ -300,7 +321,7 @@ function emitter.emitUnop(indent, ast, config, stack, lines)
                 .. b.p(
                     b.dQ(
                         b.aE(
-                            b.c(util.strToOpstring(ast[1])) ..
+                            b.c(util.strToOpstr(ast[1])) ..
                                 emitUtil.derefValToValue(operand2))) ..
                         b.c(" ") ..
                         emitUtil.derefValToType(operand2)))())
@@ -309,22 +330,23 @@ end
 
 function emitter.emitBinop(indent, ast, config, stack, lines)
     local ergId1 = util.getUniqueId()
-    local tempVal = emitter.getTempValname(env)
-    local left = emitter.emitExpression(ast[2], env, lines)[1]
-    local right = emitter.emitExpression(ast[3], env, lines)[1]
+    local tempVal = emitter.getTempValname(config, stack)
+    local left = emitter.emitExpression(indent, ast[2], config, stack, lines)[1]
+    local right = emitter.emitExpression(indent, ast[3], config, stack, lines)[1]
     util.addLine(
-        indent, lines
-        (b.e(
+        indent, lines,
+        b.e(
              tempVal
                  .. b.c("=")
-                 .. b.p(
-                     b.dQ(
-                         b.aE(
-                             emitUtil.derefValToValue(left) ..
-                                 b.c(util.strToOpstring(ast[1])) ..
-                                 emitUtil.derefValToValue(right)) ..
-                             b.c(" ") ..
-                             emitUtil.derefValToType(right)))))())
+                 .. b.c("\\(")
+                 .. b.dQ(
+                     b.aE(
+                         emitUtil.derefValToValue(left) ..
+                             b.c(util.strToOpstr(ast[1])) ..
+                             emitUtil.derefValToValue(right)) ..
+                         b.c(" ") ..
+                         emitUtil.derefValToType(right))
+                 .. b.c("\\)"))())
     return { tempVal }
 end
 
@@ -367,7 +389,7 @@ function emitter.emitExecutePrefixexp(indent, prefixExp, config,
         -- on the left
         if indirection.typ == "Id" then
             local bindingQuery =
-                scope.getMostCurrentBinding(env, indirection.id)
+                scope.getMostCurrentBinding(stack, indirection.id)
             if not bindingQuery then
                 print("Must be in one scope!");
                 os.exit(1);
@@ -420,7 +442,7 @@ function emitter.emitBlock(indent, ast, config, stack, lines, occasion)
     -- emit all enclosed statements
     for k, v in ipairs(ast) do
         if type(v) == "table" then
-            emitStatement(indent, v, config, stack, lines)
+            emitter.emitStatement(indent, v, config, stack, lines)
         else
             print("emitBlock error!??")
             os.exit(1)
@@ -571,14 +593,14 @@ end
 
 function emitter.emitStatement(indent, ast, config, stack, lines)
     if ast.tag == "Call" then
-        ee.emitCall(indent, ast, config, stack, lines)
+        emitter.emitCall(indent, ast, config, stack, lines)
     -- HACK: This was used to "Simplify implementation"
     elseif ast.tag == "SPECIAL" then
         util.addLine(indent, lines, ast.special)
     elseif ast.tag == "Fornum" then
         emitter.emitFornum(indent, ast, config, stack, lines)
     elseif ast.tag == "Local" then
-        emitLocal(indent, ast, config, stack, lines)
+        emitter.emitLocal(indent, ast, config, stack, lines)
     elseif ast.tag == "ForIn" then
         emitter.emitForIn(indent, ast, config, stack, lines)
     elseif ast.tag == "Repeat" then
@@ -606,7 +628,7 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
     for i = 1, #ast[1] do
         varNames[i] = ast[1][i][1]
     end
-    local locations = ee.emitExplist(indent, ast[2], config, stack, lines)
+    local locations = emitter.emitExplist(indent, ast[2], config, stack, lines)
     local memNumDiff = util.tblCountAll(varNames) - util.tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
         for i = 1, memNumDiff do
@@ -645,7 +667,7 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
         else
             symbol = scope.getNewLocalSymbol(config, stack, varName)
             stack:top():getSymbolTable():addNewSymbol(symbol, varName)
-            emitVarUpdate(
+            emitUtil.emitVarUpdate(
                 indent, lines,
                 symbol:getEmitVarname(),
                 symbol:getCurSlot(),
@@ -658,20 +680,21 @@ end
 function emitter.emitSet(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "# " .. serializer.serSet(ast))
     local explist, varlist = ast[2], ast[1]
-    local rhsTempresults = ee.emitExplist(indent, explist, config, stack, lines)
+    local rhsTempresults = emitter.emitExplist(
+        indent, explist, config, stack, lines)
     local iterator = util.statefulIIterator(rhsTempresults)
     for k, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
-            ee.emitSimpleAssign(
+            emitter.emitSimpleAssign(
                 indent, lhs, config, stack, lines, iterator())
         else
-            ee.emitComplexAssign(
+            emitter.emitComplexAssign(
                 indent, lhs, config, stack, lines, iterator())
         end
     end
 end
 
-local function emitSimpleAssign(indent, ast, config, stack, lines, rhs)
+function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
     local varName = ast[1]
     local bindingQuery = scope.getMostCurrentBinding(stack, varName)
     local someWhereDefined = bindingQuery ~= nil
@@ -686,16 +709,16 @@ local function emitSimpleAssign(indent, ast, config, stack, lines, rhs)
         ee.emitGlobalVar(
             indent, symbol:getEmitVarname(), symbol:getCurSlot(), lines)
     end
-    ee.emitUpdateGlobVar(
+    emitUtil.emitUpdateGlobVar(
         indent, symbol:getCurSlot(),
         emitUtil.derefValToValue(rhs),
         lines, emitUtil.derefValToType(rhs))
 end
 
 -- TODO:
-local function emitComplexAssign(lhs, env, lines, rhs)
+function emitter.emitComplexAssign(lhs, env, lines, rhs)
     local setValue = ee.emitExecutePrefixexp(lhs, env, lines, true)[1]
-    ee.emitUpdateGlobVar(
+    emitUtil.emitUpdateGlobVar(
         indent, setValue,
         emitUtil.derefValToValue(rhs),
         lines, emitUtil.derefValToType(rhs))
