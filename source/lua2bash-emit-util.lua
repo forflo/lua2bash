@@ -20,11 +20,7 @@ function emitUtil.emitVarUpdate(indent, lines, varname, valuename, value, typ)
 end
 
 function emitUtil.emitGlobalVar(indent, varname, valuename, lines)
-    util.addLine(indent, lines, b.e(varname .. b.c("=") .. valuename)())
-end
-
-function emitUtil.emitUpdateGlobVar(indent, valuename, value, lines, typ)
-    util.addLine(indent, lines, b.e(valuename .. b.c("=") .. b.p(value .. typ))())
+    util.addLine(indent, lines, b.e(b.lift(varname .. b.c("=") .. valuename))())
 end
 
 function emitUtil.derefVarToValue(varname)

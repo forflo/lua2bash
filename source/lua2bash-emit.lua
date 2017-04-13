@@ -225,7 +225,7 @@ function emitter.snapshotEnvironment(indent, ast, config, stack, lines)
             local assignmentAst = parser.parse(
                 string.format("local %s = %s;", sym, sym))
             -- we only need the local ast not the block surrounding it
-            return se.emitLocal(indent, assignmentAst[1], config, stack, lines)
+            return emitter.emitLocal(indent, assignmentAst[1], config, stack, lines)
     end)
 end
 
@@ -256,7 +256,7 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     util.addLine(indent, lines, string.format("function BF%s {", functionId))
     util.addLine(indent, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
     -- recurse into block
-    se.emitBlock(indent, block, config, stack, lines)
+    emitter.emitBlock(indent, block, config, stack, lines)
     util.addLine(
         indent, lines,
         string.format("%s=$1", "E" .. scope:top():getEnvironmentId()))
@@ -365,12 +365,13 @@ function emitter.emitExplist(indent, ast, config, stack, lines)
         local tempValues = emitter.emitExpression(
             indent, expression, config, stack, lines)
         local tempVnRhs =
-            util.imap(tempValues,
-                 function(v)
-                     return emitter.emitTempVal(
-                         indent, config, stack, lines,
-                         emitUtil.derefValToType(v),
-                         emitUtil.derefValToValue(v)) end)
+            util.imap(
+                tempValues,
+                function(v)
+                    return emitter.emitTempVal(
+                        indent, config, stack, lines,
+                        emitUtil.derefValToType(v),
+                        emitUtil.derefValToValue(v)) end)
         util.tableIAddInplace(locations, tempVnRhs)
     end
     return locations
@@ -705,28 +706,37 @@ function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
     local someWhereDefined = bindingQuery ~= nil
     local symbol
     if someWhereDefined then
-        symbol = bindingQuery.scope
+        symbol = bindingQuery.symbol
     else
         symbol = scope.getGlobalSymbol(config, stack, varName)
         stack:bottom():getSymbolTable():addNewSymbol(varName, symbol)
     end
-    if someWhereDefined then -- make new var in global
-        ee.emitGlobalVar(
-            indent, symbol:getEmitVarname(), symbol:getCurSlot(), lines)
+    if not someWhereDefined then -- make new var in global
+        util.addLine(
+            indent, lines,
+            b.e(
+                b.lift(
+                    symbol:getEmitVarname() .. b.c("=")
+                        .. symbol:getCurSlot()))())
     end
-    emitUtil.emitUpdateGlobVar(
-        indent, symbol:getCurSlot(),
-        emitUtil.derefValToValue(rhs),
-        lines, emitUtil.derefValToType(rhs))
+    util.addLine(
+        indent, lines,
+        b.e(
+            symbol:getCurSlot()
+                .. b.c("=")
+                .. b.p(
+                    emitUtil.derefValToValue(rhs)
+                        .. b.c(" ")
+                        .. emitUtil.derefValToType(rhs)))())
 end
 
 -- TODO:
-function emitter.emitComplexAssign(lhs, env, lines, rhs)
-    local setValue = ee.emitExecutePrefixexp(lhs, env, lines, true)[1]
-    emitUtil.emitUpdateGlobVar(
-        indent, setValue,
-        emitUtil.derefValToValue(rhs),
-        lines, emitUtil.derefValToType(rhs))
+function emitter.emitComplexAssign(indent, lhs, env, lines, rhs)
+    local setValue = emitter.emitExecutePrefixexp(indent, lhs, env, lines, true)[1]
+--    emitUtil.emitUpdateGlobVar(
+--        indent, setValue,
+--        emitUtil.derefValToValue(rhs),
+--        lines, emitUtil.derefValToType(rhs))
 end
 
 return emitter

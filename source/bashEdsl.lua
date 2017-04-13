@@ -30,6 +30,24 @@ local function bDslWord(bash)
     return result
 end
 
+local function bDslLift(bash)
+    if type(bash) == "table" then
+        bash.nesting = bash.nesting + 1
+        return bash
+    else
+        return bash
+    end
+end
+
+local function bDslDrop(bash)
+    if type(bash) == "table" then
+        bash.nesting = bash.nesting - 1
+        return bash
+    else
+        return bash
+    end
+end
+
 local function bDslEval(bash)
     local t, n
     if type(bash) == "table" then t, n = bash(), bash.nesting
@@ -187,6 +205,8 @@ bDsl.a = bDslAll
 bDsl.w = bDslWord
 bDsl.e = bDslEval
 bDsl.c = bDslString
+bDsl.lift = bDslLift
+bDsl.drop = bDslDrop
 bDsl.pE = bDslParamExpansion
 bDsl.sQ = bDslSingleQuotes
 bDsl.dQ = bDslDoubleQuotes

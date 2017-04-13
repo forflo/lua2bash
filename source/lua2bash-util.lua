@@ -59,10 +59,11 @@ function util.call(callable)
     return callable()
 end
 
+-- mainly used by the serializer functions
 function util.strToOpstr(str)
     if str == "add" then return "+"
-    elseif str== "sub" then return "-"
-    elseif str== "unm" then return "-"
+    elseif str == "sub" then return "-"
+    elseif str == "unm" then return "-"
     elseif str == "mul" then return "*"
     elseif str == "div" then return "/"
     elseif str == "idiv" then return "//"
@@ -87,7 +88,6 @@ function util.strToOpstr(str)
     end
 end
 
-util.iterate = function() end
 function util.iterate(fun, arg, n)
     if (n <= 1) then return fun(arg)
     else return util.iterate(fun, fun(arg), n - 1) end
