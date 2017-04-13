@@ -2,6 +2,7 @@ local datatypes = require("lua2bash-datatypes")
 local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
 local serializer = require("lua2bash-serialize-ast")
+local b = require("bashEdsl")
 
 local emitter = {}
 local emitUtil = require("lua2bash-emit-util")
@@ -311,28 +312,32 @@ function emitter.emitOp(indent, ast, config, stack, lines)
 end
 
 function emitter.emitUnop(indent, ast, config, stack, lines)
-    local operand2, lines =
-        emitter.emitExpression(indent, ast[2], config, stack, lines)[1]
+    local right = emitter.emitExpression(
+        indent, ast[2], config, stack, lines)[1]
     local tempVal = emitter.getTempValname(config, stack, false)
     util.addLine(
         indent, lines,
-        b.e(tempVal
+        b.e(
+            tempVal
                 .. b.c("=")
-                .. b.p(
-                    b.dQ(
-                        b.aE(
-                            b.c(util.strToOpstr(ast[1])) ..
-                                emitUtil.derefValToValue(operand2))) ..
-                        b.c(" ") ..
-                        emitUtil.derefValToType(operand2)))())
+                .. b.c("\\(")
+                .. b.dQ(
+                    b.aE(
+                        b.c(util.strToOpstr(ast[1])) ..
+                            emitUtil.derefValToValue(right)))
+                .. b.c(" ")
+                .. emitUtil.derefValToType(right)
+                .. b.c("\\)"))())
     return { tempVal }
 end
 
 function emitter.emitBinop(indent, ast, config, stack, lines)
     local ergId1 = util.getUniqueId()
     local tempVal = emitter.getTempValname(config, stack)
-    local left = emitter.emitExpression(indent, ast[2], config, stack, lines)[1]
-    local right = emitter.emitExpression(indent, ast[3], config, stack, lines)[1]
+    local left = emitter.emitExpression(
+        indent, ast[2], config, stack, lines)[1]
+    local right = emitter.emitExpression(
+        indent, ast[3], config, stack, lines)[1]
     util.addLine(
         indent, lines,
         b.e(
@@ -343,9 +348,9 @@ function emitter.emitBinop(indent, ast, config, stack, lines)
                      b.aE(
                          emitUtil.derefValToValue(left) ..
                              b.c(util.strToOpstr(ast[1])) ..
-                             emitUtil.derefValToValue(right)) ..
-                         b.c(" ") ..
-                         emitUtil.derefValToType(right))
+                             emitUtil.derefValToValue(right)))
+                 .. b.c(" ")
+                 .. emitUtil.derefValToType(right)
                  .. b.c("\\)"))())
     return { tempVal }
 end

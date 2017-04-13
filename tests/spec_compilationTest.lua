@@ -7,8 +7,7 @@ local serializer = require("lua2bash-serialize-ast")
 local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
 local datatypes = require("lua2bash-datatypes")
-local stmtEmitter = require("lua2bash-emit-stmt")
-
+local emitter = require("lua2bash-emit")
 
 -- lua library for reading and writing to processes!!
 local function evaluateByLua(filename)
@@ -19,12 +18,10 @@ end
 
 local function evaluateByBash(filename)
     local result
-    local ast, error_msg = parser.parse(filename)
-    local bashCode = stmtEmitter.emitBlock(
-        0, ast, config, stack, lines)
+    local ast, error_msg = parser.parse(io.open(filename):read("a"))
+    emitter.emitBlock(0, ast, config, stack, lines)
     local bashProc = bp.cmd('bash')
-
-    return bashProc(bashCode)
+    return bashProc(util.join(lines, '\n'))
 end
 
 describe(
@@ -54,6 +51,7 @@ describe(
                           "G"))
 
                   testcode = {
+                      simpleExp = "testcode/simpleExpressions.lua",
                       closure = "testcode/closure.lua",
                       closureUp = "testcode/closureUp.lua",
                       for1 = "testcode/for1.lua",
@@ -61,6 +59,13 @@ describe(
                       scoping = "testcode/scoping.lua",
                       simpleClosure = "testcode/simpleClosure.lua"
                   }
+        end)
+
+        it("test whether a few simple expressions can be compiled correctly",
+           function()
+               assert.are.same(
+                   evaluateByLua(testcode.simpleExp),
+                   evaluateByBash(testcode.simpleExp))
         end)
 
         it("test whether a simple closure can be compiled correctly",
