@@ -672,7 +672,7 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
                 emitUtil.derefValToType(location))
         else
             symbol = scope.getNewLocalSymbol(config, stack, varName)
-            stack:top():getSymbolTable():addNewSymbol(symbol, varName)
+            stack:top():getSymbolTable():addNewSymbol(varName, symbol)
             emitUtil.emitVar(indent, symbol, lines)
             emitUtil.emitUpdateVar(indent, symbol, location, lines)
         end
