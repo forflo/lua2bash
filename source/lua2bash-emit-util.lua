@@ -14,13 +14,31 @@ function emitUtil.emitEnvCounter(indent, config, lines, envId)
         "Environment counter")
 end
 
-function emitUtil.emitVarUpdate(indent, lines, varname, valuename, value, typ)
+function emitUtil.emitLocalVar(indent, lines, varname, valuename, value, typ)
     util.addLine(indent, lines, b.e(varname .. valuename)())
     util.addLine(indent, lines, b.e(valuename .. b.p(b.dQ(value) .. typ))())
 end
 
-function emitUtil.emitGlobalVar(indent, varname, valuename, lines)
-    util.addLine(indent, lines, b.e(b.lift(varname .. b.c("=") .. valuename))())
+function emitUtil.emitLocalVarUpdate(indent, lines ) end
+
+function emitUtil.emitVar(indent, symbol, lines)
+    util.addLine(
+        indent, lines,
+        b.e(
+            b.lift(
+                symbol:getEmitVarname() .. b.c("=") .. symbol:getCurSlot()))())
+end
+
+function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
+    util.addLine(
+        indent, lines,
+        b.e(
+            symbol:getCurSlot()
+                .. b.c("=")
+                .. b.p(
+                    emitUtil.derefValToValue(valueslot)
+                        .. b.c(" ")
+                        .. emitUtil.derefValToType(valueslot)))())
 end
 
 function emitUtil.derefVarToValue(varname)

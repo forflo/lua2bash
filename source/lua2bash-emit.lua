@@ -673,12 +673,8 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
         else
             symbol = scope.getNewLocalSymbol(config, stack, varName)
             stack:top():getSymbolTable():addNewSymbol(symbol, varName)
-            emitUtil.emitVarUpdate(
-                indent, lines,
-                symbol:getEmitVarname(),
-                symbol:getCurSlot(),
-                emitUtil.derefValToValue(location),
-                emitUtil.derefValToType(location))
+            emitUtil.emitVar(indent, symbol, lines)
+            emitUtil.emitUpdateVar(indent, symbol, location, lines)
         end
     end
 end
@@ -710,33 +706,15 @@ function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
     else
         symbol = scope.getGlobalSymbol(config, stack, varName)
         stack:bottom():getSymbolTable():addNewSymbol(varName, symbol)
+        emitUtil.emitVar(indent, symbol, lines)
     end
-    if not someWhereDefined then -- make new var in global
-        util.addLine(
-            indent, lines,
-            b.e(
-                b.lift(
-                    symbol:getEmitVarname() .. b.c("=")
-                        .. symbol:getCurSlot()))())
-    end
-    util.addLine(
-        indent, lines,
-        b.e(
-            symbol:getCurSlot()
-                .. b.c("=")
-                .. b.p(
-                    emitUtil.derefValToValue(rhs)
-                        .. b.c(" ")
-                        .. emitUtil.derefValToType(rhs)))())
+    emitUtil.emitUpdateVar(indent, symbol, rhs, lines)
 end
 
 -- TODO:
 function emitter.emitComplexAssign(indent, lhs, env, lines, rhs)
     local setValue = emitter.emitExecutePrefixexp(indent, lhs, env, lines, true)[1]
---    emitUtil.emitUpdateGlobVar(
---        indent, setValue,
---        emitUtil.derefValToValue(rhs),
---        lines, emitUtil.derefValToType(rhs))
+    emitUtil.emitUpdateVar(indent, setValue, rhs, lines)
 end
 
 return emitter

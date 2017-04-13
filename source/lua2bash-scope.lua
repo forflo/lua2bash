@@ -47,13 +47,12 @@ function scope.getGlobalSymbol(config, stack, varName)
                 .. config.environmentPrefix
                 .. bottom:getEnvironmentId()
                 .. "}"
-                .. scope.getPathPrefix(stack)
+                .. stack:bottom():getName()
                 .. varName)
     local newSymbol = datatypes.Symbol(0, 1)
     newSymbol:setEmitVarname(emitVarname)
     newSymbol:setCurSlot(
         b.c(config.valPrefix) .. emitVarname)
---    bottom:getSymbolTable():addNewSymbol(varName, symbol)
     return newSymbol
 end
 
