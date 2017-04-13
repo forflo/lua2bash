@@ -6,6 +6,8 @@ do
     print(x) -- must be 4
     print(y) -- must be 2
     do
+        print(x)
+        print(y)
         foo = 42
     end
 end
