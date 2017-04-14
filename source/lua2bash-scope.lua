@@ -14,11 +14,9 @@ function scope.getNewLocalSymbol(config, stack, varName)
     local newSymbol = datatypes.Symbol(0, 1)
     local currentPathPrefix = scope.getPathPrefix(stack)
     local emitVarname =
-        b.c(
-            config.varPrefix .. "${"
-                .. config.environmentPrefix
-                .. stack:top():getEnvironmentId() .. "}"
-                .. currentPathPrefix .. "_" .. varName)
+        b.c(config.varPrefix)
+        .. b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
+        .. b.c(currentPathPrefix .. "_" .. varName)
     newSymbol:setEmitVarname(emitVarname)
     newSymbol:setCurSlot(b.c(config.valPrefix .. "D1") .. emitVarname)
     return newSymbol
@@ -40,14 +38,10 @@ end
 function scope.getGlobalSymbol(config, stack, varName)
     local bottom = stack:bottom()
     local emitVarname =
-        b.c(
-            config.varPrefix
-                .. "${"
-                .. config.environmentPrefix
-                .. bottom:getEnvironmentId()
-                .. "}"
-                .. stack:bottom():getName()
-                .. varName)
+        b.c(config.varPrefix)
+        .. b.pE(config.environmentPrefix .. bottom:getEnvironmentId())
+        .. b.c(stack:bottom():getName())
+        .. b.c(varName)
     local newSymbol = datatypes.Symbol(0, 1)
     newSymbol:setEmitVarname(emitVarname)
     newSymbol:setCurSlot(

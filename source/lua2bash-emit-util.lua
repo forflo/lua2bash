@@ -16,7 +16,7 @@ end
 
 function emitUtil.emitLocalVar(indent, lines, varname, valuename, value, typ)
     util.addLine(indent, lines, b.e(varname .. valuename)())
-    util.addLine(indent, lines, b.e(valuename .. b.p(b.dQ(value) .. typ))())
+    util.addLine(indent, lines, b.e(valuename .. b.pN(b.dQ(value) .. typ))())
 end
 
 function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
@@ -24,7 +24,8 @@ function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
         indent, lines,
         b.e(
             b.lift(
-                symbol:getEmitVarname() .. b.c("=") .. symbol:getCurSlot()))())
+                symbol:getEmitVarname() .. b.c("=")
+                    .. symbol:getCurSlot()))())
 end
 
 function emitUtil.emitVar(indent, symbol, lines)
@@ -32,7 +33,8 @@ function emitUtil.emitVar(indent, symbol, lines)
         indent, lines,
         b.e(
             b.lift(
-                symbol:getEmitVarname() .. b.c("=") .. symbol:getCurSlot()))())
+                symbol:getEmitVarname() .. b.c("=")
+                    .. symbol:getCurSlot()))())
 end
 
 function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
@@ -41,14 +43,14 @@ function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
         b.e(
             symbol:getCurSlot()
                 .. b.c("=")
-                .. b.p(
+                .. b.pN(
                     emitUtil.derefValToValue(valueslot)
                         .. b.c(" ")
                         .. emitUtil.derefValToType(valueslot)))())
 end
 
 function emitUtil.derefVarToValue(varname)
-    return b.pE(b.c("!") .. b.c(varname))
+    return b.pE(b.c("!") .. varname)
 end
 
 function emitUtil.derefVarToType(varname)
@@ -67,35 +69,37 @@ function emitUtil.derefValToType(valname)
     return b.pE(valname .. b.c("[1]"))
 end
 
-function emitUtil.linearizePrefixTree(indent, ast, config, stack, result)
+function emitUtil.linearizePrefixTree(ast, result)
     local result = result or {}
-    if type(ast) ~= "table" then return result end
+    if type(ast) ~= "table" then
+        return result
+    end
     if ast.tag == "Id" then
         result[#result + 1] =
             { id = ast[1],
               typ = ast.tag,
-              ast = ast,
-              exp = nil}
+              exp = nil,
+              ast = ast }
     elseif ast.tag == "Paren" then
         result[#result + 1] =
-            { exp = ast[1],
-              typ = ast.tag,
-              ast = ast}
+            { typ = ast.tag,
+              exp = ast[1],
+              ast = ast }
     elseif ast.tag == "Call"  then
         result[#result + 1] =
             { callee = ast[1],
               typ = ast.tag,
-              ast = ast,
-              exp = util.tableSlice(ast, 2, #ast, 1)}
+              exp = util.tableSlice(ast, 2, #ast, 1),
+              ast = ast }
     elseif ast.tag == "Index" then
         result[#result + 1] =
             { indexee = ast[1],
               typ = ast.tag,
-              ast = ast,
-              exp = ast[2]}
+              exp = ast[2],
+              ast = ast }
     end
     if ast.tag ~= "Id" then
-        emitUtil.linearizePrefixTree(ast[1], config, result)
+        emitUtil.linearizePrefixTree(ast[1], result)
     end
     return util.tableReverse(result)
 end

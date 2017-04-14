@@ -21,6 +21,7 @@ describe(
         it("tests a simple parameter expansion use cases #PE",
            function()
                assert.are.equal(b.pE("foo")(), [[${foo}]])
+               assert.are.equal(b.pE(b.c("foo"))(), [[${foo}]])
         end)
 
         it("tests another simple parameter expansion use case #PE",
@@ -39,6 +40,14 @@ describe(
                local str = (b.p(b.p("foo")) .. util.iterate(b.p, "bar", 3))()
                assert.are.equal(str, [[\((foo)\)\\\(\((bar)\)\\\)]])
 
+        end)
+
+        it("test different kinds of parentheses",
+           function()
+               local str = b.p(b.pE("foo") .. b.pE(b.pE("bar")))()
+               local strN = b.pN(b.pE("foo") .. b.pE(b.pE("bar")))()
+               assert.are.same(str, [[\\\(${foo}\${${bar}}\\\)]])
+               assert.are.same(strN, [[\(${foo}\${${bar}}\)]])
         end)
 
         it("test arithmetic expansion #AE",

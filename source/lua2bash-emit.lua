@@ -14,19 +14,22 @@ end
 function emitter.getTempValname(config, stack, simple)
     local commonSuffix
     if not simple then
-        commonSuffix = b.c(emitter.getEnvVar(config, stack)) ..
+        commonSuffix =
+            emitter.getEnvVar(config, stack) ..
             b.c("_") ..
             b.c(tostring(util.getUniqueId()))
     else
-        commonSuffix = b.c("_") .. b.c(util.getUniqueId())
+        commonSuffix = b.c("_") .. b.c(tostring(util.getUniqueId()))
     end
     return b.c(config.tempValPrefix) .. commonSuffix
 end
 
 -- typ and content must be values from bash EDSL
-function emitter.emitTempVal(indent, config, stack, lines, typ, content, simple)
+function emitter.emitTempVal(
+        indent, config, stack, lines, typ, content, simple)
     local tempVal = emitter.getTempValname(config, stack, simple)
-    local cmdLine = b.e(tempVal .. b.c("=") .. b.p(content .. b.c(" ") .. typ))
+    local cmdLine =
+        b.e(tempVal .. b.c("=") .. b.pN(b.lift(content .. b.c(" ") .. typ)))
     util.addLine(indent, lines, cmdLine())
     return tempVal
 end
@@ -103,10 +106,14 @@ function emitter.emitTrue(indent, ast, config, stack, lines)
             b.c("TRU"), b.c("1"), false) }
 end
 
-function emitter.emitTableValue(indent, config, stack, lines, tblIdx, value, typ)
+function emitter.emitTableValue(
+        indent, config, stack, lines, tblIdx, value, typ)
     local typeString = b.c("TBL")
     local envVar = emitter.getEnvVar(config, stack)
-    local valueName = b.c(config.tablePrefix) .. envVar .. b.c(tblIdx)
+    local valueName =
+        b.c(config.tablePrefix)
+        .. envVar
+        .. b.c(tostring(tblIdx))
     local cmdline =
         b.e(
             valueName
@@ -169,11 +176,13 @@ end
 
 -- TODO: argValueList!
 -- returns a tempvalue of the result
-function emitter.emitCallClosure(indent, config, lines,
-                                 closureValue, argValueList)
-    local cmdLine = b.e(emitUtil.derefValToValue(closureValue)
-                            .. b.c(" ")
-                            .. emitUtil.derefValToType(closureValue))
+function emitter.emitCallClosure(
+        indent, config, lines, closureValue, argValueList)
+    local cmdLine =
+        b.e(
+            emitUtil.derefValToValue(closureValue)
+                .. b.c(" ")
+                .. emitUtil.derefValToType(closureValue))
     util.addLine(indent, lines, cmdLine())
 end
 
@@ -263,7 +272,8 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     stack:top():setEnvironmentId(newEnv)
     -- translate to bash function including environment set code
     util.addLine(indent, lines, string.format("function BF%s {", functionId))
-    util.addLine(indent, lines, (b.c(oldEnv) .. b.c("=") .. b.pE("1"))())
+    util.addLine(
+        indent, lines, (b.c(tostring(oldEnv)) .. b.c("=") .. b.pE("1"))())
     -- recurse into block
     emitter.emitBlock(indent, block, config, stack, lines)
     util.addLine(
@@ -330,10 +340,9 @@ function emitter.emitUnop(indent, ast, config, stack, lines)
             tempVal
                 .. b.c("=")
                 .. b.c("\\(")
-                .. b.dQ(
-                    b.aE(
-                        b.c(util.strToOpstr(ast[1])) ..
-                            emitUtil.derefValToValue(right)))
+                .. b.aE(
+                    b.c(util.strToOpstr(ast[1])) ..
+                        emitUtil.derefValToValue(right))
                 .. b.c(" ")
                 .. emitUtil.derefValToType(right)
                 .. b.c("\\)"))())
@@ -353,11 +362,10 @@ function emitter.emitBinop(indent, ast, config, stack, lines)
              tempVal
                  .. b.c("=")
                  .. b.c("\\(")
-                 .. b.dQ(
-                     b.aE(
-                         emitUtil.derefValToValue(left) ..
-                             b.c(util.strToOpstr(ast[1])) ..
-                             emitUtil.derefValToValue(right)))
+                 .. b.aE(
+                     emitUtil.derefValToValue(left) ..
+                         b.c(util.strToOpstr(ast[1])) ..
+                         emitUtil.derefValToValue(right))
                  .. b.c(" ")
                  .. emitUtil.derefValToType(right)
                  .. b.c("\\)"))())
@@ -387,7 +395,7 @@ function emitter.emitExplist(indent, ast, config, stack, lines)
 end
 
 function emitter.emitPrefixexp(indent, ast, config, stack, lines)
-    return emitter.emitExecutePrefixexp(ast, env, lines)
+    return emitter.emitExecutePrefixexp(indent, ast, config, stack, lines)
 end
 
 --
@@ -395,7 +403,7 @@ end
 -- and returns the values to be written to
 function emitter.emitExecutePrefixexp(indent, prefixExp, config,
                                       stack, lines, asLval)
-    local indirections = emitUtil.linearizePrefixTree(prefixExp, env)
+    local indirections = emitUtil.linearizePrefixTree(prefixExp)
     local temp = {}
     for i = 1, #indirections do
         local indirection = indirections[i]
@@ -422,13 +430,13 @@ function emitter.emitExecutePrefixexp(indent, prefixExp, config,
         elseif indirection.typ == "Index" then
             local index = emitter.emitExpression(
                 indent, indirection.exp, config, stack, lines)[1]
-            index =  emitUtil.derefValToValue(temp[i-1])
+            index = emitUtil.derefValToValue(temp[i-1])
                 .. emitUtil.derefValToValue(index)
             if i == #indirections and asLval then
                 temp[i] = index
             else
                 temp[i] = emitter.emitTempVal(
-                    ast, config, stack, lines,
+                    indent, config, stack, lines,
                     b.pE(index .. b.c("[1]")),
                     b.pE(index))
             end
@@ -587,11 +595,12 @@ function emitter.emitWhile(indent, ast, config, stack, lines)
         indent, config, stack, lines,
         emitUtil.derefValToType(tempValue),
         emitUtil.derefValToValue(tempValue), true)
+    --dbg()
     util.addLine(
         indent, lines,
         string.format(
-            "while [ \"${%s}\" != 0 ]; do",
-            simpleValue))
+            "while [ %s != 0 ]; do",
+            (b.pE(simpleValue .. b.c("[1]")))()))
     emitter.emitBlock(indent, loopBlock, config, stack, lines)
     -- recalculate expression for next loop
     local tempValue2 = emitter.emitExpression(
@@ -724,9 +733,11 @@ function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
 end
 
 -- TODO:
-function emitter.emitComplexAssign(indent, lhs, env, lines, rhs)
-    local setValue = emitter.emitExecutePrefixexp(indent, lhs, env, lines, true)[1]
-    emitUtil.emitUpdateVar(indent, setValue, rhs, lines)
+function emitter.emitComplexAssign(indent, lhs, config, stack, lines, rhs)
+    local setValue = emitter.emitExecutePrefixexp(
+        indent, lhs, config, stack, lines, true)[1]
+    local tempSym = datatypes.Symbol():setCurSlot(setValue)
+    emitUtil.emitUpdateVar(indent, tempSym, rhs, lines)
 end
 
 return emitter

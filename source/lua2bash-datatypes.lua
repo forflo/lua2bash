@@ -41,10 +41,10 @@ function comp.Symbol(value, redefCount, curSlot, emitVarname)
         return self
     end
     -- setter
-    function obj:setCurSlot(v) self._curSlot = v end
-    function obj:setEmitVarname(v) self._emitVarname = v end
-    function obj:setValue(v) self._value = v end
-    function obj:setRedefCnt(v) self._redefCount = v end
+    function obj:setCurSlot(v) self._curSlot = v; return self end
+    function obj:setEmitVarname(v) self._emitVarname = v; return self end
+    function obj:setValue(v) self._value = v; return self end
+    function obj:setRedefCnt(v) self._redefCount = v; return self end
     return obj
 end
 

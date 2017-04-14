@@ -58,14 +58,6 @@ local function bDslEval(bash)
     return result
 end
 
-local function allAscii()
-    local result = {}
-    for i = 0, 127 do
-        result[#result + 1] = string.char(i)
-    end
-    return result
-end
-
 local function bDslAll(str, nest)
     local result = makeBdsl({}, "" , "", str, 0)
     result.typ = "all"
@@ -73,48 +65,62 @@ local function bDslAll(str, nest)
     return result
 end
 
+local function getNest(obj)
+    if type(obj) == "string" then return 0 end
+    if type(obj) == "table" then
+        assert(getmetatable(obj) == bashDslMtab, "must be of bdsl type")
+        return obj.nesting
+    end
+end
+
 local function bDslString(str)
-    return makeBdsl({}, "", "", str, 0)
+    assert(type(str) == "string", "must be string")
+    return makeBdsl({}, "", "", str, getNest(str))
 end
 
 local function bDslParentheses(str)
-    return makeBdsl({"(", ")"}, "(", ")", str, (str.nesting or -1) + 1)
+    return makeBdsl({"(", ")"}, "(", ")", str, getNest(str) + 1)
+end
+
+-- does not require more evals for itself
+local function bDslParenthesesNoNest(str)
+    return makeBdsl({"(", ")"}, "(", ")", str, getNest(str))
 end
 
 local function bDslParamExpansion(str)
-    return makeBdsl({"$"}, "${", "}", str, (str.nesting or -1) + 1)
+    return makeBdsl({"$"}, "${", "}", str, getNest(str) + 1)
 end
 
 local function bDslSingleQuotes(str)
-    return makeBdsl({"'"}, "'", "'", str, (str.nesting or -1) + 1)
+    return makeBdsl({"'"}, "'", "'", str, getNest(str) + 1)
 end
 
 local function bDslArithExpansion(str)
-    return makeBdsl({"$", "(", ")"}, "$((", "))", str, (str.nesting or -1) + 1)
+    return makeBdsl({"$", "(", ")"}, "$((", "))", str, getNest(str) + 1)
 end
 
 local function bDslDoubleQuotes(str)
-    return makeBdsl({[["]]}, "\"", "\"", str, (str.nesting or -1) + 1)
+    return makeBdsl({[["]]}, "\"", "\"", str, getNest(str) + 1)
 end
 
 local function bDslCommandExpansionTicks(str)
-    return makeBdsl({"`"}, "`", "`", str, (str.nesting or -1) + 1)
+    return makeBdsl({"`"}, "`", "`", str, getNest(str) + 1)
 end
 
 local function bDslCommandExpansionParen(str)
-    return makeBdsl({"$", "(", ")"}, "$(", ")", str, (str.nesting or -1) + 1)
+    return makeBdsl({"$", "(", ")"}, "$(", ")", str, getNest(str) + 1)
 end
 
 local function bDslBraceExpansion(str)
-    return makeBdsl({"{", "}"}, "{", "}", str, (str.nesting or -1) + 1)
+    return makeBdsl({"{", "}"}, "{", "}", str, getNest(str) + 1)
 end
 
 local function bDslProcessExpansionIn(str)
-    return makeBdsl({"<", "(", ")"}, "<(", ")", str, (str.nesting or -1) + 1)
+    return makeBdsl({"<", "(", ")"}, "<(", ")", str, getNest(str) + 1)
 end
 
 local function bDslProcessExpansionOut(str)
-    return makeBdsl({">", ")", "("}, ">(", ")", str, (str.nesting or -1) + 1)
+    return makeBdsl({">", ")", "("}, ">(", ")", str, getNest(str) + 1)
 end
 
 local function max(x, y)
@@ -132,7 +138,12 @@ local function bDslConcat(l, r)
 end
 
 local function bDslExecEval(bstring)
-    local repCount = bstring.nesting
+    local repCount
+    if bstring.nesting > 0 then
+        repCount = bstring.nesting
+    else
+        repCount = 1
+    end
     local rest
     if type(bstring.payload) == "table" then
         rest = bstring.payload() -- recurse into tree
@@ -166,7 +177,12 @@ local function bDslExecNormal(bstring)
     end
     local ending = bstring.ending
     local nesting = bstring.nesting
-    local repCount = 2 ^ nesting - 1
+    local repCount
+    if nesting > 0 then
+        repCount = 2 ^ (nesting - 1) - 1
+    else
+        repCount = 0
+    end
     for c in begin:gmatch(".") do
         if ac[c] then result = result .. string.rep("\\", repCount) .. c
         else result = result .. c end
@@ -218,6 +234,7 @@ bDsl.cEt = bDslCommandExpansionTicks
 bDsl.aE = bDslArithExpansion
 bDsl.bE = bDslBraceExpansion
 bDsl.p = bDslParentheses
+bDsl.pN = bDslParenthesesNoNest
 
 bashDslMtab.__concat = bDslConcat
 bashDslMtab.__call = bDslCallDispatch
