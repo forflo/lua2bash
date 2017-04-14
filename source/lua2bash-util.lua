@@ -234,7 +234,7 @@ end
 --     print (k, v)
 -- end
 function util.statefulKVIterator(tbl)
-    local keyset = tableGetKeyset(tbl)
+    local keyset = util.tableGetKeyset(tbl)
     local keyIdx = 0
     return function()
         keyIdx = keyIdx + 1
@@ -278,7 +278,7 @@ function util.traverser(ast, func, environment, predicate, recur)
         end
     end
     for k, v in ipairs(ast) do
-        traverser(v, func, environment, predicate, recur)
+        util.traverser(v, func, environment, predicate, recur)
     end
 end
 
@@ -294,8 +294,8 @@ function util.getUsedSymbols(ast)
         env[astNode[1]] = true
     end
     local result = {}
-    traverser(ast, visitor, result, getNodePredicate("Id"), true)
-    return tableGetKeyset(result)
+    util.traverser(ast, visitor, result, util.getNodePredicate("Id"), true)
+    return util.tableGetKeyset(result)
 end
 
 -- currying just for fun

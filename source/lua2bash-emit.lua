@@ -106,12 +106,14 @@ end
 function emitter.emitTableValue(indent, config, stack, lines, tblIdx, value, typ)
     local typeString = b.c("TBL")
     local envVar = emitter.getEnvVar(config, stack)
-    local valueName = b.c(config.tablePrefix) .. envVar .. tblIdx
-    local cmdline = b.e(
-        valueName .. b.c("=")
-            .. b.p((value or valueName)
-                    .. b.c(" ") ..
-                    (typ or typeString)))
+    local valueName = b.c(config.tablePrefix) .. envVar .. b.c(tblIdx)
+    local cmdline =
+        b.e(
+            valueName
+                .. b.c("=")
+                .. b.p((value or valueName)
+                        .. b.c(" ")
+                        .. (typ or typeString)))
     util.addLine(indent, lines, cmdline())
     return valueName
 end
@@ -123,7 +125,7 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
         os.exit(1)
     end
     if firstCall == nil then
-        util.addLine(indent, lines, "# " .. serTbl(ast))
+        util.addLine(indent, lines, "# " .. serializer.serTbl(ast))
     end
     local tableId = util.getUniqueId(env)
     local tempValues
@@ -160,7 +162,7 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
                         derefValToType(v)) end)
         end
     end
-    return { b.c(env.tablePrefix)
+    return { b.c(config.tablePrefix)
                  .. emitter.getEnvVar(config, stack)
                  .. b.c(tostring(tableId))}
 end
@@ -219,13 +221,19 @@ end
 
 function emitter.snapshotEnvironment(indent, ast, config, stack, lines)
     local usedSyms = util.getUsedSymbols(ast)
-    return util.imap(
+    local validSymbols = util.filter(
         usedSyms,
+        function(sym)
+            return scope.getMostCurrentBinding(stack, sym) ~= nil end)
+    --dbg()
+    return util.imap(
+        validSymbols,
         function(sym)
             local assignmentAst = parser.parse(
                 string.format("local %s = %s;", sym, sym))
             -- we only need the local ast not the block surrounding it
-            return emitter.emitLocal(indent, assignmentAst[1], config, stack, lines)
+            return emitter.emitLocal(
+                indent, assignmentAst[1], config, stack, lines)
     end)
 end
 
@@ -234,7 +242,7 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     local block = ast[2]
     local functionId = util.getUniqueId()
     local oldEnv = stack:top():getEnvironmentId()
-    local scopeName = "F" .. functionId()
+    local scopeName = "F" .. functionId
     local newScope = datatypes.Scope(
         datatypes.occasions.FUNCTION, scopeName,
         util.getUniqueId(), scope.getPathPrefix(stack) .. scopeName)
@@ -244,10 +252,11 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     stack:top():setEnvironmentId(oldEnv)
     util.addLine(indent, lines, "# Closure defintion")
     local tempVal =
-        emitTempVal(indent, config, stack, lines,
-                    b.pE("E" .. stack:top():getEnvironmentId()),
-                    -- adjust symbol string?
-                    b.c("BF") .. b.c(tostring(functionId)))
+        emitter.emitTempVal(
+            indent, config, stack, lines,
+            b.pE("E" .. stack:top():getEnvironmentId()),
+            -- adjust symbol string?
+            b.c("BF") .. b.c(tostring(functionId)))
     util.addLine(indent, lines, "# Environment Snapshotting")
     emitter.snapshotEnvironment(indent, ast, config, stack, lines)
     -- set again to new envid
@@ -259,10 +268,10 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     emitter.emitBlock(indent, block, config, stack, lines)
     util.addLine(
         indent, lines,
-        string.format("%s=$1", "E" .. scope:top():getEnvironmentId()))
+        string.format("%s=$1", "E" .. stack:top():getEnvironmentId()))
     -- end of function definition
     util.addLine(indent, lines, "}")
-    scope:pop()
+    stack:pop()
     return { tempVal }
 end
 
@@ -572,19 +581,27 @@ function emitter.emitWhile(indent, ast, config, stack, lines)
     local loopExpr = ast[1]
     local loopBlock = ast[2]
     -- only the first tempValue is significant
-    local tempValue = emitExpression(indent, loopExpr, config, stack, lines)[1]
-    local simpleValue = emitTempVal(indent, config, lines,
-                                    emitUtil.derefValToType(tempValue),
-                                    emitUtil.derefValToValue(tempValue), true)
-    util.addLine(indent, lines, string.format(
-                "while [ \"${%s}\" != 0 ]; do",
-                simpleValue))
-    emitBlock(indent, loopBlock, config, stack, lines)
+    local tempValue = emitter.emitExpression(
+        indent, loopExpr, config, stack, lines)[1]
+    local simpleValue = emitter.emitTempVal(
+        indent, config, stack, lines,
+        emitUtil.derefValToType(tempValue),
+        emitUtil.derefValToValue(tempValue), true)
+    util.addLine(
+        indent, lines,
+        string.format(
+            "while [ \"${%s}\" != 0 ]; do",
+            simpleValue))
+    emitter.emitBlock(indent, loopBlock, config, stack, lines)
     -- recalculate expression for next loop
-    local tempValue2 = emitExpression(indent, loopExpr, config, stack, lines)[1]
-    util.addLine(indent, lines, string.format("eval %s=%s",
-                                         simpleValue,
-                                         emitUtil.derefValToValue(tempValue2)))
+    local tempValue2 = emitter.emitExpression(
+        indent, loopExpr, config, stack, lines)[1]
+    util.addLine(
+        indent, lines,
+        b.e(
+            simpleValue
+                .. b.c("=")
+                .. emitUtil.derefValToValue(tempValue2))())
     util.addLine(indent, lines, "true", "to prevent empty block")
     util.addLine(indent, lines, "done")
 end
