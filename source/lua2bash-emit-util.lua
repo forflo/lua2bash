@@ -31,8 +31,10 @@ function emitUtil.emitVar(indent, symbol, lines)
     util.addLine(
         indent, lines,
         b.e(
-            symbol:getEmitVarname() .. b.s("=")
-                .. symbol:getCurSlot())())
+            symbol:getEmitVarname()
+                .. b.s("=")
+                .. symbol:getCurSlot()
+        ):eM(1)())
 end
 
 function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
@@ -44,7 +46,9 @@ function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
                 .. b.p(
                     emitUtil.derefValToValue(valueslot)
                         .. b.s(" ")
-                        .. emitUtil.derefValToType(valueslot))()))
+                        .. emitUtil.derefValToType(valueslot)
+                      ):noDep()
+        )())
 end
 
 function emitUtil.derefVarToValue(varname)

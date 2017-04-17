@@ -6,6 +6,7 @@ local function max(x, y)
 end
 
 local bdsl = {}
+bdsl.types = { EVAL = {}, BASE = {}, STRING = {}, CONC = {} }
 
 local mtab = {}
 local dslObjects = {}
@@ -31,6 +32,7 @@ end
 function dslObjects.Concat(left, right)
     local t = {}
     t._left = left
+    t._type = bdsl.types.CONC
     t._right = right
     function t:render()
         return self:getLeft():render() .. self:getRight():render()
@@ -47,6 +49,7 @@ function dslObjects.Concat(left, right)
         self:getRight():deepLift(n)
         return self
     end
+    function t:getType() return self._type end
     function t:getLeft() return self._left end
     function t:getRight() return self._right end
     function t:getQuotingIndex()
@@ -68,6 +71,7 @@ end
 function dslObjects.Base(activeChars, begin, ending, dslobj)
     local t = {}
     t._activeChars = settify(activeChars)
+    t._type = bdsl.types.BASE
     t._begin = begin
     t._dependentQuoting = true
     t._subtree = nil
@@ -92,12 +96,14 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     end
     function t:noDependentQuoting()
         self._dependentQuoting = false
+        self._quotingIndex = t._subtree:getQuotingIndex()
         return self
     end
     function t:getQuotingIndex()
         return self._quotingIndex
     end
     --
+    function t:getType() return self._type end
     function t:getActiveChars() return self._activeChars end
     function t:getBegin() return self._begin end
     function t:getEnd() return self._end end
@@ -135,6 +141,8 @@ end
 function dslObjects.String(str)
     local t = {}
     t._content = str
+    t._type = bdsl.types.STRING
+    function t:getType() return self._type end
     function t:shallowLift(n) return self end
     function t:deepLift(n) return self end
     function t:getQuotingIndex() return 0 end
@@ -147,15 +155,19 @@ function dslObjects.String(str)
     return t
 end
 
+
 function dslObjects.Eval(dslobj)
     local t = {}
     t._subtree = nil
+    t._type = bdsl.types.EVAL
     if type(dslobj) == "string" then
         t._subtree = dslObjects.String(dslobj)
     else
         t._subtree = dslobj
     end
-    t._evalCount = t._subtree:getQuotingIndex() - 1
+    t._evalCountMin = 0
+    t._evalThreshold = 1
+    t._evalCount = t._subtree:getQuotingIndex() - t._evalThreshold
     -- member functions
     function t:shallowLift(n) return self end
     function t:deepLift(n)
@@ -168,21 +180,30 @@ function dslObjects.Eval(dslobj)
         self._evalCount = self._evalCount + n
         return self
     end
+    function t:evalMin(n)
+        if not n then n = 1 end
+        self._evalCountMin = n
+        return self
+    end
     function t:getSubtree() return self._subtree end
+    function t:getEvalCountMin() return self._evalCountMin end
+    function t:getEvalThreshold() return self._evalThreshold end
+    function t:getType() return self._type end
     function t:getQuotingIndex() return self:getSubtree():getQuotingIndex() end
     function t:getEvalCount() return self._evalCount end
     function t:render()
-        local repCount = self:getQuotingIndex() - 1
-        if self:getEvalCount() ~= repCount then
-            repCount = self:getEvalCount()
-        end
+        local evalCount = self:getQuotingIndex() - self:getEvalThreshold()
         local rest = self:getSubtree():render()
-        return string.rep("eval ", repCount) .. rest
+        if evalCount < self:getEvalCountMin() then
+            evalCount = self:getEvalCountMin()
+        end
+        return string.rep("eval ", evalCount) .. rest
     end
     -- write only
     function t:sL(n) return self:shallowLift(n) end
     function t:dL(n) return self:deepLift(n) end
     function t:eL(n) return self:evalLift(n) end
+    function t:eM(n) return self:evalMin(n) end
     setmetatable(t, mtab)
     return t
 end

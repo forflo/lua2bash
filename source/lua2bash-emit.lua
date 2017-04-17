@@ -29,7 +29,11 @@ function emitter.emitTempVal(
         indent, config, stack, lines, typ, content, simple)
     local tempVal = emitter.getTempValname(config, stack, simple)
     local cmdLine =
-        b.e(tempVal .. b.s("=") .. b.p(content .. b.s(" ") .. typ))
+        b.e(
+            tempVal
+                .. b.s("=")
+                .. b.p(content .. b.s(" ") .. typ):noDep()
+        ):eM(1)
     util.addLine(indent, lines, cmdLine())
     return tempVal
 end
