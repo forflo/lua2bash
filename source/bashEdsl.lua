@@ -237,4 +237,17 @@ bdsl.arithExpansion = bDslArithExpansion
 bdsl.braceExpansion = bDslBraceExpansion
 bdsl.parentheses = bDslParentheses
 
+bdsl.e = bDslEval
+bdsl.s = bDslString
+bdsl.pE = bDslParamExpansion
+bdsl.sQ = bDslSingleQuotes
+bdsl.dQ = bDslDoubleQuotes
+bdsl.pEI = bDslProcessExpansionIn
+bdsl.pEO = bDslProcessExpansionOut
+bdsl.cEP = bDslCommandExpansionParen
+bdsl.cET = bDslCommandExpansionTicks
+bdsl.aE = bDslArithExpansion
+bdsl.bE = bDslBraceExpansion
+bdsl.p = bDslParentheses
+
 return bdsl
