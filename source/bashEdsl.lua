@@ -124,6 +124,10 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
         end
         return result
     end
+    -- write only
+    function t:sL(n) return self:shallowLift(n) end
+    function t:dL(n) return self:deepLift(n) end
+    function t:noDep() return self:noDependentQuoting() end
     setmetatable(t, mtab)
     return t
 end
@@ -136,6 +140,9 @@ function dslObjects.String(str)
     function t:getQuotingIndex() return 0 end
     function t:getSubtree() return nil end
     function t:render() return self._content end
+    -- write only
+    function t:sL(n) return self:shallowLift(n) end
+    function t:dL(n) return self:deepLift(n) end
     setmetatable(t, mtab)
     return t
 end
@@ -172,6 +179,10 @@ function dslObjects.Eval(dslobj)
         local rest = self:getSubtree():render()
         return string.rep("eval ", repCount) .. rest
     end
+    -- write only
+    function t:sL(n) return self:shallowLift(n) end
+    function t:dL(n) return self:deepLift(n) end
+    function t:eL(n) return self:evalLift(n) end
     setmetatable(t, mtab)
     return t
 end
@@ -224,6 +235,7 @@ local function bDslProcessExpansionOut(str)
     return dslObjects.Base({">", ")", "("}, ">(", ")", str)
 end
 
+-- better readability
 bdsl.eval = bDslEval
 bdsl.string = bDslString
 bdsl.paramExpansion = bDslParamExpansion
@@ -237,6 +249,7 @@ bdsl.arithExpansion = bDslArithExpansion
 bdsl.braceExpansion = bDslBraceExpansion
 bdsl.parentheses = bDslParentheses
 
+-- write only
 bdsl.e = bDslEval
 bdsl.s = bDslString
 bdsl.pE = bDslParamExpansion

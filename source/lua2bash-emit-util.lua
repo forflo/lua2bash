@@ -23,18 +23,16 @@ function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
     util.addLine(
         indent, lines,
         b.e(
-            b.lift(
-                symbol:getEmitVarname() .. b.c("=")
-                    .. symbol:getCurSlot()))())
+            symbol:getEmitVarname() .. b.s("=")
+                .. symbol:getCurSlot())())
 end
 
 function emitUtil.emitVar(indent, symbol, lines)
     util.addLine(
         indent, lines,
         b.e(
-            b.lift(
-                symbol:getEmitVarname() .. b.c("=")
-                    .. symbol:getCurSlot()))())
+            symbol:getEmitVarname() .. b.s("=")
+                .. symbol:getCurSlot())())
 end
 
 function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
@@ -42,23 +40,23 @@ function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
         indent, lines,
         b.e(
             symbol:getCurSlot()
-                .. b.c("=")
-                .. b.pN(
+                .. b.s("=")
+                .. b.p(
                     emitUtil.derefValToValue(valueslot)
-                        .. b.c(" ")
-                        .. emitUtil.derefValToType(valueslot)))())
+                        .. b.s(" ")
+                        .. emitUtil.derefValToType(valueslot))()))
 end
 
 function emitUtil.derefVarToValue(varname)
-    return b.pE(b.c("!") .. varname)
+    return b.pE(b.s("!") .. varname)
 end
 
 function emitUtil.derefVarToType(varname)
-    return b.pE(b.pE(varname) .. b.c("[1]"))
+    return b.pE(b.pE(varname) .. b.s("[1]"))
 end
 
 function emitUtil.derefValToEnv(valuename)
-    return b.pE(valuename .. b.c("[2]"))
+    return b.pE(valuename .. b.s("[2]"))
 end
 
 function emitUtil.derefValToValue(valuename)
@@ -66,7 +64,7 @@ function emitUtil.derefValToValue(valuename)
 end
 
 function emitUtil.derefValToType(valname)
-    return b.pE(valname .. b.c("[1]"))
+    return b.pE(valname .. b.s("[1]"))
 end
 
 function emitUtil.linearizePrefixTree(ast, result)
