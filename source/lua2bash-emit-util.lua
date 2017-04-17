@@ -44,11 +44,10 @@ function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
             symbol:getCurSlot()
                 .. b.s("=")
                 .. b.p(
-                    emitUtil.derefValToValue(valueslot)
+                    b.dQ(emitUtil.derefValToValue(valueslot))
                         .. b.s(" ")
-                        .. emitUtil.derefValToType(valueslot)
-                      ):noDep()
-        )())
+                        .. emitUtil.derefValToType(valueslot)):sL(-1)
+        ):eT(1)())
 end
 
 function emitUtil.derefVarToValue(varname)

@@ -32,7 +32,11 @@ function emitter.emitTempVal(
         b.e(
             tempVal
                 .. b.s("=")
-                .. b.p(content .. b.s(" ") .. typ):noDep()
+                .. b.p(
+                    -- quoting level of content is dependent on that of type
+                    b.dQ(content):sQ(typ:getQuotingIndex())
+                        .. b.s(" ")
+                        .. typ):noDep()
         ):eM(1)
     util.addLine(indent, lines, cmdLine())
     return tempVal
@@ -45,7 +49,9 @@ function emitter.emitId(indent, ast, config, stack, lines)
     end
     local varname = ast[1]
     local binding = scope.getMostCurrentBinding(stack, varname)
-    if binding == nil then return "NIL" end -- better solution?
+    if binding == nil then
+        return emitter.emitNil(indent, {tag = "Nil"}, config, stack, lines)
+    end
     local emitVn = binding.symbol:getEmitVarname()
     return {
         emitter.emitTempVal(
@@ -73,7 +79,7 @@ function emitter.emitNil(indent, ast, config, stack, lines)
     end
     return {
         emitter.emitTempVal(
-            indent, config, lines,
+            indent, config, stack, lines,
             b.s("NIL"), b.s("")) }
 end
 
@@ -96,7 +102,7 @@ function emitter.emitFalse(indent, ast, config, stack, lines)
     return {
         emitter.emitTempVal(
             indent, config, stack, lines,
-            b.s("FLS"), b.s("0"), false) }
+            b.s("0"), b.s("0"), false) }
 end
 
 function emitter.emitTrue(indent, ast, config, stack, lines)
@@ -107,7 +113,7 @@ function emitter.emitTrue(indent, ast, config, stack, lines)
     return {
         emitter.emitTempVal(
             indent, config, stack, lines,
-            b.s("TRU"), b.s("1"), false) }
+            b.s("1"), b.s("1"), false) }
 end
 
 function emitter.emitTableValue(
@@ -149,28 +155,28 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
         elseif v.tag ~= "Table" then
             tempValues = emitter.emitExpression(
                 indent, fieldExp, config, stack, lines)
-            imap(
+            util.imap(
                 tempValues,
                 function(v)
                     emitter.emitTableValue(
                         indent, config, stack,
                         lines, tableId .. k,
-                        derefValToValue(v),
-                        derefValToType(v)) end)
+                        emitUtil.derefValToValue(v),
+                        emitUtil.derefValToType(v)) end)
         else
             -- tempValues possibly is a list of tempValue
             tempValues = emitter.emitTable(
                 indent, ast[k],
                 config, stack,
                 lines, false)
-            imap(
+            util.imap(
                 tempValues,
                 function(v)
                     emitter.emitTableValue(
                         indent, config, stack,
                         lines, tableId .. k,
-                        derefValToValue(v),
-                        derefValToType(v)) end)
+                        emitUtil.derefValToValue(v),
+                        emitUtil.derefValToType(v)) end)
         end
     end
     return { b.s(config.tablePrefix)
@@ -588,6 +594,13 @@ function emitter.emitForIn(indent, ast, config, stack, lines)
     -- TODO:
 end
 
+function emitter.emitTypelessScalar(indent, config, stack, lines, content)
+    local tempVal = emitter.getTempValname(config, stack, true)
+    local cmdLine = b.e(tempVal .. b.s("=") .. b.dQ(content)):eM(1)
+    util.addLine(indent, lines, cmdLine())
+    return tempVal
+end
+
 -- TODO: nil?
 function emitter.emitWhile(indent, ast, config, stack, lines)
     local loopExpr = ast[1]
@@ -595,16 +608,14 @@ function emitter.emitWhile(indent, ast, config, stack, lines)
     -- only the first tempValue is significant
     local tempValue = emitter.emitExpression(
         indent, loopExpr, config, stack, lines)[1]
-    local simpleValue = emitter.emitTempVal(
-        indent, config, stack, lines,
-        emitUtil.derefValToType(tempValue),
-        emitUtil.derefValToValue(tempValue), true)
+    local resultType = emitter.emitTypelessScalar(
+        indent, config, stack, lines, emitUtil.derefValToType(tempValue))
     --dbg()
     util.addLine(
         indent, lines,
         string.format(
-            "while [ %s != 0 ]; do",
-            (b.pE(simpleValue .. b.s("[1]")))()))
+            "while [ %s != NIL -a %s != \"0\" ]; do echo %s; ",
+            b.pE(resultType)(), b.pE(resultType)(), b.pE(resultType)()))
     emitter.emitBlock(indent, loopBlock, config, stack, lines)
     -- recalculate expression for next loop
     local tempValue2 = emitter.emitExpression(
@@ -612,9 +623,9 @@ function emitter.emitWhile(indent, ast, config, stack, lines)
     util.addLine(
         indent, lines,
         b.e(
-            simpleValue
+            resultType
                 .. b.s("=")
-                .. emitUtil.derefValToValue(tempValue2))())
+                .. emitUtil.derefValToType(tempValue2))())
     util.addLine(indent, lines, "true", "to prevent empty block")
     util.addLine(indent, lines, "done")
 end
@@ -738,7 +749,6 @@ function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
     emitUtil.emitUpdateVar(indent, symbol, rhs, lines)
 end
 
--- TODO:
 function emitter.emitComplexAssign(indent, lhs, config, stack, lines, rhs)
     local setValue = emitter.emitExecutePrefixexp(
         indent, lhs, config, stack, lines, true)[1]

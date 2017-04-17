@@ -53,6 +53,7 @@ describe(
 
                   testcode = {
                       simpleExp = "testcode/simpleExpressions.lua",
+                      tableExp = "testcode/tableExpressions.lua",
                       closure = "testcode/closure.lua",
                       closureUp = "testcode/closureUp.lua",
                       for1 = "testcode/for1.lua",

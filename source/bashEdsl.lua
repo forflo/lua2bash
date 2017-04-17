@@ -94,6 +94,11 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
         self:getSubtree():deepLift(n)
         return self
     end
+    function t:setQuotingIndex(n)
+        if not n then n = 1 end
+        self._quotingIndex = n
+        return self
+    end
     function t:noDependentQuoting()
         self._dependentQuoting = false
         self._quotingIndex = t._subtree:getQuotingIndex()
@@ -110,7 +115,8 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     function t:getSubtree() return self._subtree end
     function t:render()
         local result, middle = "", self:getSubtree():render()
-        local ac, begin, ending = self:getActiveChars(), self:getBegin(), self:getEnd()
+        local ac, begin, ending =
+            self:getActiveChars(), self:getBegin(), self:getEnd()
         local nesting, repCount = self:getQuotingIndex(), nil
         if nesting > 0  and self._dependentQuoting then
             repCount = 2 ^ (nesting - 1) - 1
@@ -134,6 +140,7 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     function t:sL(n) return self:shallowLift(n) end
     function t:dL(n) return self:deepLift(n) end
     function t:noDep() return self:noDependentQuoting() end
+    function t:sQ(n) return self:setQuotingIndex(n) end
     setmetatable(t, mtab)
     return t
 end
@@ -180,6 +187,11 @@ function dslObjects.Eval(dslobj)
         self._evalCount = self._evalCount + n
         return self
     end
+    function t:evalThreshold(n)
+        if not n then n = 1 end
+        self._evalThreshold = n
+        return self
+    end
     function t:evalMin(n)
         if not n then n = 1 end
         self._evalCountMin = n
@@ -189,7 +201,8 @@ function dslObjects.Eval(dslobj)
     function t:getEvalCountMin() return self._evalCountMin end
     function t:getEvalThreshold() return self._evalThreshold end
     function t:getType() return self._type end
-    function t:getQuotingIndex() return self:getSubtree():getQuotingIndex() end
+    function t:getQuotingIndex()
+        return self:getSubtree():getQuotingIndex() end
     function t:getEvalCount() return self._evalCount end
     function t:render()
         local evalCount = self:getQuotingIndex() - self:getEvalThreshold()
@@ -204,6 +217,7 @@ function dslObjects.Eval(dslobj)
     function t:dL(n) return self:deepLift(n) end
     function t:eL(n) return self:evalLift(n) end
     function t:eM(n) return self:evalMin(n) end
+    function t:eT(n) return self:evalThreshold(n) end
     setmetatable(t, mtab)
     return t
 end
