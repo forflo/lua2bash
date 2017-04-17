@@ -106,8 +106,10 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
         local result, middle = "", self:getSubtree():render()
         local ac, begin, ending = self:getActiveChars(), self:getBegin(), self:getEnd()
         local nesting, repCount = self:getQuotingIndex(), nil
-        if nesting > 0 then
+        if nesting > 0  and self._dependentQuoting then
             repCount = 2 ^ (nesting - 1) - 1
+        elseif not self._dependenQuoting then
+            repCount = 1
         else
             repCount = 0
         end
