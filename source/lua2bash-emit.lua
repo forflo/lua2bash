@@ -614,8 +614,8 @@ function emitter.emitWhile(indent, ast, config, stack, lines)
     util.addLine(
         indent, lines,
         string.format(
-            "while [ %s != NIL -a %s != \"0\" ]; do echo %s; ",
-            b.pE(resultType)(), b.pE(resultType)(), b.pE(resultType)()))
+            "while [ %s != NIL -a %s != \"0\" ]; do",
+            b.pE(resultType)(), b.pE(resultType)()))
     emitter.emitBlock(indent, loopBlock, config, stack, lines)
     -- recalculate expression for next loop
     local tempValue2 = emitter.emitExpression(
