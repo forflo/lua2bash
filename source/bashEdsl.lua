@@ -36,11 +36,13 @@ function dslObjects.Concat(left, right)
         return self:getLeft():render() .. self:getRight():render()
     end
     function t:shallowLift(n)
+        if not n then n = 1 end
         self:getLeft():shallowLift(n)
         self:getRight():shallowLift(n)
         return self
     end
     function t:deepLift(n)
+        if not n then n = 1 end
         self:getLeft():deepLift(n)
         self:getRight():deepLift(n)
         return self
@@ -67,7 +69,6 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     local t = {}
     t._activeChars = settify(activeChars)
     t._begin = begin
-    t._quotingIndex = dslobj:getQuotingIndex() + 1
     t._dependentQuoting = true
     t._subtree = nil
     t._end = ending
@@ -76,12 +77,15 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     else
         t._subtree = dslobj
     end
+    t._quotingIndex = t._subtree:getQuotingIndex() + 1
     -- member functions
     function t:shallowLift(n)
+        if not n then n = 1 end
         self._quotingIndex = self._quotingIndex + n
         return self
     end
     function t:deepLift(n)
+        if not n then n = 1 end
         self:shallowLift(n)
         self:getSubtree():deepLift(n)
         return self
@@ -122,7 +126,7 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     return t
 end
 
-function dslObject.String(str)
+function dslObjects.String(str)
     local t = {}
     t._content = str
     function t:shallowLift(n) return self end
@@ -134,21 +138,27 @@ function dslObject.String(str)
     return t
 end
 
-function dslObject.Eval(dslobj)
-    local t
-    t._subtree = dslobj
-    t._evalCount = dslobj:getQuotingIndex() - 1
+function dslObjects.Eval(dslobj)
+    local t = {}
+    t._subtree = nil
+    if type(dslobj) == "string" then
+        t._subtree = dslObjects.String(dslobj)
+    else
+        t._subtree = dslobj
+    end
+    t._evalCount = t._subtree:getQuotingIndex() - 1
+    -- member functions
     function t:shallowLift(n) return self end
     function t:deepLift(n)
+        if not n then n = 1 end
         t:getSubtree():deepLift(n)
         return self
     end
-    --
     function t:evalLift(n)
+        if not n then n = 1 end
         self._evalCount = self._evalCount + n
         return self
     end
-    --
     function t:getSubtree() return self._subtree end
     function t:getQuotingIndex() return self:getSubtree():getQuotingIndex() end
     function t:getEvalCount() return self._evalCount end
@@ -212,17 +222,17 @@ local function bDslProcessExpansionOut(str)
     return dslObjects.Base({">", ")", "("}, ">(", ")", str)
 end
 
-bDsl.eval = bDslEval
-bDsl.string = bDslString
-bDsl.paramExpansion = bDslParamExpansion
-bDsl.singleQuotes = bDslSingleQuotes
-bDsl.doubleQuotes = bDslDoubleQuotes
-bDsl.processExpansionIn = bDslProcessExpansionIn
-bDsl.processExpansionOut = bDslProcessExpansionOut
-bDsl.cmdExpansionParen = bDslCommandExpansionParen
-bDsl.cmdExpansionTicks = bDslCommandExpansionTicks
-bDsl.arithExpansion = bDslArithExpansion
-bDsl.braceExpansion = bDslBraceExpansion
-bDsl.parentheses = bDslParentheses
+bdsl.eval = bDslEval
+bdsl.string = bDslString
+bdsl.paramExpansion = bDslParamExpansion
+bdsl.singleQuotes = bDslSingleQuotes
+bdsl.doubleQuotes = bDslDoubleQuotes
+bdsl.processExpansionIn = bDslProcessExpansionIn
+bdsl.processExpansionOut = bDslProcessExpansionOut
+bdsl.cmdExpansionParen = bDslCommandExpansionParen
+bdsl.cmdExpansionTicks = bDslCommandExpansionTicks
+bdsl.arithExpansion = bDslArithExpansion
+bdsl.braceExpansion = bDslBraceExpansion
+bdsl.parentheses = bDslParentheses
 
-return bDsl
+return bdsl
