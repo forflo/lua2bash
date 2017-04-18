@@ -148,16 +148,32 @@ end
 function dslObjects.String(str)
     local t = {}
     t._content = str
+    t._quotingIndex = 0
     t._type = bdsl.types.STRING
     function t:getType() return self._type end
     function t:shallowLift(n) return self end
     function t:deepLift(n) return self end
     function t:getQuotingIndex() return 0 end
     function t:getSubtree() return nil end
-    function t:render() return self._content end
+    function t:setQuotingIndex(n)
+        if not n then n = 1 end
+        self._quotingIndex = n
+        return self
+    end
+    -- all chars will be prepended by an appropriate amount
+    -- of backslash quotes depending on the quoting index
+    function t:render()
+        local repCount = 2 ^ self._quotingIndex - 1
+        local result = ""
+        for c in self._content:gmatch(".") do
+            result = result .. string.rep("\\", repCount) .. c
+        end
+        return result
+    end
     -- write only
     function t:sL(n) return self:shallowLift(n) end
     function t:dL(n) return self:deepLift(n) end
+    function t:sQ(n) return self:setQuotingIndex(n) end
     setmetatable(t, mtab)
     return t
 end

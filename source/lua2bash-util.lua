@@ -25,7 +25,7 @@ util.tostring = ntostring
 -- print(util.tostring({1,{"foo", "bar"},2,3,{3,4,{4,5,6}}}))
 
 function util.max(n1, n2)
-    return expIfStrict(n1 <= n2, n2, n1)
+    return util.expIfStrict(n1 <= n2, n2, n1)
 end
 
 -- recursively traverses depth-first (left to right)

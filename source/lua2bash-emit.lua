@@ -283,7 +283,8 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     -- translate to bash function including environment set code
     util.addLine(indent, lines, string.format("function BF%s {", functionId))
     util.addLine(
-        indent, lines, (b.s(tostring(oldEnv)) .. b.s("=") .. b.pE("1"))())
+        indent, lines, (b.s("E") .. b.s(tostring(oldEnv))
+                            .. b.s("=") .. b.pE("1"))())
     -- recurse into block
     emitter.emitBlock(indent, block, config, stack, lines)
     util.addLine(
@@ -359,6 +360,21 @@ function emitter.emitUnop(indent, ast, config, stack, lines)
     return { tempVal }
 end
 
+util.operator = {
+        add = function(x, y) return x + y end,
+        sub = function(x, y) return x - y end,
+        equ = function(x, y) return x == y end,
+        neq = function(x, y) return x ~= y end
+}
+
+function util.exists(tbl, value, comparator)
+    local result = false
+    for _, v in pairs(tbl) do
+        result = result or comparator(v, value)
+    end
+    return result
+end
+
 function emitter.emitBinop(indent, ast, config, stack, lines)
     local ergId1 = util.getUniqueId()
     local tempVal = emitter.getTempValname(config, stack)
@@ -366,19 +382,32 @@ function emitter.emitBinop(indent, ast, config, stack, lines)
         indent, ast[2], config, stack, lines)[1]
     local right = emitter.emitExpression(
         indent, ast[3], config, stack, lines)[1]
+    local valuePart, typePart
+    valuePart =
+        b.aE(
+            emitUtil.derefValToValue(left) ..
+                b.s(util.strToOpstr(ast[1])):sQ(
+                    util.max(
+                        emitUtil.derefValToValue(left)
+                            :getQuotingIndex(),
+                        emitUtil.derefValToValue(right)
+                            :getQuotingIndex())) ..
+                emitUtil.derefValToValue(right))
+    typePart =
+        util.expIfStrict(
+            util.exists(
+                {"<", ">", "<=", ">=", "<<", ">>"},
+                util.strToOpstr(ast[1]),
+                util.operator.equ),
+            valuePart,
+            emitUtil.derefValToType(right))
+    -- finally constructing the command line
     util.addLine(
         indent, lines,
         b.e(
-             tempVal
-                 .. b.s("=")
-                 .. b.s("\\(")
-                 .. b.aE(
-                     emitUtil.derefValToValue(left) ..
-                         b.s(util.strToOpstr(ast[1])) ..
-                         emitUtil.derefValToValue(right))
-                 .. b.s(" ")
-                 .. emitUtil.derefValToType(right)
-                 .. b.s("\\)"))())
+            tempVal
+                .. b.s("=")
+                .. b.p(valuePart .. b.s(" ") .. typePart):noDep() )())
     return { tempVal }
 end
 
