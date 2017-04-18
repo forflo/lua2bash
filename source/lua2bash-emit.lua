@@ -226,7 +226,7 @@ function emitter.emitCall(indent, ast, config, stack, lines)
                     util.composeV(
                         util.call,
                         emitUtil.derefValToValue)),
-                [[\\\\\\\t]])
+                b.s('t'):sQ(3)())
         util.addLine(
             indent, lines,
             string.format("eval echo -e %s", dereferenced))
@@ -316,8 +316,10 @@ function emitter.transferFuncArguments(indent, ast, config, stack, lines)
                   local tempSym = scope.getNewLocalSymbol(config, stack, varName)
                   stack:top():getSymbolTable():addNewSymbol(varName, tempSym)
                   emitUtil.emitVar(indent, tempSym, lines)
-                  emitUtil.emitUpdateVar(indent, tempSym,
-                                         b.pE(tostring(counter)), lines)
+                  emitUtil.emitUpdateVar(
+                      indent, tempSym,
+                      b.pE(tostring(counter) .. b.s':-VALVARNIL'),
+                      lines)
                   counter = counter + 1
     end)
 end
@@ -510,6 +512,14 @@ function emitter.emitExecutePrefixexp(indent, prefixExp, config,
     return { temp[#temp] }
 end
 
+function emitter.emitBootstrap(indent, config, stack, lines)
+    util.addLine(indent, lines, "# Bootstrapping code")
+    emitUtil.emitValAssignTuple(
+        indent, "VAL" .. config.nilVarName,
+        b.p(b.dQ(""):sL(-1) .. b.s' ' .. b.s'NIL'),
+        lines)
+end
+
 -- TODO: should not handle scopes!
 -- occasion is the reason for the block
 -- can be "do", "function", "for", "while", ...
@@ -694,6 +704,19 @@ function emitter.emitBreak(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "break;")
 end
 
+function emitter.emitReturn(indent, ast, config, stack, lines)
+    local expressionList = ast
+    local tempValues =
+        util.tableIConcat(
+            util.imap(
+                expressionList,
+                function(exp)
+                    return emitter.emitExpression(
+                        indent, exp, config, stack, lines)
+            end), {})
+    return tempValues
+end
+
 function emitter.emitStatement(indent, ast, config, stack, lines)
     if ast.tag == "Call" then
         emitter.emitCall(indent, ast, config, stack, lines)
@@ -718,6 +741,8 @@ function emitter.emitStatement(indent, ast, config, stack, lines)
         util.addLine(indent, lines, "# do ")
         emitter.emitBlock(indent, ast, config, stack, lines)
         util.addLine(indent, lines, "# end ")
+    elseif ast.tag == "Return" then
+        emitter.emitReturn(indent, ast, config, stack, lines)
     elseif ast.tag == "Set" then
         emitter.emitSet(indent, ast, config, stack, lines)
     end

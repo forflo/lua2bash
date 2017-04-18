@@ -10,6 +10,7 @@ config.functionPrefix = "AFUN"
 config.tablePrefix = "TB" -- TaBle
 config.varPrefix = "V" -- Variable
 config.valPrefix = "L" -- vaLue
+config.nilVarName = "VARNIL"
 config.indentSize = 4
 
 serializer = require "lua2bash-serialize-ast"
@@ -37,6 +38,7 @@ stack = datatypes.Stack()
 stack:push(datatypes.Scope(
                datatypes.occasions.BLOCK, "G",
                util.getUniqueId(), "G"))
+emitter.emitBootstrap(0, config, stack, lines)
 emitter.emitBlock(0, ast, config, stack, lines)
 
 for k,v in ipairs(lines) do

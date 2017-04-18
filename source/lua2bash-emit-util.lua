@@ -27,6 +27,7 @@ function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
                 .. symbol:getCurSlot())())
 end
 
+-- TODO: rewrite using emitVarAssignVal
 function emitUtil.emitVar(indent, symbol, lines)
     util.addLine(
         indent, lines,
@@ -37,6 +38,7 @@ function emitUtil.emitVar(indent, symbol, lines)
         ):eM(1)())
 end
 
+-- TODO: rewrite using emitValAssignTuple
 function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
     util.addLine(
         indent, lines,
@@ -48,6 +50,20 @@ function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
                         .. b.s(" ")
                         .. emitUtil.derefValToType(valueslot)):sL(-1)
         ):eT(1)())
+end
+
+function emitUtil.emitVarAssignVal(indent, varId, valId, lines)
+    util.addLine(
+        indent, lines,
+        b.e(varId .. b.s('=') .. valId):eM(varId:getQuotingIndex())
+        ())
+end
+
+function emitUtil.emitValAssignTuple(
+        indent, assigneeSlot, valueTuple, lines)
+    util.addLine(
+        indent, lines,
+        b.e(assigneeSlot .. b.s('=') .. valueTuple)())
 end
 
 function emitUtil.derefVarToValue(varname)

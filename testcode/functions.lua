@@ -13,6 +13,10 @@ arg1 = function(x, y, z, u)
     print(x, y, z, u)
 end
 
+(function(x) print(x) end)(3)
+(function(x,y,z) print(x,y,z) end)(3,2,1)
+--(function(x,y,z) print(x,y,z) end)(3,2)
+
 print(add(1,2))
 print(addC(1)(2))
 
