@@ -16,13 +16,39 @@ local function evaluateByLua(filename)
     return luaProc(fileContent)
 end
 
+local function newConfig()
+    local config = {}
+    config.tempVarPrefix = "TV" -- Temp Variable
+    config.tempValPrefix = "TL" -- Temp vaLue
+    config.environmentPrefix = "E"
+    config.functionPrefix = "AFUN"
+    config.tablePrefix = "TB" -- TaBle
+    config.varPrefix = "V" -- Variable
+    config.valPrefix = "L" -- vaLue
+    config.indentSize = 4
+    return config
+end
+
+local function newStack()
+    local stack = datatypes.Stack()
+    stack:push(
+        datatypes.Scope(
+            datatypes.occasions.BLOCK,
+            "G",
+            util.getUniqueId(),
+            "G"))
+
+    return stack
+end
+
 local function evaluateByBash(filename)
     local result
     local ast, error_msg = parser.parse(io.open(filename):read("a"))
     lines = {}
-    emitter.emitBlock(0, ast, config, stack, lines)
+    emitter.emitBlock(0, ast, newConfig(), newStack(), lines)
     local bashProc = bp.cmd('bash')
-    return bashProc(util.join(lines, '\n'))
+    result = bashProc(util.join(lines, '\n') .. '\n')
+    return result
 end
 
 describe(
@@ -32,25 +58,6 @@ describe(
 
         setup("build table of file names",
               function()
-                  config = {}
-                  config.tempVarPrefix = "TV" -- Temp Variable
-                  config.tempValPrefix = "TL" -- Temp vaLue
-                  config.environmentPrefix = "E"
-                  config.functionPrefix = "AFUN"
-                  config.tablePrefix = "TB" -- TaBle
-                  config.varPrefix = "V" -- Variable
-                  config.valPrefix = "L" -- vaLue
-                  config.indentSize = 4
-
-                  lines = {}
-                  stack = datatypes.Stack()
-                  stack:push(
-                      datatypes.Scope(
-                          datatypes.occasions.BLOCK,
-                          "G",
-                          util.getUniqueId(),
-                          "G"))
-
                   testcode = {
                       simpleExp = "testcode/simpleExpressions.lua",
                       tableExp = "testcode/tableExpressions.lua",
@@ -79,8 +86,9 @@ describe(
 
         it("test whether a simple closure can be compiled correctly",
            function()
-               assert.are.same(
-                   evaluateByLua(testcode.simpleClosure),
-                   evaluateByBash(testcode.simpleClosure))
+               local bashR = evaluateByBash(testcode.simpleClosure)
+               local luaR = evaluateByLua(testcode.simpleClosure)
+               assert.is.True(#bashR > 0)
+               assert.are.same(bashR, luaR)
         end)
 end)

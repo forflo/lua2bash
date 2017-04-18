@@ -3,6 +3,7 @@ local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
 local serializer = require("lua2bash-serialize-ast")
 local b = require("bashEdsl")
+local parser = require("lua-parser.parser")
 
 local emitter = {}
 local emitUtil = require("lua2bash-emit-util")
