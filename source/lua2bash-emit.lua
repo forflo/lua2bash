@@ -198,8 +198,8 @@ function emitter.emitCallClosure(
                 .. util.ifold(
                     argValueList,
                     function(arg, accumulator)
-                        return emitUtil.derefValToVal(arg)
-                            .. b.s" " .. accumulator
+                        return
+                            accumulator .. b.s' ' .. b.dQ(arg):noDep()
                     end, b.s("")))
     util.addLine(indent, lines, cmdLine())
 end
@@ -295,6 +295,7 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     util.addLine(
         indent, lines, (b.s("E") .. b.s(tostring(oldEnv))
                             .. b.s("=") .. b.pE("1"))())
+    emitter.transferFuncArguments(indent, namelist, config, stack, lines)
     -- recurse into block
     emitter.emitBlock(indent, block, config, stack, lines)
     util.addLine(
@@ -304,6 +305,21 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "}")
     stack:pop()
     return { tempVal }
+end
+
+function emitter.transferFuncArguments(indent, ast, config, stack, lines)
+    local namelist, counter = ast, 1
+    util.addLine(indent, lines, "shift 1", "First arg is env pointer")
+    util.imap(ast,
+              function(name)
+                  local varName = name[1]
+                  local tempSym = scope.getNewLocalSymbol(config, stack, varName)
+                  stack:top():getSymbolTable():addNewSymbol(varName, tempSym)
+                  emitUtil.emitVar(indent, tempSym, lines)
+                  emitUtil.emitUpdateVar(indent, tempSym,
+                                         b.pE(tostring(counter)), lines)
+                  counter = counter + 1
+    end)
 end
 
 function emitter.emitParen(indent, ast, config, stack, lines)
@@ -494,6 +510,7 @@ function emitter.emitExecutePrefixexp(indent, prefixExp, config,
     return { temp[#temp] }
 end
 
+-- TODO: should not handle scopes!
 -- occasion is the reason for the block
 -- can be "do", "function", "for", "while", ...
 function emitter.emitBlock(indent, ast, config, stack, lines, occasion)
