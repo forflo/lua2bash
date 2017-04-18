@@ -193,7 +193,14 @@ function emitter.emitCallClosure(
         b.e(
             emitUtil.derefValToValue(closureValue)
                 .. b.s(" ")
-                .. emitUtil.derefValToType(closureValue))
+                .. emitUtil.derefValToType(closureValue)
+                .. b.s(" ")
+                .. util.ifold(
+                    argValueList,
+                    function(arg, accumulator)
+                        return emitUtil.derefValToVal(arg)
+                            .. b.s" " .. accumulator
+                    end, b.s("")))
     util.addLine(indent, lines, cmdLine())
 end
 
@@ -223,6 +230,7 @@ function emitter.emitCall(indent, ast, config, stack, lines)
         util.addLine(
             indent, lines,
             string.format("eval echo -e %s", dereferenced))
+        return {}
     elseif functionName == "type" then
         -- TODO: table!
         local value = emitter.emitExpression(
@@ -233,9 +241,10 @@ function emitter.emitCall(indent, ast, config, stack, lines)
         return typeStrValue
     else
         -- TODO: table
-        local c = emitter.emitExpression(
+        local funcValue = emitter.emitExpression(
             indent, functionExp, config, stack, lines)[1]
-        return emitter.emitCallClosure(indent, config, lines, c)
+        return emitter.emitCallClosure(
+            indent, config, lines, funcValue, tempValues)
     end
 end
 
