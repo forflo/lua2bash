@@ -38,12 +38,15 @@ function emitUtil.emitVar(indent, symbol, lines)
         ):eM(1)())
 end
 
+-- HACK: lcl was used for function emitter.transferFuncArguments
+-- to quikcly enable recursions
 -- TODO: rewrite using emitValAssignTuple
-function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
+function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines, lcl)
+    if not lcl then lcl = "" end
     util.addLine(
         indent, lines,
         b.e(
-            symbol:getCurSlot()
+            b.s(lcl .. ' ') .. symbol:getCurSlot()
                 .. b.s("=")
                 .. b.p(
                     b.dQ(emitUtil.derefValToValue(valueslot))

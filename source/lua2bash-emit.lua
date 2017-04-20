@@ -13,6 +13,7 @@ function emitter.getEnvVar(config, stack)
 end
 
 function emitter.getTempValname(config, stack, simple)
+    simple = true
     local commonSuffix
     if not simple then
         commonSuffix =
@@ -38,7 +39,7 @@ function emitter.emitTempVal(
                     b.dQ(content):sQ(typ:getQuotingIndex())
                         .. b.s(" ")
                         .. typ):noDep()
-        ):eM(1)
+        ):eM(tempVal:getQuotingIndex())
     util.addLine(indent, lines, cmdLine())
     return tempVal
 end
@@ -202,6 +203,10 @@ function emitter.emitCallClosure(
                             accumulator .. b.s' ' .. b.dQ(arg):noDep()
                     end, b.s("")))
     util.addLine(indent, lines, cmdLine())
+    return { emitter.emitTempVal(
+                 indent, config, stack, lines,
+                 emitUtil.derefValToType('VALRET'),
+                 emitUtil.derefValToValue('VALRET')) }
 end
 
 -- TODO: return und argumente
@@ -229,16 +234,14 @@ function emitter.emitCall(indent, ast, config, stack, lines)
                 b.s('t'):sQ(3)())
         util.addLine(
             indent, lines,
-            string.format("eval echo -e %s", dereferenced))
+            string.format("echo -e %s", dereferenced))
         return {}
     elseif functionName == "type" then
         -- TODO: table!
-        local value = emitter.emitExpression(
-            indent, arguments, config, stack, lines)[1]
         local typeStrValue = emitter.emitTempVal(
             indent, config, stack, lines, b.s("STR"),
-            emitUtil.derefValToType(value))
-        return typeStrValue
+            emitUtil.derefValToType(tempValues[1]))
+        return { typeStrValue }
     else
         -- TODO: table
         local funcValue = emitter.emitExpression(
@@ -248,12 +251,25 @@ function emitter.emitCall(indent, ast, config, stack, lines)
     end
 end
 
+-- snapshots all ids that already exist in the symbol tables
+-- with the exception of the global scope.
+-- otherwise direct recursions would not be possible
 function emitter.snapshotEnvironment(indent, ast, config, stack, lines)
     local usedSyms = util.getUsedSymbols(ast)
     local validSymbols = util.filter(
         usedSyms,
         function(sym)
-            return scope.getMostCurrentBinding(stack, sym) ~= nil end)
+            local query = scope.getMostCurrentBinding(stack, sym)
+            if query == nil then
+                return false
+            else
+                if query.scope == stack:bottom() then
+                    return false
+                else
+                    return true
+                end
+            end
+    end)
     --dbg()
     return util.imap(
         validSymbols,
@@ -298,18 +314,20 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     emitter.transferFuncArguments(indent, namelist, config, stack, lines)
     -- recurse into block
     emitter.emitBlock(indent, block, config, stack, lines)
+    -- TODO: needed???
     util.addLine(
         indent, lines,
         string.format("%s=$1", "E" .. stack:top():getEnvironmentId()))
     -- end of function definition
+    emitter.emitReturn(indent, {{tag = "Nil"}}, config, stack, lines)
     util.addLine(indent, lines, "}")
     stack:pop()
     return { tempVal }
 end
 
+-- HACK: In emitUpdateVar
 function emitter.transferFuncArguments(indent, ast, config, stack, lines)
-    local namelist, counter = ast, 1
-    util.addLine(indent, lines, "shift 1", "First arg is env pointer")
+    local namelist, counter = ast, 2
     util.imap(ast,
               function(name)
                   local varName = name[1]
@@ -319,7 +337,7 @@ function emitter.transferFuncArguments(indent, ast, config, stack, lines)
                   emitUtil.emitUpdateVar(
                       indent, tempSym,
                       b.pE(tostring(counter) .. b.s':-VALVARNIL'),
-                      lines)
+                      lines, "local")
                   counter = counter + 1
     end)
 end
@@ -355,7 +373,7 @@ function emitter.emitExpression(indent, ast, config, stack, lines)
     elseif ast.tag == "Index" then
         return emitter.emitPrefixexp(indent, ast, config, stack, lines)
     else
-        print("emitExpresison(): error!")
+        print("emitExpresison(): error!" .. ast.tag)
         os.exit(1)
     end
 end
@@ -424,7 +442,7 @@ function emitter.emitBinop(indent, ast, config, stack, lines)
     typePart =
         util.expIfStrict(
             util.exists(
-                {"<", ">", "<=", ">=", "<<", ">>"},
+                {"==", "<", ">", "<=", ">=", "<<", ">>"},
                 util.strToOpstr(ast[1]),
                 util.operator.equ),
             valuePart,
@@ -518,6 +536,9 @@ function emitter.emitBootstrap(indent, config, stack, lines)
         indent, "VAL" .. config.nilVarName,
         b.p(b.dQ(""):sL(-1) .. b.s' ' .. b.s'NIL'),
         lines)
+    emitUtil.emitValAssignTuple(
+        indent, "VALRET",
+        b.p(b.dQ(""):sL(-1) .. b.s' ' .. b.s'NIL'), lines)
 end
 
 -- TODO: should not handle scopes!
@@ -635,19 +656,27 @@ end
 function emitter.emitIf(indent, ast, config, stack, lines)
     if #ast == 1 then
         -- make else
-        emitBlock(indent + config.indentSize,
-                  ast[1], config, stack, lines,
-                  datatypes.occasion.IF)
+        emitter.emitBlock(
+            indent + config.indentSize,
+            ast[1], config, stack, lines,
+            datatypes.occasions.IF)
     elseif #ast > 1 then
         -- calculate expression
-        local location = emitExpression(indent, ast[1], config, stack, lines)
+        local tempValue = emitter.emitExpression(
+            indent, ast[1], config, stack, lines)[1]
+        local resultType = emitter.emitTypelessScalar(
+            indent, config, stack, lines, emitUtil.derefValToType(tempValue))
+        --dbg()
         util.addLine(
             indent, lines,
-            string.format("if [ \"%s\" = 1 ]; then",
-                          emitUtil.derefLocation(location)))
-        emitBlock(indent, ast[2], config, stack, lines)
+            string.format(
+                "if [ %s != NIL -a %s != \"0\" ]; then",
+                b.pE(resultType)(), b.pE(resultType)()))
+        -- recurse into block
+        emitter.emitBlock(indent + config.indentSize, ast[2], config, stack, lines)
         util.addLine(indent, lines, "else")
-        emitIf(indent, tableSlice(ast, 3, nil, 1), config, stack, lines)
+        emitter.emitIf(
+            indent, util.tableSlice(ast, 3, nil, 1), config, stack, lines)
         util.addLine(indent, lines, "true", "to prevent empty stmt block")
         util.addLine(indent, lines, "fi")
     end
@@ -704,17 +733,24 @@ function emitter.emitBreak(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "break;")
 end
 
+-- TODO: This is a limitation. Only one return expression is
+-- allowed right now. I think there is a solution. However, I also
+-- think that it's implementation will require far-reaching modifications.
 function emitter.emitReturn(indent, ast, config, stack, lines)
-    local expressionList = ast
-    local tempValues =
-        util.tableIConcat(
-            util.imap(
-                expressionList,
-                function(exp)
-                    return emitter.emitExpression(
-                        indent, exp, config, stack, lines)
-            end), {})
-    return tempValues
+    util.addLine(indent, lines, "# " .. serializer.serRet(ast))
+    local firstExpression = ast[1]
+    local tempVal = emitter.emitExpression(
+        indent, firstExpression, config, stack, lines)[1]
+    local cmdline =
+        b.e(
+            b.s'VALRET' .. b.s'=' ..
+                b.p(
+                    emitUtil.derefValToValue(tempVal)
+                        .. b.s' '
+                        .. emitUtil.derefValToType(tempVal)):noDep())
+    util.addLine(indent, lines, cmdline(), "Set return value")
+    util.addLine(indent, lines, "return 0", "Finish exec of this function")
+    return returnLocation
 end
 
 function emitter.emitStatement(indent, ast, config, stack, lines)
