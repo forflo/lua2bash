@@ -68,6 +68,15 @@ local function settify(activeChars)
     return charSet
 end
 
+local function isStringIn(str, tbl)
+    for k, v in pairs(tbl) do
+        if v == str then
+            return true
+        end
+    end
+    return false
+end
+
 function dslObjects.Base(activeChars, begin, ending, dslobj)
     local t = {}
     t._activeChars = settify(activeChars)
@@ -76,8 +85,8 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     t._dependentQuoting = true
     t._subtree = nil
     t._end = ending
-    if type(dslobj) == "string" then
-        t._subtree = dslObjects.String(dslobj)
+    if isStringIn(type(dslobj), {"string", "number", "nil", "boolean"}) then
+        t._subtree = dslObjects.String(tostring(dslobj))
     else
         t._subtree = dslobj
     end
@@ -101,6 +110,10 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     end
     function t:noDependentQuoting()
         self._dependentQuoting = false
+        self._quotingIndex = t._subtree:getQuotingIndex()
+        return self
+    end
+    function t:sameAsSubtree()
         self._quotingIndex = t._subtree:getQuotingIndex()
         return self
     end
@@ -141,11 +154,13 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     function t:dL(n) return self:deepLift(n) end
     function t:noDep() return self:noDependentQuoting() end
     function t:sQ(n) return self:setQuotingIndex(n) end
+    function t:sAS() return self:sameAsSubtree(n) end
     setmetatable(t, mtab)
     return t
 end
 
 function dslObjects.String(str)
+    assert(type(str) == "string", "Not of string type")
     local t = {}
     t._content = str
     t._quotingIndex = 0

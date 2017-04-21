@@ -13,7 +13,6 @@ function emitter.getEnvVar(config, stack)
 end
 
 function emitter.getTempValname(config, stack, simple)
-    simple = true
     local commonSuffix
     if not simple then
         commonSuffix =
@@ -234,7 +233,7 @@ function emitter.emitCall(indent, ast, config, stack, lines)
                 b.s('t'):sQ(3)())
         util.addLine(
             indent, lines,
-            string.format("echo -e %s", dereferenced))
+            string.format("eval echo -e %s", dereferenced))
         return {}
     elseif functionName == "type" then
         -- TODO: table!

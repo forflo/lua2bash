@@ -25,6 +25,7 @@ local function newConfig()
     config.tablePrefix = "TB" -- TaBle
     config.varPrefix = "V" -- Variable
     config.valPrefix = "L" -- vaLue
+    config.nilVarName = "VARNIL"
     config.indentSize = 4
     return config
 end
@@ -45,7 +46,9 @@ local function evaluateByBash(filename)
     local result
     local ast, error_msg = parser.parse(io.open(filename):read("a"))
     lines = {}
-    emitter.emitBlock(0, ast, newConfig(), newStack(), lines)
+    local stack, config = newStack(), newConfig()
+    emitter.emitBootstrap(0, config, stack, lines)
+    emitter.emitBlock(0, ast, config, stack, lines)
     local bashProc = bp.cmd('bash')
     result = bashProc(util.join(lines, '\n') .. '\n')
     return result
@@ -70,19 +73,19 @@ describe(
                   }
         end)
 
-        it("tests whether scoping is implemented correctly",
-           function()
-               assert.are.same(
-                   evaluateByLua(testcode.scoping),
-                   evaluateByBash(testcode.scoping))
-        end)
-
-        it("test whether a few simple expressions can be compiled correctly",
-           function()
-               assert.are.same(
-                   evaluateByLua(testcode.simpleExp),
-                   evaluateByBash(testcode.simpleExp))
-        end)
+--        it("tests whether scoping is implemented correctly",
+--           function()
+--               assert.are.same(
+--                   evaluateByLua(testcode.scoping),
+--                   evaluateByBash(testcode.scoping))
+--        end)
+--
+--        it("test whether a few simple expressions can be compiled correctly",
+--           function()
+--               assert.are.same(
+--                   evaluateByLua(testcode.simpleExp),
+--                   evaluateByBash(testcode.simpleExp))
+--        end)
 
         it("test whether a simple closure can be compiled correctly",
            function()

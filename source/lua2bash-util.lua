@@ -153,11 +153,13 @@ function util.join(strings, char)
     return result
 end
 
-function util.getUniqueId()
-    if not util.uniqueCounter then util.uniqueCounter = 0 end
-    local result = util.uniqueCounter
-    util.uniqueCounter = util.uniqueCounter + 1
-    return result
+function util.getCounter(increment)
+    local increment = increment or 1
+    local upvalCount = 0
+    return function()
+        upvalCount = upvalCount + increment
+        return upvalCount
+    end
 end
 
 function util.zipI(left, right)

@@ -3,7 +3,7 @@ local b = require("bashEdsl")
 
 local emitUtil = {}
 
--- we can do ((Ex = Ex + 1)) even as first comman line because
+-- we can do ((Ex = Ex + 1)) even as first command line because
 -- bash will use 0 as value for Ex if the variable is not declared.
 function emitUtil.emitEnvCounter(indent, config, lines, envId)
     util.addLine(
@@ -11,12 +11,7 @@ function emitUtil.emitEnvCounter(indent, config, lines, envId)
         string.format("((%s = %s + 1))",
                       config.environmentPrefix .. envId,
                       config.environmentPrefix .. envId),
-        "Environment counter")
-end
-
-function emitUtil.emitLocalVar(indent, lines, varname, valuename, value, typ)
-    util.addLine(indent, lines, b.e(varname .. valuename)())
-    util.addLine(indent, lines, b.e(valuename .. b.pN(b.dQ(value) .. typ))())
+        "environment counter for closures")
 end
 
 function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
@@ -41,8 +36,10 @@ end
 -- HACK: lcl was used for function emitter.transferFuncArguments
 -- to quikcly enable recursions
 -- TODO: rewrite using emitValAssignTuple
-function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines, lcl)
-    if not lcl then lcl = "" end
+function emitUtil.getLineUpdateVar(indent, symbol, valueslot, lines)
+    local assigneeSlot = symbol:getCurSlot()
+    local valueSlot = valueslot
+
     util.addLine(
         indent, lines,
         b.e(
@@ -55,18 +52,51 @@ function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines, lcl)
         ):eT(1)())
 end
 
-function emitUtil.emitVarAssignVal(indent, varId, valId, lines)
-    util.addLine(
-        indent, lines,
-        b.e(varId .. b.s('=') .. valId):eM(varId:getQuotingIndex())
-        ())
+function emitUtil.getEnvVar(config, stack)
+    return b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
 end
 
-function emitUtil.emitValAssignTuple(
-        indent, assigneeSlot, valueTuple, lines)
-    util.addLine(
-        indent, lines,
-        b.e(assigneeSlot .. b.s('=') .. valueTuple)())
+function emitUtil.getTempValname(config)
+    local commonSuffix = b.s("_") .. b.s(util.getUniqueId())
+    return config.tempValPrefix .. commonSuffix
+end
+
+-- typ and content must be values from bash EDSL
+function emitUtil.getLineTempVal(config, stack, lines, typ, content)
+    local tempVal = emitUtil.getTempValname(config, stack, simple)
+    local cmdLine =
+        b.e(
+            tempVal
+                .. b.s("=")
+                .. b.p(
+                    -- quoting level of content is dependent on that of type
+                    b.dQ(content):sQ(typ:getQuotingIndex())
+                        .. b.s(" ")
+                        .. typ):noDep()
+        ):eM(tempVal:getQuotingIndex())
+    util.addLine(indent, lines, cmdLine())
+    return tempVal
+end
+
+-- assembles a properly quotet line in the form of
+-- { "eval " } <varid> "=" <valueid>
+function emitUtil.getLineVarAssignVal(varId, valId)
+    return
+        b.e(varId .. b.s('=') .. valId)
+            :evalMin(varId:getQuotingIndex())
+            :evalThreshold(1)
+end
+
+-- assembles a properly quoted line in the form of
+-- { "eval " } "local " <valueid> "=" "(" <value> " " <type> " " <metatable> ")"
+function emitUtil.getLineValAssignTuple(assigneeSlot, valueTuple)
+    return
+        b.e(
+            assigneeSlot
+                .. b.s('=')
+                .. valueTuple)
+        :evalMin(assigneeSlot:getQuotingIndex())
+        :evalThreshold(1)
 end
 
 function emitUtil.derefVarToValue(varname)
@@ -77,8 +107,8 @@ function emitUtil.derefVarToType(varname)
     return b.pE(b.pE(varname) .. b.s("[1]"))
 end
 
-function emitUtil.derefValToEnv(valuename)
-    return b.pE(valuename .. b.s("[2]"))
+function emitUtil.derefVarToMtab(varname)
+    return b.pE(b.pE(varname) .. b.s("[2]"))
 end
 
 function emitUtil.derefValToValue(valuename)
@@ -87,6 +117,10 @@ end
 
 function emitUtil.derefValToType(valname)
     return b.pE(valname .. b.s("[1]"))
+end
+
+function emitUtil.derefValToMtab(valname)
+    return b.pE(valname .. b.s("[2]"))
 end
 
 function emitUtil.linearizePrefixTree(ast, result)
