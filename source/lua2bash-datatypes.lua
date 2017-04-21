@@ -20,21 +20,25 @@ datatypes.commonMtab = {
 
 function datatypes.Either()
     local t = {}
-    t._right = nil
-    t._left = nil
-    t._isLeft = false
+    t._right, t._left, t._isLeft = nil, nil, nil
+
     function t:isRight()
+        assert(t._isLeft, "Either obj not initialized")
         return not self:isLeft()
     end
     function t:isLeft()
+        assert(t._isLeft, "Either obj not initialized")
         return t._isLeft
     end
+
     function t:makeRight(obj)
+        assert(obj, "obj must not be nil")
         self._left, self._right = nil, obj
         self._isLeft = false
         return self
     end
     function t:makeLeft(obj)
+        assert(obj, "obj must not be nil")
         self._left, self._right = obj, nil
         self.isLeft = true
         return self
@@ -44,11 +48,11 @@ function datatypes.Either()
         assert(self:isRight(), "getRight on left object")
         return self._right
     end
-
     function t:getLeft()
         assert(self:isLeft(), "getLeft on right object")
         return self._left
     end
+
     setmetatable(t, datatypes.commonMtab)
     return t
 end
