@@ -20,6 +20,14 @@ function orchestration.newConfig()
     config.defaultMtabFunctions = "MTABFUN"
     config.defaultMtabTables = "MTABTBL"
     config.defaultMtabNil = "MTABNIL"
+    config.skalarTypes = {
+        nilType = "NIL",
+        tableType = "TBL",
+        numberType = "NUM",
+        stringType = "STR",
+        functionType = "FUN",
+        booleanType = "BOOL"
+    }
     config.indentSize = 4
     config.counter = {}
     for _, v in pairs({"scope", "table", "env", "func", "tempval"}) do

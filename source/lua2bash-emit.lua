@@ -98,9 +98,9 @@ function emitter.emitTrue(indent, ast, config, stack, lines)
     return datatypes.Either():makeLeft(tempSlot)
 end
 
-function emitter.emitTableValue(indent, config, stack, lines, tblIdx, value, typ)
-    local typeString = b.s("TBL")
-    local valueName = b.s(config.tablePrefix) .. b.s(tostring(tblIdx))
+function emitter.emitTableValue(indent, config, lines, tblIdx, value, typ)
+    local typeString = b.s(config.skalarTypes.tableType)
+    local valueName = b.s(config.tablePrefix) .. b.s(tblIdx)
     local cmdline =
         b.e(
             valueName
@@ -123,9 +123,10 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
     end
     local tableId = config.counter.table()
     local elementCounter = b.s(config.tableElementCounter)
-    local elementCounterIncrementCmd =
-        b.s(config.tableElementCounter) ..
-        b.s' ' .. 
+    local incrementCmd = emitUtil.getLineIncrementVar(elementCounter, b.s'1')
+    addLine(indent, lines, elementCounter:render() .. " = 0",
+            "reset element counter")
+    addLine(indent, lines, incrementCmd:render())
     emitter.emitTableValue(indent, config, stack, lines, tableId)
     for _, v in ipairs(ast) do
         local fieldExp = v
@@ -140,7 +141,7 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
             if either:isLeft() then
                 emitter.emitTableValue(
                     indent, config, stack,
-                    lines, tableId .. counter(),
+                    lines, tableId,
                     emitUtil.derefValToValue(either:getLeft()),
                     emitUtil.derefValToType(either:getLeft()))
             else
@@ -154,7 +155,7 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
             assert(either:isLeft(), "Impossible state")
                 emitter.emitTableValue(
                     indent, config, stack,
-                    lines, tableId .. counter(),
+                    lines, tableId,
                     emitUtil.derefValToValue(either:getLeft()),
                     emitUtil.derefValToType(either:getRight()))
         end

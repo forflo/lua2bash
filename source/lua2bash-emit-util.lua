@@ -8,13 +8,13 @@ local emitUtil = {}
 function emitUtil.emitEnvCounter(indent, config, lines, envId)
     util.addLine(
         indent, lines,
-        emitUtil.emitIncrementVar(
+        emitUtil.getLineIncrementVar(
             config.environmentPrefix .. envId,
             config.environmentPrefix .. envId):render(),
         "environment counter for closures")
 end
 
-function emitUtil.emitIncrementVar(varId, increment)
+function emitUtil.getLineIncrementVar(varId, increment)
     return
         b.eval(
         b.parentheses(
