@@ -12,11 +12,17 @@ function orchestration.newConfig()
     config.tablePrefix = "TB" -- TaBle
     config.varPrefix = "V" -- Variable
     config.valPrefix = "L" -- vaLue
+    config.tableElementCounter = "TE"
     config.nilVarName = "VARNIL"
     config.retVarName = "VALRET"
+    config.defaultMtabNumbers = "MTABNUM"
+    config.defaultMtabStrings = "MTABSTR"
+    config.defaultMtabFunctions = "MTABFUN"
+    config.defaultMtabTables = "MTABTBL"
+    config.defaultMtabNil = "MTABNIL"
     config.indentSize = 4
     config.counter = {}
-    for _, v in pairs({"scope", "table", "env", "func"}) do
+    for _, v in pairs({"scope", "table", "env", "func", "tempval"}) do
         config.counter[v] = util.getCounter(1)
     end
     return config

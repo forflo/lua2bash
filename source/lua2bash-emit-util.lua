@@ -8,10 +8,23 @@ local emitUtil = {}
 function emitUtil.emitEnvCounter(indent, config, lines, envId)
     util.addLine(
         indent, lines,
-        string.format("((%s = %s + 1))",
-                      config.environmentPrefix .. envId,
-                      config.environmentPrefix .. envId),
+        emitUtil.emitIncrementVar(
+            config.environmentPrefix .. envId,
+            config.environmentPrefix .. envId):render(),
         "environment counter for closures")
+end
+
+function emitUtil.emitIncrementVar(varId, increment)
+    return
+        b.eval(
+        b.parentheses(
+            b.parentheses(
+                varId .. b.string(' = ')
+                    .. varId .. b.string(' + ') .. increment
+            ):sameAsSubtree()
+        ):sameAsSubtree())
+        :evalMin(0)
+        :evalThreshold(1)
 end
 
 function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
@@ -53,10 +66,14 @@ function emitUtil.getEnvVar(config, stack)
     return b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
 end
 
--- typ and content must be values from bash EDSL
-function emitUtil.getLineTempVal(config, stack, lines, value, valtype, mtab)
+function emitUtil.getTempAssigneeSlot(config)
     local assigneeSlot = b.s(config.tempValPrefix) .. b.s("_")
-        .. b.s(util.getUniqueId())
+        .. b.s(config.counter.tempval())
+    return assigneeSlot
+end
+
+-- typ and content must be values from bash EDSL
+function emitUtil.getLineTempVal(assigneeSlot, value, valtype, mtab)
     local line = emitUtil.getLineValAssignTuple(
         assigneeSlot,
         emitUtil.getValTuple(value, valtype, mtab)

@@ -22,6 +22,9 @@ function datatypes.Either()
     local t = {}
     t._right, t._left, t._isLeft = nil, nil, nil
 
+    function t:getType()
+        return "either"
+    end
     function t:isRight()
         assert(t._isLeft, "Either obj not initialized")
         return not self:isLeft()

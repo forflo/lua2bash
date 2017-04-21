@@ -15,16 +15,20 @@ function emitter.emitId(indent, ast, config, stack, lines)
     end
     local varname = ast[1]
     local binding = scope.getMostCurrentBinding(stack, varname)
+    -- undefined id's are expected to evaluate to nil
     if binding == nil then
         -- Use global VARNIL!
         return emitter.emitNil(indent, {tag = "Nil"}, config, stack, lines)
     end
     local emitVn = binding.symbol:getEmitVarname()
-    return {
-        emitUtil.emitTempVal(
-            indent, config, stack, lines,
-            emitUtil.derefVarToType(emitVn),
-            emitUtil.derefVarToValue(emitVn)) }
+    local tempSlot = emitUtil.getTempAssigneeSlot(config)
+    local cmdline = emitUtil.getLineTempVal(
+        tempSlot,
+        emitUtil.derefVarToType(emitVn),
+        emitUtil.derefVarToValue(emitVn),
+        emitUtil.derefVarToMtab(emitVn))
+    util.addLine(indent, lines, cmdline:render())
+    return datatypes.Either():makeLeft(tempSlot)
 end
 
 function emitter.emitNumber(indent, ast, config, stack, lines)
@@ -33,10 +37,12 @@ function emitter.emitNumber(indent, ast, config, stack, lines)
         print("emitNumber(): not a Number node")
         os.exit(1)
     end
-    return {
-        emitUtil.emitTempVal(
-            indent, config, stack, lines,
-            b.s("NUM"), b.s(value))}
+    local tempSlot = emitUtil.getTempAssigneeSlot(config)
+    local cmdline = emitUtil.getLineTempVal(
+        tempSlot,
+        b.s(value), b.s('NUM'), b.s(config.defaultMtabNumbers))
+    util.addLine(indent, lines, cmdline:render())
+    return datatypes.Either():makeLeft(tempSlot)
 end
 
 function emitter.emitNil(indent, ast, config, stack, lines)
@@ -44,21 +50,26 @@ function emitter.emitNil(indent, ast, config, stack, lines)
         print("emitNil(): not a Nil node")
         os.exit(1)
     end
-    return {
-        emitUtil.emitTempVal(
-            indent, config, stack, lines,
-            b.s("NIL"), b.s("")) }
+    local tempSlot = emitUtil.getTempAssigneeSlot(config)
+    local cmdline = emitUtil.getLineTempVal(
+        tempSlot,
+        b.s(''), b.s('NIL'), b.s(config.defaultMtabNil))
+    util.addLine(indent, lines, cmdline:render())
+    return datatypes.Either():makeLeft(tempSlot)
 end
 
 function emitter.emitString(indent, ast, config, stack, lines)
+    local value = ast[1]
     if ast.tag ~= "String" then
         print("emitString(): not a string node")
         os.exit(1)
     end
-    return {
-        emitUtil.emitTempVal(
-            indent, config, stack, lines,
-            b.s("STR"), b.s(ast[1]), false) }
+    local tempSlot = emitUtil.getTempAssigneeSlot(config)
+    local cmdline = emitUtil.getLineTempVal(
+        tempSlot,
+        b.s(value), b.s('STR'), b.s(config.defaultMtabStr))
+    util.addLine(indent, lines, cmdline:render())
+    return datatypes.Either():makeLeft(tempSlot)
 end
 
 function emitter.emitFalse(indent, ast, config, stack, lines)
@@ -66,10 +77,12 @@ function emitter.emitFalse(indent, ast, config, stack, lines)
         print("emitFalse(): not a False node!")
         os.exit(1)
     end
-    return {
-        emitUtil.emitTempVal(
-            indent, config, stack, lines,
-            b.s("0"), b.s("0"), false) }
+    local tempSlot = emitUtil.getTempAssigneeSlot(config)
+    local cmdline = emitUtil.getLineTempVal(
+        tempSlot,
+        b.s('0'), b.s('0'), b.s(config.defaultMtabStr))
+    util.addLine(indent, lines, cmdline:render())
+    return datatypes.Either():makeLeft(tempSlot)
 end
 
 function emitter.emitTrue(indent, ast, config, stack, lines)
@@ -77,20 +90,17 @@ function emitter.emitTrue(indent, ast, config, stack, lines)
         print("emitTrue(): not a True node!")
         os.exit(1)
     end
-    return {
-        emitUtil.emitTempVal(
-            indent, config, stack, lines,
-            b.s("1"), b.s("1"), false) }
+    local tempSlot = emitUtil.getTempAssigneeSlot(config)
+    local cmdline = emitUtil.getLineTempVal(
+        tempSlot,
+        b.s('1'), b.s('1'), b.s(config.defaultMtabStr))
+    util.addLine(indent, lines, cmdline:render())
+    return datatypes.Either():makeLeft(tempSlot)
 end
 
-function emitter.emitTableValue(
-        indent, config, stack, lines, tblIdx, value, typ)
+function emitter.emitTableValue(indent, config, stack, lines, tblIdx, value, typ)
     local typeString = b.s("TBL")
-    local envVar = emitter.getEnvVar(config, stack)
-    local valueName =
-        b.s(config.tablePrefix)
-        .. envVar
-        .. b.s(tostring(tblIdx))
+    local valueName = b.s(config.tablePrefix) .. b.s(tostring(tblIdx))
     local cmdline =
         b.e(
             valueName
@@ -99,7 +109,7 @@ function emitter.emitTableValue(
                         .. b.s(" ")
                         .. (typ or typeString)))
     util.addLine(indent, lines, cmdline())
-    return valueName
+    return datatypes.Either():makeLeft(valueName)
 end
 
 -- prefixes each table member with env.tablePrefix
@@ -111,44 +121,45 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
     if firstCall == nil then
         util.addLine(indent, lines, "# " .. serializer.serTbl(ast))
     end
-    local tableId = config.conter.table()
-    local tempValues
+    local tableId = config.counter.table()
+    local elementCounter = b.s(config.tableElementCounter)
+    local elementCounterIncrementCmd =
+        b.s(config.tableElementCounter) ..
+        b.s' ' .. 
     emitter.emitTableValue(indent, config, stack, lines, tableId)
-    for k, v in ipairs(ast) do
-        local fieldExp = ast[k]
+    for _, v in ipairs(ast) do
+        local fieldExp = v
         if (v.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif v.tag ~= "Table" then
-            tempValues = emitter.emitExpression(
+            local either = emitter.emitExpression(
                 indent, fieldExp, config, stack, lines)
-            util.imap(
-                tempValues,
-                function(v)
-                    emitter.emitTableValue(
-                        indent, config, stack,
-                        lines, tableId .. k,
-                        emitUtil.derefValToValue(v),
-                        emitUtil.derefValToType(v)) end)
+            assert(type(either) == "table" and either.getType ~= nil,
+                   "Must be an either")
+            if either:isLeft() then
+                emitter.emitTableValue(
+                    indent, config, stack,
+                    lines, tableId .. counter(),
+                    emitUtil.derefValToValue(either:getLeft()),
+                    emitUtil.derefValToType(either:getLeft()))
+            else
+                -- TODO: case where a function was called!
+            end
         else
-            -- tempValues possibly is a list of tempValue
-            tempValues = emitter.emitTable(
-                indent, ast[k],
-                config, stack,
-                lines, false)
-            util.imap(
-                tempValues,
-                function(v)
-                    emitter.emitTableValue(
-                        indent, config, stack,
-                        lines, tableId .. k,
-                        emitUtil.derefValToValue(v),
-                        emitUtil.derefValToType(v)) end)
+            local either = emitter.emitTable(
+                indent, fieldExp, config, stack, lines, false)
+            assert(type(either) == "table" and either.getType ~= nil,
+                   "Must be an either")
+            assert(either:isLeft(), "Impossible state")
+                emitter.emitTableValue(
+                    indent, config, stack,
+                    lines, tableId .. counter(),
+                    emitUtil.derefValToValue(either:getLeft()),
+                    emitUtil.derefValToType(either:getRight()))
         end
     end
-    return { b.s(config.tablePrefix)
-                 .. emitter.getEnvVar(config, stack)
-                 .. b.s(tostring(tableId))}
+    return datatypes.Either():makeLeft(b.s(config.tablePrefix .. b.s(tableId)))
 end
 
 -- returns a tempvalue of the result
@@ -167,10 +178,7 @@ function emitter.emitCallClosure(
                             accumulator .. b.s' ' .. b.dQ(arg):noDep()
                     end, b.s("")))
     util.addLine(indent, lines, cmdLine())
-    return { emitUtil.emitTempVal(
-                 indent, config, stack, lines,
-                 emitUtil.derefValToType(config.retVarName),
-                 emitUtil.derefValToValue(config.retVarName)) }
+    return datatypes.Either():makeRight("dummy")
 end
 
 function emitter.emitCall(indent, ast, config, stack, lines)
