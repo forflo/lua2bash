@@ -13,6 +13,7 @@ function orchestration.newConfig()
     config.varPrefix = "V" -- Variable
     config.valPrefix = "L" -- vaLue
     config.nilVarName = "VARNIL"
+    config.retVarName = "VALRET"
     config.indentSize = 4
     config.counter = {}
     for _, v in pairs({"scope", "table", "env", "func"}) do

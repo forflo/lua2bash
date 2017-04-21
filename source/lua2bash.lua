@@ -4,10 +4,7 @@ dbg = require "debugger"
 serializer = require "lua2bash-serialize-ast"
 emitter = require "lua2bash-emit"
 util = require "lua2bash-util"
-scope = require "lua2bash-scope"
-datatypes = require("lua2bash-datatypes")
-b = require "bashEdsl"
-orch = require("lua2bash-orchestration")
+orchestration = require("lua2bash-orchestration")
 
 if #arg ~= 1 then
     print("Usage: lua2bash.lua <string>")
@@ -21,10 +18,8 @@ if not ast then
     os.exit(1)
 end
 
-local lines, stack, config = {}, orch.newStack(), orch.newConfig()
-emitter.emitBootstrap(0, config, stack, lines)
-emitter.emitBlock(0, ast, config, stack, lines)
+local emitter = orchestration.newEmitter(ast)
 
-print(util.join(lines, '\n'))
+print(util.join(emitter(), '\n'))
 
 os.exit(0)

@@ -20,7 +20,7 @@ function emitter.emitId(indent, ast, config, stack, lines)
     end
     local emitVn = binding.symbol:getEmitVarname()
     return {
-        emitter.emitTempVal(
+        emitUtil.emitTempVal(
             indent, config, stack, lines,
             emitUtil.derefVarToType(emitVn),
             emitUtil.derefVarToValue(emitVn)) }
@@ -33,7 +33,7 @@ function emitter.emitNumber(indent, ast, config, stack, lines)
         os.exit(1)
     end
     return {
-        emitter.emitTempVal(
+        emitUtil.emitTempVal(
             indent, config, stack, lines,
             b.s("NUM"), b.s(value))}
 end
@@ -44,7 +44,7 @@ function emitter.emitNil(indent, ast, config, stack, lines)
         os.exit(1)
     end
     return {
-        emitter.emitTempVal(
+        emitUtil.emitTempVal(
             indent, config, stack, lines,
             b.s("NIL"), b.s("")) }
 end
@@ -55,7 +55,7 @@ function emitter.emitString(indent, ast, config, stack, lines)
         os.exit(1)
     end
     return {
-        emitter.emitTempVal(
+        emitUtil.emitTempVal(
             indent, config, stack, lines,
             b.s("STR"), b.s(ast[1]), false) }
 end
@@ -66,7 +66,7 @@ function emitter.emitFalse(indent, ast, config, stack, lines)
         os.exit(1)
     end
     return {
-        emitter.emitTempVal(
+        emitUtil.emitTempVal(
             indent, config, stack, lines,
             b.s("0"), b.s("0"), false) }
 end
@@ -77,7 +77,7 @@ function emitter.emitTrue(indent, ast, config, stack, lines)
         os.exit(1)
     end
     return {
-        emitter.emitTempVal(
+        emitUtil.emitTempVal(
             indent, config, stack, lines,
             b.s("1"), b.s("1"), false) }
 end
@@ -150,7 +150,6 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
                  .. b.s(tostring(tableId))}
 end
 
--- TODO: argValueList!
 -- returns a tempvalue of the result
 function emitter.emitCallClosure(
         indent, config, lines, closureValue, argValueList)
@@ -167,13 +166,12 @@ function emitter.emitCallClosure(
                             accumulator .. b.s' ' .. b.dQ(arg):noDep()
                     end, b.s("")))
     util.addLine(indent, lines, cmdLine())
-    return { emitter.emitTempVal(
+    return { emitUtil.emitTempVal(
                  indent, config, stack, lines,
-                 emitUtil.derefValToType('VALRET'),
-                 emitUtil.derefValToValue('VALRET')) }
+                 emitUtil.derefValToType(config.retVarName),
+                 emitUtil.derefValToValue(config.retVarName)) }
 end
 
--- TODO: return und argumente
 function emitter.emitCall(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "# " .. serializer.serCall(ast))
     local functionName = ast[1][1]
@@ -198,11 +196,15 @@ function emitter.emitCall(indent, ast, config, stack, lines)
                 b.s('t'):sQ(3)())
         util.addLine(
             indent, lines,
-            string.format("eval echo -e %s", dereferenced))
+            b.e(b.s'echo -e ' .. dereferenced)
+                :evalMin(0)
+                :evalThreshold(1)
+                :render()
+        )
         return {}
     elseif functionName == "type" then
         -- TODO: table!
-        local typeStrValue = emitter.emitTempVal(
+        local typeStrValue = emitUtil.emitTempVal(
             indent, config, stack, lines, b.s("STR"),
             emitUtil.derefValToType(tempValues[1]))
         return { typeStrValue }
@@ -249,21 +251,21 @@ end
 function emitter.emitFunction(indent, ast, config, stack, lines)
     local namelist = ast[1]
     local block = ast[2]
-    local functionId = util.getUniqueId()
-    local oldEnv = stack:top():getEnvironmentId()
+    local functionId = config.counter.func()
+    local oldEnv = stack:top():getScopeId()
     local scopeName = "F" .. functionId
     local newScope = datatypes.Scope(
         datatypes.occasions.FUNCTION, scopeName,
-        util.getUniqueId(), scope.getPathPrefix(stack) .. scopeName)
+        config.counter.scope(), scope.getPathPrefix(stack) .. scopeName)
     stack:push(newScope)
-    local newEnv = stack:top():getEnvironmentId()
+    local newEnv = stack:top():getScopeId()
     -- temporary set to old for snapshotting
-    stack:top():setEnvironmentId(oldEnv)
+    stack:top():setScopeId(oldEnv)
     util.addLine(indent, lines, "# Closure defintion")
     local tempVal =
-        emitter.emitTempVal(
+        emitUtil.emitTempVal(
             indent, config, stack, lines,
-            b.pE("E" .. stack:top():getEnvironmentId()),
+            b.pE("E" .. stack:top():getScopeId()),
             -- adjust symbol string?
             b.s("BF") .. b.s(tostring(functionId)))
     util.addLine(indent, lines, "# Environment Snapshotting")
@@ -279,9 +281,9 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     -- recurse into block
     emitter.emitBlock(indent, block, config, stack, lines)
     -- TODO: needed???
-    util.addLine(
-        indent, lines,
-        string.format("%s=$1", "E" .. stack:top():getEnvironmentId()))
+    --    util.addLine(
+    --        indent, lines,
+    --        string.format("%s=$1", "E" .. stack:top():getScopeId()))
     -- end of function definition
     emitter.emitReturn(indent, {{tag = "Nil"}}, config, stack, lines)
     util.addLine(indent, lines, "}")
@@ -289,7 +291,6 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     return { tempVal }
 end
 
--- HACK: In emitUpdateVar
 function emitter.transferFuncArguments(indent, ast, config, stack, lines)
     local namelist, counter = ast, 2
     util.imap(ast,
@@ -301,7 +302,7 @@ function emitter.transferFuncArguments(indent, ast, config, stack, lines)
                   emitUtil.emitUpdateVar(
                       indent, tempSym,
                       b.pE(tostring(counter) .. b.s':-VALVARNIL'),
-                      lines, "local")
+                      lines)
                   counter = counter + 1
     end)
 end
@@ -434,7 +435,7 @@ function emitter.emitExplist(indent, ast, config, stack, lines)
             util.imap(
                 tempValues,
                 function(v)
-                    return emitter.emitTempVal(
+                    return emitUtil.emitTempVal(
                         indent, config, stack, lines,
                         emitUtil.derefValToType(v),
                         emitUtil.derefValToValue(v)) end)
@@ -484,7 +485,7 @@ function emitter.emitExecutePrefixexp(indent, prefixExp, config,
             if i == #indirections and asLval then
                 temp[i] = index
             else
-                temp[i] = emitter.emitTempVal(
+                temp[i] = emitUtil.emitTempVal(
                     indent, config, stack, lines,
                     b.pE(index .. b.s("[1]")),
                     b.pE(index))
@@ -522,7 +523,7 @@ function emitter.emitBlock(indent, ast, config, stack, lines, occasion)
         indent, lines,
         "# Begin of Scope: " .. stack:top():getPath())
     emitUtil.emitEnvCounter(indent + config.indentSize, config,
-                   lines, stack:top():getEnvironmentId())
+                   lines, stack:top():getScopeId())
     -- emit all enclosed statements
     for k, v in ipairs(ast) do
         if type(v) == "table" then

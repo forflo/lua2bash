@@ -33,9 +33,6 @@ function emitUtil.emitVar(indent, symbol, lines)
         ):eM(1)())
 end
 
--- HACK: lcl was used for function emitter.transferFuncArguments
--- to quikcly enable recursions
--- TODO: rewrite using emitValAssignTuple
 function emitUtil.getLineUpdateVar(indent, symbol, valueslot, lines)
     local assigneeSlot = symbol:getCurSlot()
     local valueSlot = valueslot
@@ -56,26 +53,19 @@ function emitUtil.getEnvVar(config, stack)
     return b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
 end
 
-function emitUtil.getTempValname(config)
-    local commonSuffix = b.s("_") .. b.s(util.getUniqueId())
-    return config.tempValPrefix .. commonSuffix
-end
-
 -- typ and content must be values from bash EDSL
 function emitUtil.getLineTempVal(config, stack, lines, typ, content)
-    local tempVal = emitUtil.getTempValname(config, stack, simple)
-    local cmdLine =
-        b.e(
-            tempVal
-                .. b.s("=")
-                .. b.p(
-                    -- quoting level of content is dependent on that of type
-                    b.dQ(content):sQ(typ:getQuotingIndex())
-                        .. b.s(" ")
-                        .. typ):noDep()
-        ):eM(tempVal:getQuotingIndex())
-    util.addLine(indent, lines, cmdLine())
-    return tempVal
+    local assigneeSlot = b.s(config.tempValPrefix) .. b.s("_")
+        .. b.s(util.getUniqueId())
+    local line = emitUtil.getLineValAssignTuple(
+        assigneeSlot,
+        b.parentheses(
+            -- quoting level of content is dependent on that of type
+            b.doubleQuotes(content):setQuotingIndex(typ:getQuotingIndex())
+                .. b.string(" ")
+                .. typ)
+            :noDependentQuoting())
+    return line
 end
 
 -- assembles a properly quotet line in the form of
