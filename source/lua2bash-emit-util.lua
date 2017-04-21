@@ -54,18 +54,32 @@ function emitUtil.getEnvVar(config, stack)
 end
 
 -- typ and content must be values from bash EDSL
-function emitUtil.getLineTempVal(config, stack, lines, typ, content)
+function emitUtil.getLineTempVal(config, stack, lines, value, valtype, mtab)
     local assigneeSlot = b.s(config.tempValPrefix) .. b.s("_")
         .. b.s(util.getUniqueId())
     local line = emitUtil.getLineValAssignTuple(
         assigneeSlot,
-        b.parentheses(
-            -- quoting level of content is dependent on that of type
-            b.doubleQuotes(content):setQuotingIndex(typ:getQuotingIndex())
-                .. b.string(" ")
-                .. typ)
+        emitUtil.getValTuple(value, valtype, mtab)
             :noDependentQuoting())
     return line
+end
+
+-- returns a b.parentheses object which encloses the value
+-- the type and the metatable
+function emitUtil.getValTuple(value, valuetype, metatable)
+    local quoting = util.max(
+        value:getQuotingIndex(),
+        util.max(
+            valuetype:getQuotingIndex(),
+            metatable:getQuotingIndex()))
+    return
+        b.parentheses(
+            -- the double quotes of value must be resolved last
+            b.doubleQuotes(content):setQuotingIndex(quoting)
+                .. b.string(" ")
+                .. valtype
+                .. b.string(" ")
+                .. mtab)
 end
 
 -- assembles a properly quotet line in the form of

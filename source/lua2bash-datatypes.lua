@@ -18,6 +18,41 @@ datatypes.commonMtab = {
     end
 }
 
+function datatypes.Either()
+    local t = {}
+    t._right = nil
+    t._left = nil
+    t._isLeft = false
+    function t:isRight()
+        return not self:isLeft()
+    end
+    function t:isLeft()
+        return t._isLeft
+    end
+    function t:makeRight(obj)
+        self._left, self._right = nil, obj
+        self._isLeft = false
+        return self
+    end
+    function t:makeLeft(obj)
+        self._left, self._right = obj, nil
+        self.isLeft = true
+        return self
+    end
+
+    function t:getRight()
+        assert(self:isRight(), "getRight on left object")
+        return self._right
+    end
+
+    function t:getLeft()
+        assert(self:isLeft(), "getLeft on right object")
+        return self._left
+    end
+    setmetatable(t, datatypes.commonMtab)
+    return t
+end
+
 function datatypes.SymbolTable()
     local t = {}
     t._symbolTable = {}

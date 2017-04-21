@@ -4,18 +4,19 @@ local scope = require("lua2bash-scope")
 local serializer = require("lua2bash-serialize-ast")
 local b = require("bashEdsl")
 local parser = require("lua-parser.parser")
+local emitUtil = require("lua2bash-emit-util")
 
 local emitter = {}
-local emitUtil = require("lua2bash-emit-util")
 
 function emitter.emitId(indent, ast, config, stack, lines)
     if ast.tag ~= "Id" then
-        print("emitId(): not a Id node")
+        print("emitId(): not an Id node")
         os.exit(1)
     end
     local varname = ast[1]
     local binding = scope.getMostCurrentBinding(stack, varname)
     if binding == nil then
+        -- Use global VARNIL!
         return emitter.emitNil(indent, {tag = "Nil"}, config, stack, lines)
     end
     local emitVn = binding.symbol:getEmitVarname()
