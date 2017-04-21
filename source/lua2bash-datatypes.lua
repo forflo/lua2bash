@@ -1,7 +1,24 @@
 local util = require("lua2bash-util")
-local comp = {}
+local datatypes = {}
 
-function comp.SymbolTable()
+-- This module contains classes (no inheritance) for
+-- * symboltables
+-- * symbols
+-- * stacks
+-- * scopes
+-- Each function in the package datatypes serves as constructor
+-- for the class it simultaneously represents.
+-- Note that each function sets a common metatable for the object
+-- returned. The metatable provides for a custom tostring overload
+-- that is useful during debugging or logging.
+
+datatypes.commonMtab = {
+    __tostring = function(symtab)
+        return util.tostring(symtab)
+    end
+}
+
+function datatypes.SymbolTable()
     local t = {}
     t._symbolTable = {}
     function t:isInSymtab(varName)
@@ -15,13 +32,11 @@ function comp.SymbolTable()
     function t:addNewSymbol(varName, symbol)
         self._symbolTable[varName] = symbol
     end
-    function t:removeSymbol(varName)
-        --TODO:?
-    end
+    setmetatable(t, datatypes.commonMtab)
     return t
 end
 
-function comp.Symbol(value, redefCount, curSlot, emitVarname)
+function datatypes.Symbol(value, redefCount, curSlot, emitVarname)
     local obj = {}
     obj._curSlot = curSlot
     obj._emitVarname = emitVarname
@@ -45,54 +60,47 @@ function comp.Symbol(value, redefCount, curSlot, emitVarname)
     function obj:setEmitVarname(v) self._emitVarname = v; return self end
     function obj:setValue(v) self._value = v; return self end
     function obj:setRedefCnt(v) self._redefCount = v; return self end
+    setmetatable(t, datatypes.commonMtab)
     return obj
 end
 
-comp.occasions = {
+datatypes.occasions = {
     BLOCK = {}, FOR = {}, IF = {},
     WHILE = {}, DO = {}
 }
 
-function comp.Scope(occasion, name, id, path)
+function datatypes.Scope(occasion, name, id, path)
     local t = {}
-    local mtab = {}
-    mtab.__tostring = function(scope)
-        return util.tostring(scope)
-    end
     -- initializer
     t._occasion = occasion
     t._name = name
-    t._environmentId = id
+    t._scopeId = id
     t._path = path
-    t._symbolTable = comp.SymbolTable()
+    t._symbolTable = datatypes.SymbolTable()
     -- getter
     function t:getPath() return self._path end
     function t:getName() return self._name end
     function t:getOccasion() return self._occasion end
-    function t:getEnvironmentId() return self._environmentId end
+    function t:getScopeId() return self._scopeId end
     function t:getSymbolTable() return self._symbolTable end
     -- setter
-    function t:setEnvironmentId(v) self._environmentId = v end
+    function t:setScopeId(v) self._scopeId = v end
     function t:setName(v) self._name = v end
     function t:setPath(v) self._path = v end
     function t:setSymbolTable(v) self._symbolTable = v end
     function t:setOccasion(v) self._occasion = v end
 
---    setmetatable(t, mtab)
+    -- TODO: fix this
+    --setmetatable(t, datatypes.commonMtab)
     return t
 end
 
 -- Create a Table with stack functions
-function comp.Stack()
+function datatypes.Stack()
     -- stack table
     local t = {}
-    local mtab = {}
     -- entry table
     t._et = {}
-    -- tostring overload
-    mtab.__tostring = function(stack)
-        return util.tostring(stack._et)
-    end
 
     -- push a value on to the stack
     function t:push(...)
@@ -153,8 +161,8 @@ function comp.Stack()
         return #self._et
     end
 
-    setmetatable(t, mtab)
+    setmetatable(t, datatypes.commonMtab)
     return t
 end
 
-return comp
+return datatypes

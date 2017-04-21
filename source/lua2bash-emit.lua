@@ -8,41 +8,6 @@ local parser = require("lua-parser.parser")
 local emitter = {}
 local emitUtil = require("lua2bash-emit-util")
 
-function emitter.getEnvVar(config, stack)
-    return b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
-end
-
-function emitter.getTempValname(config, stack, simple)
-    local commonSuffix
-    if not simple then
-        commonSuffix =
-            emitter.getEnvVar(config, stack) ..
-            b.s("_") ..
-            b.s(tostring(util.getUniqueId()))
-    else
-        commonSuffix = b.s("_") .. b.s(tostring(util.getUniqueId()))
-    end
-    return config.tempValPrefix .. commonSuffix
-end
-
--- typ and content must be values from bash EDSL
-function emitter.emitTempVal(
-        indent, config, stack, lines, typ, content, simple)
-    local tempVal = emitter.getTempValname(config, stack, simple)
-    local cmdLine =
-        b.e(
-            tempVal
-                .. b.s("=")
-                .. b.p(
-                    -- quoting level of content is dependent on that of type
-                    b.dQ(content):sQ(typ:getQuotingIndex())
-                        .. b.s(" ")
-                        .. typ):noDep()
-        ):eM(tempVal:getQuotingIndex())
-    util.addLine(indent, lines, cmdLine())
-    return tempVal
-end
-
 function emitter.emitId(indent, ast, config, stack, lines)
     if ast.tag ~= "Id" then
         print("emitId(): not a Id node")
@@ -145,7 +110,7 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
     if firstCall == nil then
         util.addLine(indent, lines, "# " .. serializer.serTbl(ast))
     end
-    local tableId = util.getUniqueId(env)
+    local tableId = config.conter.table()
     local tempValues
     emitter.emitTableValue(indent, config, stack, lines, tableId)
     for k, v in ipairs(ast) do
