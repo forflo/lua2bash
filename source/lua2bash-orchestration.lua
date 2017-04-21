@@ -31,4 +31,14 @@ function orchestration.newStack()
     return stack
 end
 
+function orchestration.newEmitter(ast)
+    return function()
+        local stack, config = orchestration.newStack(), orchestration.newConfig()
+        lines = {}
+        emitter.emitBootstrap(0, config, stack, lines)
+        emitter.emitBlock(0, ast, config, stack, lines)
+        return lines
+    end
+end
+
 return orchestration

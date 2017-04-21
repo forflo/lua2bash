@@ -8,49 +8,20 @@ local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
 local datatypes = require("lua2bash-datatypes")
 local emitter = require("lua2bash-emit")
+local orchestration = require("lua2bash-orchestration")
 
--- lua library for reading and writing to processes!!
 local function evaluateByLua(filename)
     local luaProc = bp.cmd("lua", "-")
     local fileContent = bp.cat('cat', filename)()
     return luaProc(fileContent)
 end
 
-local function newConfig()
-    local config = {}
-    config.tempVarPrefix = "TV" -- Temp Variable
-    config.tempValPrefix = "TL" -- Temp vaLue
-    config.environmentPrefix = "E"
-    config.functionPrefix = "AFUN"
-    config.tablePrefix = "TB" -- TaBle
-    config.varPrefix = "V" -- Variable
-    config.valPrefix = "L" -- vaLue
-    config.nilVarName = "VARNIL"
-    config.indentSize = 4
-    return config
-end
-
-local function newStack()
-    local stack = datatypes.Stack()
-    stack:push(
-        datatypes.Scope(
-            datatypes.occasions.BLOCK,
-            "G",
-            util.getUniqueId(),
-            "G"))
-
-    return stack
-end
-
 local function evaluateByBash(filename)
-    local result
     local ast, error_msg = parser.parse(io.open(filename):read("a"))
-    lines = {}
-    local stack, config = newStack(), newConfig()
-    emitter.emitBootstrap(0, config, stack, lines)
-    emitter.emitBlock(0, ast, config, stack, lines)
+    assert.Truthy(error_msg)
+    local result, emitter = nil, orchestration.newEmitter(ast)
     local bashProc = bp.cmd('bash')
-    result = bashProc(util.join(lines, '\n') .. '\n')
+    result = bashProc(util.join(emitter(), '\n') .. '\n')
     return result
 end
 
