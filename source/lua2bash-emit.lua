@@ -98,18 +98,21 @@ function emitter.emitTrue(indent, ast, config, stack, lines)
     return datatypes.Either():makeLeft(tempSlot)
 end
 
-function emitter.emitTableValue(indent, config, lines, tblIdx, value, typ)
-    local typeString = b.s(config.skalarTypes.tableType)
-    local valueName = b.s(config.tablePrefix) .. b.s(tblIdx)
+function emitter.emitTableValue(indent, config, lines, tblIdx,
+                                value, valuetype, metatable)
+    local elementCounter = b.string(config.tableElementCounter)
+    local incrementCmd = emitUtil.getLineIncrementVar(elementCounter, b.s'1')
+    local typeString = b.string(config.skalarTypes.tableType)
+    local slot =
+        b.string(config.tablePrefix)
+        .. b.string(tblIdx)
+        .. b.paramExpansion(config.tableElementCounter)
     local cmdline =
-        b.e(
-            valueName
-                .. b.s("=")
-                .. b.p((value or valueName)
-                        .. b.s(" ")
-                        .. (typ or typeString)))
-    util.addLine(indent, lines, cmdline())
-    return datatypes.Either():makeLeft(valueName)
+        emitUtil.getLineAssign(
+            slot, value or slot, valuetype or typeString, metatable)
+    util.addLine(indent, lines, cmdline:render())
+    util.addLine(indent, lines, incrementCmd:render())
+    return datatypes.Either():makeLeft(slot)
 end
 
 -- prefixes each table member with env.tablePrefix
@@ -123,17 +126,16 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
     end
     local tableId = config.counter.table()
     local elementCounter = b.s(config.tableElementCounter)
-    local incrementCmd = emitUtil.getLineIncrementVar(elementCounter, b.s'1')
-    addLine(indent, lines, elementCounter:render() .. " = 0",
-            "reset element counter")
-    addLine(indent, lines, incrementCmd:render())
-    emitter.emitTableValue(indent, config, stack, lines, tableId)
-    for _, v in ipairs(ast) do
-        local fieldExp = v
-        if (v.tag == "Pair") then
+    util.addLine(
+        indent, lines, elementCounter:render() .. " = 0",
+        "reset element counter")
+    emitter.emitTableValue(indent, config, stack, lines, tableId, b.s'')
+    -- recurse into ast
+    for _, fieldExp in ipairs(ast) do
+        if (fieldExp.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
-        elseif v.tag ~= "Table" then
+        elseif fieldExp.tag ~= "Table" then
             local either = emitter.emitExpression(
                 indent, fieldExp, config, stack, lines)
             assert(type(either) == "table" and either.getType ~= nil,
@@ -143,7 +145,8 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
                     indent, config, stack,
                     lines, tableId,
                     emitUtil.derefValToValue(either:getLeft()),
-                    emitUtil.derefValToType(either:getLeft()))
+                    emitUtil.derefValToType(either:getLeft()),
+                    emitUtil.derefValToMtab(either:getLeft()))
             else
                 -- TODO: case where a function was called!
             end
@@ -167,19 +170,19 @@ end
 function emitter.emitCallClosure(
         indent, config, lines, closureValue, argValueList)
     local cmdLine =
-        b.e(
+        b.eval(
             emitUtil.derefValToValue(closureValue)
-                .. b.s(" ")
+                .. b.string(" ")
                 .. emitUtil.derefValToType(closureValue)
-                .. b.s(" ")
+                .. b.string(" ")
                 .. util.ifold(
                     argValueList,
                     function(arg, accumulator)
                         return
-                            accumulator .. b.s' ' .. b.dQ(arg):noDep()
-                    end, b.s("")))
+                            accumulator .. b.string' ' .. b.dQ(arg):noDep()
+                    end, b.string("")))
     util.addLine(indent, lines, cmdLine())
-    return datatypes.Either():makeRight("dummy")
+    return datatypes.Either():makeRight("")
 end
 
 function emitter.emitCall(indent, ast, config, stack, lines)
@@ -264,6 +267,7 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     local functionId = config.counter.func()
     local oldEnv = stack:top():getScopeId()
     local scopeName = "F" .. functionId
+    local environmentPtrSetter = b.s("E") .. b.s(oldEnv) .. b.s("=") .. b.pE("1")
     local newScope = datatypes.Scope(
         datatypes.occasions.FUNCTION, scopeName,
         config.counter.scope(), scope.getPathPrefix(stack) .. scopeName)
@@ -271,22 +275,20 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     local newEnv = stack:top():getScopeId()
     -- temporary set to old for snapshotting
     stack:top():setScopeId(oldEnv)
-    util.addLine(indent, lines, "# Closure defintion")
-    local tempVal =
-        emitUtil.emitTempVal(
-            indent, config, stack, lines,
-            b.pE("E" .. stack:top():getScopeId()),
-            -- adjust symbol string?
-            b.s("BF") .. b.s(tostring(functionId)))
-    util.addLine(indent, lines, "# Environment Snapshotting")
+    local closureAssignment =
+        emitUtil.emitLineAssign(
+            emitUtil.getTempAssigneeSlot(config),
+            b.s('BF') .. b.s(functionId),
+            b.paramExpansion('E' .. stack:top():getScopeId()),
+            b.string(''))
+    util.addLine(indent, lines, closureAssignment:render() ,"Closure defintion")
+    util.addComment(indent, lines, "Environment Snapshotting")
     emitter.snapshotEnvironment(indent, ast, config, stack, lines)
     -- set again to new envid
     stack:top():setEnvironmentId(newEnv)
     -- translate to bash function including environment set code
     util.addLine(indent, lines, string.format("function BF%s {", functionId))
-    util.addLine(
-        indent, lines, (b.s("E") .. b.s(tostring(oldEnv))
-                            .. b.s("=") .. b.pE("1"))())
+    util.addLine(indent, lines, environmentPtrSetter:render(), "Env pointer")
     emitter.transferFuncArguments(indent, namelist, config, stack, lines)
     -- recurse into block
     emitter.emitBlock(indent, block, config, stack, lines)
@@ -295,25 +297,27 @@ function emitter.emitFunction(indent, ast, config, stack, lines)
     --        indent, lines,
     --        string.format("%s=$1", "E" .. stack:top():getScopeId()))
     -- end of function definition
+    util.addComment(indent, lines, "Dummy return")
     emitter.emitReturn(indent, {{tag = "Nil"}}, config, stack, lines)
-    util.addLine(indent, lines, "}")
+    util.addLine(indent, lines, "}", "of BF" .. functionId)
     stack:pop()
     return { tempVal }
 end
 
 function emitter.transferFuncArguments(indent, ast, config, stack, lines)
     local namelist, counter = ast, 2
-    util.imap(ast,
-              function(name)
-                  local varName = name[1]
-                  local tempSym = scope.getNewLocalSymbol(config, stack, varName)
-                  stack:top():getSymbolTable():addNewSymbol(varName, tempSym)
-                  emitUtil.emitVar(indent, tempSym, lines)
-                  emitUtil.emitUpdateVar(
-                      indent, tempSym,
-                      b.pE(tostring(counter) .. b.s':-VALVARNIL'),
-                      lines)
-                  counter = counter + 1
+    util.imap(
+        namelist,
+        function(name)
+            local varName = name[1]
+            local tempSym = scope.getNewLocalSymbol(config, stack, varName)
+            stack:top():getSymbolTable():addNewSymbol(varName, tempSym)
+            emitUtil.emitVar(indent, tempSym, lines)
+            emitUtil.emitUpdateVar(
+                indent, tempSym,
+                b.pE(tostring(counter) .. b.s':-VALVARNIL'),
+                lines)
+            counter = counter + 1
     end)
 end
 
@@ -354,8 +358,10 @@ function emitter.emitExpression(indent, ast, config, stack, lines)
 end
 
 function emitter.emitOp(indent, ast, config, stack, lines)
-    if #ast == 3 then return emitter.emitBinop(indent, ast, config, stack, lines)
-    elseif #ast == 2 then return emitter.emitUnop(indent, ast, config, stack, lines)
+    if #ast == 3 then
+        return emitter.emitBinop(indent, ast, config, stack, lines)
+    elseif #ast == 2 then
+        return emitter.emitUnop(indent, ast, config, stack, lines)
     else
         print("Not supported!")
         os.exit(1)
@@ -365,46 +371,23 @@ end
 function emitter.emitUnop(indent, ast, config, stack, lines)
     local right = emitter.emitExpression(
         indent, ast[2], config, stack, lines)[1]
-    local tempVal = emitter.getTempValname(config, stack, false)
-    util.addLine(
-        indent, lines,
-        b.e(
-            tempVal
-                .. b.s("=")
-                .. b.s("\\(")
-                .. b.aE(
-                    b.s(util.strToOpstr(ast[1])) ..
-                        emitUtil.derefValToValue(right))
-                .. b.s(" ")
-                .. emitUtil.derefValToType(right)
-                .. b.s("\\)"))())
-    return { tempVal }
-end
-
-util.operator = {
-        add = function(x, y) return x + y end,
-        sub = function(x, y) return x - y end,
-        equ = function(x, y) return x == y end,
-        neq = function(x, y) return x ~= y end
-}
-
-function util.exists(tbl, value, comparator)
-    local result = false
-    for _, v in pairs(tbl) do
-        result = result or comparator(v, value)
-    end
-    return result
+    local tempVal = emitTempVal(
+        indent, config, lines,
+        b.arithExpansion(
+            b.string(util.strToOpstr(ast[1])) ..
+                emitUtil.derefValToValue(right)),
+        emitUtil.derefValToType(right),
+        emitUtil.derefValToMtab(right))
+    return datatypes.Either():makeLeft(tempVal)
 end
 
 function emitter.emitBinop(indent, ast, config, stack, lines)
     local ergId1 = util.getUniqueId()
-    local tempVal = emitter.getTempValname(config, stack)
     local left = emitter.emitExpression(
         indent, ast[2], config, stack, lines)[1]
     local right = emitter.emitExpression(
         indent, ast[3], config, stack, lines)[1]
-    local valuePart, typePart
-    valuePart =
+    local valuePart =
         b.aE(
             emitUtil.derefValToValue(left) ..
                 b.s(util.strToOpstr(ast[1])):sQ(
@@ -414,7 +397,7 @@ function emitter.emitBinop(indent, ast, config, stack, lines)
                         emitUtil.derefValToValue(right)
                             :getQuotingIndex())) ..
                 emitUtil.derefValToValue(right))
-    typePart =
+    local typePart =
         util.expIfStrict(
             util.exists(
                 {"==", "<", ">", "<=", ">=", "<<", ">>"},
@@ -423,13 +406,9 @@ function emitter.emitBinop(indent, ast, config, stack, lines)
             valuePart,
             emitUtil.derefValToType(right))
     -- finally constructing the command line
-    util.addLine(
-        indent, lines,
-        b.e(
-            tempVal
-                .. b.s("=")
-                .. b.p(valuePart .. b.s(" ") .. typePart):noDep() )())
-    return { tempVal }
+    local tempVal = emitUtil.emitTempVal(
+        indent, config, lines, valuePart, typePart, b.s'')
+    return datatypes.Either():makeLeft(tempVal)
 end
 
 function emitter.emitExplist(indent, ast, config, stack, lines)
@@ -446,9 +425,10 @@ function emitter.emitExplist(indent, ast, config, stack, lines)
                 tempValues,
                 function(v)
                     return emitUtil.emitTempVal(
-                        indent, config, stack, lines,
+                        indent, config, lines,
                         emitUtil.derefValToType(v),
-                        emitUtil.derefValToValue(v)) end)
+                        emitUtil.derefValToValue(v),
+                        emitUtil.derefValToMtab(v)) end)
         util.tableIAddInplace(locations, tempVnRhs)
     end
     return locations
@@ -477,8 +457,15 @@ function emitter.emitExecutePrefixexp(indent, prefixExp, config,
                 print("Must be in one scope!");
                 os.exit(1);
             end
-            temp[i] = emitter.emitId(
+            local id = emitter.emitId(
                 indent, indirection.ast, config, stack, lines)[1]
+            if id:isLeft() then
+                temp[i] = id:getLeft()
+            else
+                -- TODO: take topmost element from stack
+                -- delete any other element
+                -- and lay the taken element into temp[i]
+            end
         elseif indirection.typ == "Paren" then
             temp[i] = emitter.emitExpression(
                 indent, indirection.exp, config, stack, lines)[1]
@@ -502,11 +489,11 @@ function emitter.emitExecutePrefixexp(indent, prefixExp, config,
             end
         end
     end
-    return { temp[#temp] }
+    return datatypes.Either():makeLeft(temp[#temp])
 end
 
 function emitter.emitBootstrap(indent, config, stack, lines)
-    util.addLine(indent, lines, "# Bootstrapping code")
+    util.addComment(indent, lines, "Bootstrapping code")
     emitUtil.emitValAssignTuple(
         indent, "VAL" .. config.nilVarName,
         b.p(b.dQ(""):sL(-1) .. b.s' ' .. b.s'NIL'),
@@ -516,35 +503,34 @@ function emitter.emitBootstrap(indent, config, stack, lines)
         b.p(b.dQ(""):sL(-1) .. b.s' ' .. b.s'NIL'), lines)
 end
 
--- TODO: should not handle scopes!
--- occasion is the reason for the block
--- can be "do", "function", "for", "while", ...
-function emitter.emitBlock(indent, ast, config, stack, lines, occasion)
-    local scopeNumber = util.getUniqueId()
-    local envId = util.getUniqueId()
+function emitter.emitScopedBlock(indent, ast, config, stack, lines, occasion)
+    local scopeNumber = config.counter.scope()
     local occasion = occasion or datatypes.occasions.BLOCK
     local scopeName = "S" .. scopeNumber
-    -- push new scope on top
     local newScope = datatypes.Scope(
         occasion, scopeName, envId,
         scope.getPathPrefix(stack) .. scopeName)
+    -- push new scope on top
     stack:push(newScope)
-    util.addLine(
-        indent, lines,
-        "# Begin of Scope: " .. stack:top():getPath())
-    emitUtil.emitEnvCounter(indent + config.indentSize, config,
-                   lines, stack:top():getScopeId())
+    util.addComment(indent, lines, "Begin of Scope: " .. stack:top():getPath())
+    emitUtil.emitEnvCounter(
+        indent + config.indentSize, config, lines, scopeNumber)
+    -- emit all statements
+    emitter.emitBlock(indent, ast, config, stack, lines)
+    -- pop the scope
+    stack:pop()
+end
+
+function emitter.emitBlock(indent, ast, config, stack, lines)
     -- emit all enclosed statements
-    for k, v in ipairs(ast) do
-        if type(v) == "table" then
-            emitter.emitStatement(indent, v, config, stack, lines)
+    for _, statementSubAST in ipairs(ast) do
+        if type(statement) == "table" then
+            emitter.emitStatement(indent, statementSubAST, config, stack, lines)
         else
             print("emitBlock error!??")
             os.exit(1)
         end
     end
-    -- pop the scope
-    stack:pop()
 end
 
 -- TODO: komplett neu schreiben

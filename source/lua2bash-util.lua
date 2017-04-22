@@ -162,6 +162,21 @@ function util.getCounter(increment)
     end
 end
 
+util.operator = {
+        add = function(x, y) return x + y end,
+        sub = function(x, y) return x - y end,
+        equ = function(x, y) return x == y end,
+        neq = function(x, y) return x ~= y end
+}
+
+function util.exists(tbl, value, comparator)
+    local result = false
+    for _, v in pairs(tbl) do
+        result = result or comparator(v, value)
+    end
+    return result
+end
+
 function util.zipI(left, right)
     if (left == nil or right == nil) then return nil end
     if #left ~= #right then return nil end
@@ -174,6 +189,10 @@ end
 
 function util.addLine(indent, lines, line, comment)
     lines[#lines + 1] = util.augmentLine(indent, line, comment)
+end
+
+function util.addComment(indent, lines, comment)
+    lines[#lines + 1] = util.augmentLine(indent, "# " .. comment)
 end
 
 function util.tableIAddInplace(dest, source)

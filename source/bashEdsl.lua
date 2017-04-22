@@ -1,3 +1,89 @@
+--
+-- This module provides an embedded domain specific
+-- language whose purpose is to support the generation
+-- of eval aware bash command lines.
+--
+-- In bash you can not have more than two levels
+-- of indirection using only direct parameter expansion.
+-- That means if the variable
+-- foo contains the string "bar" and if the variable
+-- bar contains "moo". You can get the result
+-- "moo" by using the expansion ${!foo}, which
+-- is a limited, special syntax for that task.
+-- However, given the fact that moo contains
+-- the string "third", you can not get the
+-- result "third" by using ${!!foo} or
+-- ${${${foo}}} directly, because the bash simply
+-- does not support that (ZSH does by the way).
+--
+-- In bash we need to think a little bit harder
+-- to accomplish the same thing.
+--
+-- Lets recapitulate the variable assignments first:
+-- foo=bar; bar=moo; moo=string;
+-- Furthermore we want to print the result "string"
+-- only using expansions on the variable foo.
+--
+-- Eval is our friend! (I assume you know how the bash
+-- and the eval builtin works)
+--
+-- We can simply write:
+-- eval eval echo \\\${\${${foo}}}
+-- Evaluation steps:
+-- (1) eval eval echo \\\${\${${foo}}}
+-- (2) eval echo \${${bar}}
+-- (3) echo ${moo}
+-- (4) => string
+--
+-- As you can see, each additional eval commands the
+-- bash to run the same expansions again that it normally would
+-- run only once. Since we want to have an inside-out fashioned
+-- evaluation, we need to make sure, that the enclosing outer
+-- layers of parameter expansions are quoted so that they
+-- only get active in the appropriate next step.
+--
+-- This library enables you to build up command lines like
+-- the one above with a dedicated set of specialized functions
+-- that can be used in a combinatorical fashion. With it,
+-- the line eval eval echo \\\${${${foo}}}
+-- can be built by the call
+--
+-- b.eval(
+--     b.string'echo' .. b.string' ' ..
+--     b.paramExpansion(
+--         b.paramExpansion(
+--             b.paramExpansion(
+--                 b.string('foo')
+--             )
+--         )
+--     )
+-- )
+--
+-- However, the inner most expression b.string('foo') could also
+-- be just a variable that holds a much more complex expression and
+-- b.eval would add more layers of eval in order to completely
+-- evaluate the line depending on the overall level of nests.
+--
+-- Imagine, for example, the following snippet:
+--
+-- local innerExp =
+--         b.paramExpansion(
+--             b.paramExpansion(
+--                 b.string('foo')))
+-- local commandline =
+--     b.eval(
+--         b.string'echo' .. b.string' ' ..
+--         b.paramExpansion(
+--             b.paramExpansion(
+--                 b.paramExpansion(
+--                     innerExp))))
+-- local resultstring = commandline:render()
+-- print(resultstring)
+-- => "eval eval eval eval echo \\\\\\\\\\\\\\\${\\\\\\\${\\\${\${${foo}}}}}"
+--
+-- Pretty ugly, isn't it... That's exactly the reason why this EDSL exists
+
+
 dbg = require "debugger"
 
 local function max(x, y)

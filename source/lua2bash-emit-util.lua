@@ -5,12 +5,12 @@ local emitUtil = {}
 
 -- we can do ((Ex = Ex + 1)) even as first command line because
 -- bash will use 0 as value for Ex if the variable is not declared.
-function emitUtil.emitEnvCounter(indent, config, lines, envId)
+function emitUtil.emitEnvCounter(indent, config, lines, scopeId)
     util.addLine(
         indent, lines,
         emitUtil.getLineIncrementVar(
-            config.environmentPrefix .. envId,
-            config.environmentPrefix .. envId):render(),
+            config.environmentPrefix .. scopeId,
+            config.environmentPrefix .. scopeId):render(),
         "environment counter for closures")
 end
 
@@ -66,6 +66,14 @@ function emitUtil.getEnvVar(config, stack)
     return b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
 end
 
+function emitUtil.emitTempVal(indent, config, lines, value, valuetype, metatable)
+    local assigneeSlot = emitUtil.getTempAssigneeSlot(config)
+    local commandLine =
+        emitUtil.getLineAssign(assigneeSlot, value, valuetype, metatable)
+    util.addLine(indent, lines, commandLine:render())
+    return assigneeSlot
+end
+
 function emitUtil.getTempAssigneeSlot(config)
     local assigneeSlot = b.s(config.tempValPrefix) .. b.s("_")
         .. b.s(config.counter.tempval())
@@ -73,7 +81,7 @@ function emitUtil.getTempAssigneeSlot(config)
 end
 
 -- typ and content must be values from bash EDSL
-function emitUtil.getLineTempVal(assigneeSlot, value, valtype, mtab)
+function emitUtil.getLineAssign(assigneeSlot, value, valtype, mtab)
     local line = emitUtil.getLineValAssignTuple(
         assigneeSlot,
         emitUtil.getValTuple(value, valtype, mtab)
