@@ -15,6 +15,7 @@ function orchestration.newConfig()
     config.tableElementCounter = "TE"
     config.nilVarName = "VARNIL"
     config.retVarName = "VALRET"
+    config.stackpointer = "STACKPTR"
     config.defaultMtabNumbers = "MTABNUM"
     config.defaultMtabStrings = "MTABSTR"
     config.defaultMtabFunctions = "MTABFUN"

@@ -494,6 +494,7 @@ end
 
 function emitter.emitBootstrap(indent, config, stack, lines)
     util.addComment(indent, lines, "Bootstrapping code")
+    util.addLine(indent, lines, config.stackpointer .. "=0")
     emitUtil.emitValAssignTuple(
         indent, "VAL" .. config.nilVarName,
         b.p(b.dQ(""):sL(-1) .. b.s' ' .. b.s'NIL'),
@@ -513,8 +514,7 @@ function emitter.emitScopedBlock(indent, ast, config, stack, lines, occasion)
     -- push new scope on top
     stack:push(newScope)
     util.addComment(indent, lines, "Begin of Scope: " .. stack:top():getPath())
-    emitUtil.emitEnvCounter(
-        indent + config.indentSize, config, lines, scopeNumber)
+    emitUtil.emitEnvCounter(indent, config, lines, scopeNumber)
     -- emit all statements
     emitter.emitBlock(indent, ast, config, stack, lines)
     -- pop the scope
@@ -617,22 +617,26 @@ end
 function emitter.emitIf(indent, ast, config, stack, lines)
     if #ast == 1 then
         -- make else
-        emitter.emitBlock(
+        emitter.emitScopedBlock(
             indent + config.indentSize,
             ast[1], config, stack, lines,
             datatypes.occasions.IF)
     elseif #ast > 1 then
         -- calculate expression
         local tempValue = emitter.emitExpression(
-            indent, ast[1], config, stack, lines)[1]
-        local resultType = emitter.emitTypelessScalar(
-            indent, config, stack, lines, emitUtil.derefValToType(tempValue))
+            indent, ast[1], config, stack, lines)
+        local resultType = emitUtil.emitTempVal(
+            indent, config, lines,
+            emitUtil.derefValToValue(tempValue),
+            emitUtil.derefValToType(tempValue),
+            emitUtil.derefValToMtab(tempValue))
         --dbg()
         util.addLine(
             indent, lines,
             string.format(
-                "if [ %s != NIL -a %s != \"0\" ]; then",
-                b.pE(resultType)(), b.pE(resultType)()))
+                "if [ %s != NIL -a %s != 0 ]; then",
+                emitUtil.derefValToType(resultType)(),
+                emitUtil.derefValToType(resultType)()))
         -- recurse into block
         emitter.emitBlock(indent + config.indentSize, ast[2], config, stack, lines)
         util.addLine(indent, lines, "else")
@@ -650,38 +654,35 @@ function emitter.emitForIn(indent, ast, config, stack, lines)
     -- TODO:
 end
 
-function emitter.emitTypelessScalar(indent, config, stack, lines, content)
-    local tempVal = emitter.getTempValname(config, stack, true)
-    local cmdLine = b.e(tempVal .. b.s("=") .. b.dQ(content)):eM(1)
-    util.addLine(indent, lines, cmdLine())
-    return tempVal
-end
-
 -- TODO: nil?
 function emitter.emitWhile(indent, ast, config, stack, lines)
     local loopExpr = ast[1]
     local loopBlock = ast[2]
     -- only the first tempValue is significant
-    local tempValue = emitter.emitExpression(
+    local evaledLoopExpr = emitter.emitExpression(
         indent, loopExpr, config, stack, lines)[1]
-    local resultType = emitter.emitTypelessScalar(
-        indent, config, stack, lines, emitUtil.derefValToType(tempValue))
+    local resultType = emitter.emitTempVal(
+        indent, config, stack, lines,
+        emitUtil.derefValToType(evaledLoopExpr),
+        emitUtil.derefValToType(evaledLoopExpr),
+        emitUtil.derefValToMtab(evaledLoopExpr))
     --dbg()
     util.addLine(
         indent, lines,
         string.format(
-            "while [ %s != NIL -a %s != \"0\" ]; do",
-            b.pE(resultType)(), b.pE(resultType)()))
+            "while [ %s != NIL -a %s != 0 ]; do",
+            emitUtil.derefValToType(resultType)(),
+            emitUtil.derefValToType(resultType)()))
     emitter.emitBlock(indent, loopBlock, config, stack, lines)
     -- recalculate expression for next loop
-    local tempValue2 = emitter.emitExpression(
-        indent, loopExpr, config, stack, lines)[1]
+    local evaledLoopExprNext = emitter.emitExpression(
+        indent, loopExpr, config, stack, lines)
     util.addLine(
         indent, lines,
-        b.e(
+        b.eval(
             resultType
-                .. b.s("=")
-                .. emitUtil.derefValToType(tempValue2))())
+                .. b.string("=")
+                .. emitUtil.derefValToType(evaledLoopExprNext))())
     util.addLine(indent, lines, "true", "to prevent empty block")
     util.addLine(indent, lines, "done")
 end
@@ -691,23 +692,35 @@ function emitter.emitRepeat(indent, ast, config, stack, lines)
 end
 
 function emitter.emitBreak(indent, ast, config, stack, lines)
-    util.addLine(indent, lines, "break;")
+    util.addLine(indent, lines, "break")
 end
 
 -- TODO: This is a limitation. Only one return expression is
 -- allowed right now. I think there is a solution. However, I also
 -- think that it's implementation will require far-reaching modifications.
 function emitter.emitReturn(indent, ast, config, stack, lines)
-    util.addLine(indent, lines, "# " .. serializer.serRet(ast))
-    local firstExpression = ast[1]
-    local tempVal = emitter.emitExpression(
-        indent, firstExpression, config, stack, lines)[1]
+    util.addComment(indent, lines, serializer.serRet(ast))
+    local returnExpressions = ast
+    local stackPtrIncrementor = emitUtil.getLineIncrementVar(
+        config.stackpointer, b.string('1'))
+    util.imap(
+        returnExpressions,
+        function(expr)
+            local either = emitter.emitExpression(
+                indent, firstExpression, config, stack, lines)
+            if either:isLeft() then
+                local tempVal = either:getLeft()
+
+            else
+
+            end
+    end)
     local cmdline =
-        b.e(
-            b.s'VALRET' .. b.s'=' ..
-                b.p(
+        b.eval(
+            b.string('VALRET') .. b.string('=') ..
+                b.parentheses(
                     emitUtil.derefValToValue(tempVal)
-                        .. b.s' '
+                        .. b.string' '
                         .. emitUtil.derefValToType(tempVal)):noDep())
     util.addLine(indent, lines, cmdline(), "Set return value")
     util.addLine(indent, lines, "return 0", "Finish exec of this function")

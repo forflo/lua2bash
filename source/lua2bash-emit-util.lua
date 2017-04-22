@@ -17,21 +17,32 @@ end
 function emitUtil.getLineIncrementVar(varId, increment)
     return
         b.eval(
-        b.parentheses(
             b.parentheses(
-                varId .. b.string(' = ')
-                    .. varId .. b.string(' + ') .. increment
-            ):sameAsSubtree()
-        ):sameAsSubtree())
+                b.parentheses(
+                    varId
+                        .. b.string(' = ')
+                        .. varId
+                        .. b.string(' + ')
+                        .. increment
+                ):sameAsSubtree()
+            ):sameAsSubtree())
         :evalMin(0)
         :evalThreshold(1)
 end
 
+--function emitUtil.TypelessScalar(indent, config, stack, lines, content)
+--    local tempVal = emitter.getTempValname(config, stack, true)
+--    local cmdLine = b.e(tempVal .. b.s("=") .. b.dQ(content)):eM(1)
+--    util.addLine(indent, lines, cmdLine())
+--    return tempVal
+--end
+
 function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
     util.addLine(
         indent, lines,
-        b.e(
-            symbol:getEmitVarname() .. b.s("=")
+        b.eval(
+            symbol:getEmitVarname()
+                .. b.string("=")
                 .. symbol:getCurSlot())())
 end
 
@@ -39,11 +50,11 @@ end
 function emitUtil.emitVar(indent, symbol, lines)
     util.addLine(
         indent, lines,
-        b.e(
+        b.eval(
             symbol:getEmitVarname()
-                .. b.s("=")
+                .. b.string("=")
                 .. symbol:getCurSlot()
-        ):eM(1)())
+        ):evalMin(1)())
 end
 
 function emitUtil.getLineUpdateVar(indent, symbol, valueslot, lines)
@@ -52,18 +63,22 @@ function emitUtil.getLineUpdateVar(indent, symbol, valueslot, lines)
 
     util.addLine(
         indent, lines,
-        b.e(
-            b.s(lcl .. ' ') .. symbol:getCurSlot()
-                .. b.s("=")
-                .. b.p(
-                    b.dQ(emitUtil.derefValToValue(valueslot))
-                        .. b.s(" ")
+        b.eval(
+            b.string(lcl .. ' ')
+                .. symbol:getCurSlot()
+                .. b.string("=")
+                .. b.parentheses(
+                    b.doubleQuotes(emitUtil.derefValToValue(valueslot))
+                        .. b.string(" ")
                         .. emitUtil.derefValToType(valueslot)):sL(-1)
-        ):eT(1)())
+        ):evalThreshold(1)())
 end
 
 function emitUtil.getEnvVar(config, stack)
-    return b.pE(config.environmentPrefix .. stack:top():getEnvironmentId())
+    return
+        b.paramExpansion(
+            config.environmentPrefix
+                .. stack:top():getEnvironmentId())
 end
 
 function emitUtil.emitTempVal(indent, config, lines, value, valuetype, metatable)
@@ -75,8 +90,10 @@ function emitUtil.emitTempVal(indent, config, lines, value, valuetype, metatable
 end
 
 function emitUtil.getTempAssigneeSlot(config)
-    local assigneeSlot = b.s(config.tempValPrefix) .. b.s("_")
-        .. b.s(config.counter.tempval())
+    local assigneeSlot =
+        b.string(config.tempValPrefix)
+        .. b.string("_")
+        .. b.string(config.counter.tempval())
     return assigneeSlot
 end
 
@@ -111,7 +128,7 @@ end
 -- { "eval " } <varid> "=" <valueid>
 function emitUtil.getLineVarAssignVal(varId, valId)
     return
-        b.e(varId .. b.s('=') .. valId)
+        b.eval(varId .. b.s('=') .. valId)
             :evalMin(varId:getQuotingIndex())
             :evalThreshold(1)
 end
@@ -120,36 +137,36 @@ end
 -- { "eval " } "local " <valueid> "=" "(" <value> " " <type> " " <metatable> ")"
 function emitUtil.getLineValAssignTuple(assigneeSlot, valueTuple)
     return
-        b.e(
+        b.eval(
             assigneeSlot
-                .. b.s('=')
+                .. b.string('=')
                 .. valueTuple)
         :evalMin(assigneeSlot:getQuotingIndex())
         :evalThreshold(1)
 end
 
 function emitUtil.derefVarToValue(varname)
-    return b.pE(b.s("!") .. varname)
+    return b.paramExpansion(b.string("!") .. varname)
 end
 
 function emitUtil.derefVarToType(varname)
-    return b.pE(b.pE(varname) .. b.s("[1]"))
+    return b.paramExpansion(b.paramExpansion(varname) .. b.string("[1]"))
 end
 
 function emitUtil.derefVarToMtab(varname)
-    return b.pE(b.pE(varname) .. b.s("[2]"))
+    return b.paramExpansion(b.paramExpansion(varname) .. b.string("[2]"))
 end
 
 function emitUtil.derefValToValue(valuename)
-    return b.pE(valuename)
+    return b.paramExpansion(valuename)
 end
 
 function emitUtil.derefValToType(valname)
-    return b.pE(valname .. b.s("[1]"))
+    return b.paramExpansion(valname .. b.string("[1]"))
 end
 
 function emitUtil.derefValToMtab(valname)
-    return b.pE(valname .. b.s("[2]"))
+    return b.paramExpansion(valname .. b.string("[2]"))
 end
 
 function emitUtil.linearizePrefixTree(ast, result)
