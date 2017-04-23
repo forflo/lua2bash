@@ -1,114 +1,131 @@
+-- Naming conventions in this file
+-- All functions prefixed with emit, actually add code
+-- to the command line accumulator (called "lines")
+--
+-- This file also includes functions creating consistent
+-- bash edsl values representing the most basic instructions
+-- of the target language.
+
+
 local util = require("lua2bash-util")
 local b = require("bashEdsl")
 
 local emitUtil = {}
+
+-- puts together a bash dsl value evaluating to S<CurrentScopeId>
+-- depending on the content of the stack
+function emitUtil.getEnvVar(config, stack)
+    return b.paramExpansion(config.scopePrefix .. stack:top():getScopeId())
+end
+
+-- generates a unique slot name
+function emitUtil.getUniqueSlot(config)
+    local slot =
+        b.string(config.tempValPrefix)
+        .. b.string("_")
+        .. b.string(config.counter.tempval())
+    return slot
+end
 
 -- we can do ((Ex = Ex + 1)) even as first command line because
 -- bash will use 0 as value for Ex if the variable is not declared.
 function emitUtil.emitEnvCounter(indent, config, lines, scopeId)
     util.addLine(
         indent, lines,
-        emitUtil.getLineIncrementVar(
-            config.environmentPrefix .. scopeId,
-            config.environmentPrefix .. scopeId):render(),
+        emitUtil.Incrementer(
+            config.scopePrefix .. scopeId, '1'):render(),
         "environment counter for closures")
 end
 
-function emitUtil.getLineIncrementVar(varId, increment)
+-- emits bash edsl value evaluating to ((varId+=increment))
+function emitUtil.Incrementer(varId, increment)
     return
         b.eval(
             b.parentheses(
                 b.parentheses(
-                    varId
-                        .. b.string(' = ')
-                        .. varId
-                        .. b.string(' + ')
-                        .. increment
+                    varId .. b.string('+=') .. increment
                 ):sameAsSubtree()
             ):sameAsSubtree())
         :evalMin(0)
         :evalThreshold(1)
 end
 
---function emitUtil.TypelessScalar(indent, config, stack, lines, content)
---    local tempVal = emitter.getTempValname(config, stack, true)
---    local cmdLine = b.e(tempVal .. b.s("=") .. b.dQ(content)):eM(1)
---    util.addLine(indent, lines, cmdLine())
---    return tempVal
---end
-
+-- emits bash edsl value evaluating to something like
+-- { eval } <varname> = <newslot>
 function emitUtil.emitLocalVarUpdate(indent, lines, symbol)
     util.addLine(
         indent, lines,
-        b.eval(
-            symbol:getEmitVarname()
-                .. b.string("=")
-                .. symbol:getCurSlot())())
+        emitUtil.VarAssignVal(
+            symbol:getEmitVarname(),
+            symbol:getCurSlot()):render())
 end
 
--- TODO: rewrite using emitVarAssignVal
+-- TODO: possibly superfluous!
 function emitUtil.emitVar(indent, symbol, lines)
     util.addLine(
         indent, lines,
-        b.eval(
-            symbol:getEmitVarname()
-                .. b.string("=")
-                .. symbol:getCurSlot()
-        ):evalMin(1)())
+        emitUtil.VarAssignVal(
+            symbol:getEmitVarname(),
+            symbol:getCurSlot()):render())
 end
 
-function emitUtil.getLineUpdateVar(indent, symbol, valueslot, lines)
+-- outputs
+-- { "eval " } symbol:getCurSlot() "=" quotedtuple(value, type, mtab)
+function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
     local assigneeSlot = symbol:getCurSlot()
-    local valueSlot = valueslot
-
     util.addLine(
         indent, lines,
-        b.eval(
-            b.string(lcl .. ' ')
-                .. symbol:getCurSlot()
-                .. b.string("=")
-                .. b.parentheses(
-                    b.doubleQuotes(emitUtil.derefValToValue(valueslot))
-                        .. b.string(" ")
-                        .. emitUtil.derefValToType(valueslot)):sL(-1)
-        ):evalThreshold(1)())
+        emitUtil.ValAssignTuple(
+            symbol:getCurSlot(),
+            emitUtil.ValTuple(
+                emitUtil.derefValToValue(valueslot),
+                emitUtil.derefValToType(valueslot),
+                emitUtil.derefValToMtab(valueslot))):render())
 end
 
-function emitUtil.getEnvVar(config, stack)
-    return
-        b.paramExpansion(
-            config.environmentPrefix
-                .. stack:top():getEnvironmentId())
-end
-
-function emitUtil.emitTempVal(indent, config, lines, value, valuetype, metatable)
-    local assigneeSlot = emitUtil.getTempAssigneeSlot(config)
+-- writes a new tem variable into lines and gives back the slotname
+function emitUtil.emitTempVal(
+        indent, config, lines, value, valuetype, metatable)
+    local lhsSlot = emitUtil.getUniqueSlot(config)
     local commandLine =
-        emitUtil.getLineAssign(assigneeSlot, value, valuetype, metatable)
+        emitUtil.getLineAssign(lhsSlot, value, valuetype, metatable)
     util.addLine(indent, lines, commandLine:render())
     return assigneeSlot
 end
 
-function emitUtil.getTempAssigneeSlot(config)
-    local assigneeSlot =
-        b.string(config.tempValPrefix)
-        .. b.string("_")
-        .. b.string(config.counter.tempval())
-    return assigneeSlot
-end
-
 -- typ and content must be values from bash EDSL
-function emitUtil.getLineAssign(assigneeSlot, value, valtype, mtab)
-    local line = emitUtil.getLineValAssignTuple(
-        assigneeSlot,
-        emitUtil.getValTuple(value, valtype, mtab)
+function emitUtil.getLineAssign(lhs, value, valtype, mtab)
+    local line = emitUtil.getValAssignTuple(
+        lhs,
+        emitUtil.ValTuple(value, valtype, mtab)
             :noDependentQuoting())
     return line
 end
 
+-- assembles a properly quotet line in the form of
+-- { "eval " } <varid> "=" <valueid>
+function emitUtil.VarAssignVal(varId, valId)
+    return
+        b.eval(varId .. b.s('=') .. valId)
+            :evalMin(varId:getQuotingIndex())
+            :evalThreshold(1)
+end
+
+-- assembles a properly quoted line in the form of
+-- { "eval " } "local " <valueid> "=" "(" <value> " " <type> " " <metatable> ")"
+function emitUtil.ValAssignTuple(slot, valueTuple)
+    return
+        b.eval(
+            slot
+                .. b.string('=')
+                .. valueTuple)
+        :evalMin(assigneeSlot:getQuotingIndex())
+        :evalThreshold(1)
+end
+
 -- returns a b.parentheses object which encloses the value
 -- the type and the metatable
-function emitUtil.getValTuple(value, valuetype, metatable)
+function emitUtil.ValTuple(value, valuetype, metatable)
     local quoting = util.max(
         value:getQuotingIndex(),
         util.max(
@@ -118,31 +135,8 @@ function emitUtil.getValTuple(value, valuetype, metatable)
         b.parentheses(
             -- the double quotes of value must be resolved last
             b.doubleQuotes(content):setQuotingIndex(quoting)
-                .. b.string(" ")
-                .. valtype
-                .. b.string(" ")
-                .. mtab)
-end
-
--- assembles a properly quotet line in the form of
--- { "eval " } <varid> "=" <valueid>
-function emitUtil.getLineVarAssignVal(varId, valId)
-    return
-        b.eval(varId .. b.s('=') .. valId)
-            :evalMin(varId:getQuotingIndex())
-            :evalThreshold(1)
-end
-
--- assembles a properly quoted line in the form of
--- { "eval " } "local " <valueid> "=" "(" <value> " " <type> " " <metatable> ")"
-function emitUtil.getLineValAssignTuple(assigneeSlot, valueTuple)
-    return
-        b.eval(
-            assigneeSlot
-                .. b.string('=')
-                .. valueTuple)
-        :evalMin(assigneeSlot:getQuotingIndex())
-        :evalThreshold(1)
+                .. b.string(" ") .. valtype
+                .. b.string(" ") .. mtab)
 end
 
 function emitUtil.derefVarToValue(varname)

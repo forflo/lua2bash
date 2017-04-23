@@ -101,7 +101,7 @@ end
 function emitter.emitTableValue(indent, config, lines, tblIdx,
                                 value, valuetype, metatable)
     local elementCounter = b.string(config.tableElementCounter)
-    local incrementCmd = emitUtil.getLineIncrementVar(elementCounter, b.s'1')
+    local incrementCmd = emitUtil.Incrementer(elementCounter, b.s'1')
     local typeString = b.string(config.skalarTypes.tableType)
     local slot =
         b.string(config.tablePrefix)
@@ -726,9 +726,9 @@ function emitter.emitReturn(indent, ast, config, stack, lines)
     util.addComment(indent, lines, serializer.serRet(ast))
     local returnExpressions = ast
     util.addLine(indent, lines, 'local SPBeforeReturn=$SP')
-    local returnIncrementor = emitUtil.getLineIncrementVar(
+    local returnIncrementor = emitUtil.Incrementer(
         'SPBeforeReturn', b.string('1'))
-    local stackPtrIncrementor = emitUtil.getLineIncrementVar(
+    local stackPtrIncrementor = emitUtil.Incrementer(
         config.stackpointer, b.string('1'))
     -- emit instructions
     util.imap(
@@ -839,11 +839,10 @@ function emitter.emitSet(indent, ast, config, stack, lines)
 end
 
 -- takes one expression
-function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
-    local varName = ast[1]
+function emitter.emitSimpleAssign(indent, lhs, config, stack, lines, rhs)
+    local varName = lhs[1]
     local bindingQuery = scope.getMostCurrentBinding(stack, varName)
     local someWhereDefined = bindingQuery ~= nil
-    local either1orN = rhs
     local symbol
     if someWhereDefined then
         symbol = bindingQuery.symbol
@@ -852,11 +851,12 @@ function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
         stack:bottom():getSymbolTable():addNewSymbol(varName, symbol)
         emitUtil.emitVar(indent, symbol, lines)
     end
-    if either1orN:isLeft() then
-        local tempVal = either1orN:getLeft()
-        emitUtil.emitUpdateVar(indent, symbol, tempVal, lines)
+    if rhs:isLeft() then
+        local cmdline =
+            emitUtil.emitUpdateVar(indent, symbol, rhs:getLeft(), lines)
+        util.addLine(indent, lines, cmdline:reneder())
     else
-        local numberReturned = either1orN:getRight()
+        local numReturned = rhs:getRight()
     end
 end
 
@@ -864,7 +864,11 @@ function emitter.emitComplexAssign(indent, lhs, config, stack, lines, rhs)
     local setValue = emitter.emitExecutePrefixexp(
         indent, lhs, config, stack, lines, true)
     local tempSym = datatypes.Symbol():setCurSlot(setValue)
-    emitUtil.emitUpdateVar(indent, tempSym, rhs, lines)
+    if rhs:isLeft() then
+        emitUtil.emitUpdateVar(indent, tempSym, rhs:getLeft(), lines)
+    else
+        local numReturned = rhs:getRight()
+    end
 end
 
 return emitter

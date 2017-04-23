@@ -7,7 +7,7 @@ function orchestration.newConfig()
     local config = {}
     config.tempVarPrefix = "TV" -- Temp Variable
     config.tempValPrefix = "TL" -- Temp vaLue
-    config.environmentPrefix = "E"
+    config.scopePrefix = "S"
     config.functionPrefix = "AFUN"
     config.tablePrefix = "TB" -- TaBle
     config.varPrefix = "V" -- Variable
