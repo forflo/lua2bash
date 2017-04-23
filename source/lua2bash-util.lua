@@ -239,6 +239,15 @@ function util.statefulIIterator(tbl)
     end
 end
 
+-- returns iterator that does
+-- return action(next) on each call on next
+function util.actionIIterator(tbl, action)
+    local iterator = util.statefulIIterator(tbl)
+    return function()
+        return action(iterator())
+    end
+end
+
 function util.tableGetKeyset(tbl)
     local n = 0
     local keyset = {}

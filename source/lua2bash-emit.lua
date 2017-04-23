@@ -411,27 +411,28 @@ function emitter.emitBinop(indent, ast, config, stack, lines)
     return datatypes.Either():makeLeft(tempVal)
 end
 
-function emitter.emitExplist(indent, ast, config, stack, lines)
-    local locations = {}
+function emitter.getExpressionEmitters(indent, ast, config, stack, lines)
+    local emitters = {}
+    local expressions = ast
     if ast.tag ~= "ExpList" then
         print("emitExplist(): not an explist node!")
         os.exit(1)
     end
-    for k, expression in ipairs(ast) do
-        local tempValues = emitter.emitExpression(
-            indent, expression, config, stack, lines)
-        local tempVnRhs =
-            util.imap(
-                tempValues,
-                function(v)
-                    return emitUtil.emitTempVal(
-                        indent, config, lines,
-                        emitUtil.derefValToType(v),
-                        emitUtil.derefValToValue(v),
-                        emitUtil.derefValToMtab(v)) end)
-        util.tableIAddInplace(locations, tempVnRhs)
-    end
-    return locations
+    emitters = util.imap(
+        ast,
+        function(expression)
+            return function()
+                local tempValue = emitter.emitExpression(
+                    indent, expression, config, stack, lines)
+                return emitUtil.emitTempVal(
+                    indent, config, lines,
+                    emitUtil.derefValToType(tempValue),
+                    emitUtil.derefValToValue(tempValue),
+                    emitUtil.derefValToMtab(tempValue))
+            end
+        end
+    )
+    return emitters
 end
 
 function emitter.emitPrefixexp(indent, ast, config, stack, lines)
@@ -494,6 +495,7 @@ end
 
 function emitter.emitBootstrap(indent, config, stack, lines)
     util.addComment(indent, lines, "Bootstrapping code")
+    util.addLine(indent, lines, "PUTONTOP=0")
     util.addLine(indent, lines, config.stackpointer .. "=0")
     emitUtil.emitValAssignTuple(
         indent, "VAL" .. config.nilVarName,
@@ -724,6 +726,8 @@ function emitter.emitReturn(indent, ast, config, stack, lines)
     util.addComment(indent, lines, serializer.serRet(ast))
     local returnExpressions = ast
     util.addLine(indent, lines, 'local SPBeforeReturn=$SP')
+    local returnIncrementor = emitUtil.getLineIncrementVar(
+        'SPBeforeReturn', b.string('1'))
     local stackPtrIncrementor = emitUtil.getLineIncrementVar(
         config.stackpointer, b.string('1'))
     -- emit instructions
@@ -735,13 +739,15 @@ function emitter.emitReturn(indent, ast, config, stack, lines)
             if either:isLeft() then
                 local tempVal = either:getLeft()
                 emitter.emitPutOnStack(indent, ast, config, tempVal, lines)
-                util.addLine(indent, lines, putOnTopIncrementor:render())
+                util.addLine(indent, lines, returnIncrementor:render())
                 util.addLine(indent, lines, stackPtrIncrementor:render())
             else
                 -- the other function has already put
                 -- the values on top of the stack, so here nothing to do
             end
     end)
+
+    util.addLine(indent, lines, "PUTONTOP=$SPBeforeReturn")
     util.addLine(indent, lines, "return 0", "Finish exec of this function")
     return returnLocation
 end
@@ -749,9 +755,6 @@ end
 function emitter.emitStatement(indent, ast, config, stack, lines)
     if ast.tag == "Call" then
         emitter.emitCall(indent, ast, config, stack, lines)
-    -- HACK: This was used to "Simplify implementation"
-    elseif ast.tag == "SPECIAL" then
-        util.addLine(indent, lines, ast.special)
     elseif ast.tag == "Fornum" then
         emitter.emitFornum(indent, ast, config, stack, lines)
     elseif ast.tag == "Local" then
@@ -778,7 +781,7 @@ function emitter.emitStatement(indent, ast, config, stack, lines)
 end
 
 function emitter.emitLocal(indent, ast, config, stack, lines)
-    util.addLine(indent, lines, "# " .. serializer.serLcl(ast))
+    util.addComment(indent, lines, serializer.serLcl(ast))
     local topScope = stack:top()
     local varNames = {}
     for i = 1, #ast[1] do
@@ -790,7 +793,8 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
         util.tblCountAll(varNames) - util.tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
         for i = 1, memNumDiff do
-            locations[#locations + 1] = { b.s("VAR_NIL") }
+            locations[#locations + 1] = emitter.emitNil(
+                indent, {tag = 'Nil'}, config, stack, lines)
         end
     end
     local iter = util.statefulIIterator(locations)
@@ -808,16 +812,6 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
                     config, stack, symbol, varName))
             emitUtil.emitLocalVarUpdate(indent, lines, symbol)
             emitUtil.emitUpdateVar(indent, symbol, location, lines)
---        elseif someWhereDefined and (symScope ~= stack:top()) then
---            symbol:replaceBy(
---                scope.getUpdatedSymbol(
---                    config, stack, symbol, varName))
---            emitVarUpdate(
---                indent, lines,
---                symbol:getEmitVarname(),
---                symbol:getCurSlot(),
---                emitUtil.derefValToValue(location),
---                emitUtil.derefValToType(location))
         else
             symbol = scope.getNewLocalSymbol(config, stack, varName)
             stack:top():getSymbolTable():addNewSymbol(varName, symbol)
@@ -828,11 +822,11 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
 end
 
 function emitter.emitSet(indent, ast, config, stack, lines)
-    util.addLine(indent, lines, "# " .. serializer.serSet(ast))
+    util.addComment(indent, lines, serializer.serSet(ast))
     local explist, varlist = ast[2], ast[1]
-    local rhsTempresults = emitter.emitExplist(
+    local emitters = emitter.getExpressionEmitters(
         indent, explist, config, stack, lines)
-    local iterator = util.statefulIIterator(rhsTempresults)
+    local iterator = util.actionIIterator(emitters, util.call)
     for k, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
             emitter.emitSimpleAssign(
@@ -844,10 +838,12 @@ function emitter.emitSet(indent, ast, config, stack, lines)
     end
 end
 
+-- takes one expression
 function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
     local varName = ast[1]
     local bindingQuery = scope.getMostCurrentBinding(stack, varName)
     local someWhereDefined = bindingQuery ~= nil
+    local either1orN = rhs
     local symbol
     if someWhereDefined then
         symbol = bindingQuery.symbol
@@ -856,12 +852,17 @@ function emitter.emitSimpleAssign(indent, ast, config, stack, lines, rhs)
         stack:bottom():getSymbolTable():addNewSymbol(varName, symbol)
         emitUtil.emitVar(indent, symbol, lines)
     end
-    emitUtil.emitUpdateVar(indent, symbol, rhs, lines)
+    if either1orN:isLeft() then
+        local tempVal = either1orN:getLeft()
+        emitUtil.emitUpdateVar(indent, symbol, tempVal, lines)
+    else
+        local numberReturned = either1orN:getRight()
+    end
 end
 
 function emitter.emitComplexAssign(indent, lhs, config, stack, lines, rhs)
     local setValue = emitter.emitExecutePrefixexp(
-        indent, lhs, config, stack, lines, true)[1]
+        indent, lhs, config, stack, lines, true)
     local tempSym = datatypes.Symbol():setCurSlot(setValue)
     emitUtil.emitUpdateVar(indent, tempSym, rhs, lines)
 end
