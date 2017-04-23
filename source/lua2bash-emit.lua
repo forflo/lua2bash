@@ -695,14 +695,38 @@ function emitter.emitBreak(indent, ast, config, stack, lines)
     util.addLine(indent, lines, "break")
 end
 
--- TODO: This is a limitation. Only one return expression is
--- allowed right now. I think there is a solution. However, I also
--- think that it's implementation will require far-reaching modifications.
+function emitter.emitPutOnStack(indent, ast, config, tempVal, lines)
+
+end
+
+-- function (x)
+--     return x + 1, x + 2, x + 3
+-- end
+--
+-- PUTONTOP=0
+-- SP=0
+-- STACK${SP}=x+1
+-- ((SP++, PUTONTOP++))
+-- STACK${SP}=x+2
+-- ((SP++, PUTONTOP++))
+-- STACK${SP}=x+3
+-- ((SP++, PUTONTOP++))
+--
+-- STACK${SP}=$PUTONTOP
+--
+-- Optimization possibility:
+-- when all expressions in return are static, that is, if it's known
+-- how many elements will be put on top of the stack, the stack pointer
+-- needs only to be incremented by that amount once
+-- i.e. function(x) return 1, 2, 3 end => puts 3 arguments on the stack
+-- so the bash code can increment SP by simply doing ((SP+=3, PUTONTOP+=3))
 function emitter.emitReturn(indent, ast, config, stack, lines)
     util.addComment(indent, lines, serializer.serRet(ast))
     local returnExpressions = ast
+    util.addLine(indent, lines, 'local SPBeforeReturn=$SP')
     local stackPtrIncrementor = emitUtil.getLineIncrementVar(
         config.stackpointer, b.string('1'))
+    -- emit instructions
     util.imap(
         returnExpressions,
         function(expr)
@@ -710,19 +734,14 @@ function emitter.emitReturn(indent, ast, config, stack, lines)
                 indent, firstExpression, config, stack, lines)
             if either:isLeft() then
                 local tempVal = either:getLeft()
-
+                emitter.emitPutOnStack(indent, ast, config, tempVal, lines)
+                util.addLine(indent, lines, putOnTopIncrementor:render())
+                util.addLine(indent, lines, stackPtrIncrementor:render())
             else
-
+                -- the other function has already put
+                -- the values on top of the stack, so here nothing to do
             end
     end)
-    local cmdline =
-        b.eval(
-            b.string('VALRET') .. b.string('=') ..
-                b.parentheses(
-                    emitUtil.derefValToValue(tempVal)
-                        .. b.string' '
-                        .. emitUtil.derefValToType(tempVal)):noDep())
-    util.addLine(indent, lines, cmdline(), "Set return value")
     util.addLine(indent, lines, "return 0", "Finish exec of this function")
     return returnLocation
 end
