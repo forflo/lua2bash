@@ -2,8 +2,9 @@ local bp = require("lua-shepi")
 local parser = require("lua-parser.parser")
 local dbg = require("debugger")
 local util = require("lua2bash-util")
-local emitter = require("lua2bash-emit")
 local orchestration = require("lua2bash-orchestration")
+
+local testcode
 
 local function evaluateByLua(filename)
     local luaProc = bp.cmd("lua", "-")
@@ -12,12 +13,13 @@ local function evaluateByLua(filename)
 end
 
 local function evaluateByBash(filename)
-    local ast, error_msg = parser.parse(io.open(filename):read("a"))
+    local ast, _ = parser.parse(io.open(filename):read("a"))
     assert.Truthy(ast)
     assert.is.True(type(ast) == "table")
     assert.is.True(ast.tag == "block")
-    local result, emitter = nil, orchestration.newEmitter(ast)
+    local emitter = orchestration.newEmitter(ast)
     local bashProc = bp.cmd('bash')
+    local result
     -- TODO: check whether we need the trailing new line
     result = bashProc(util.join(emitter(), '\n') .. '\n')
     return result

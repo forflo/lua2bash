@@ -1,3 +1,7 @@
+local config
+local compiler = require("lua2bash-datatypes")
+local scope = require("lua2bash-scope")
+
 describe(
     "Test data structures",
     function()
@@ -15,8 +19,6 @@ describe(
                   config.varPrefix = "V" -- Variable
                   config.valPrefix = "L" -- vaLue
                   config.indentSize = 4
-                  compiler = require("lua2bash-datatypes")
-                  scope = require("lua2bash-scope")
                   stack = compiler.Stack()
                   scope1 = compiler.Scope(
                       compiler.occasions.BLOCK, "global", 0, "global")
