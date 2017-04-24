@@ -77,8 +77,7 @@ function emitter.emitTableValue(
     local incrementCmd = emitUtil.Incrementer(elementCounter, b.s'1')
     local typeString = b.string(config.skalarTypes.tableType)
     local slot =
-        b.string(config.tablePrefix)
-        .. b.string(tblIdx)
+        b.string(config.tablePrefix) .. tblIdx
         .. b.paramExpansion(config.tableElementCounter)
     local cmdline =
         emitUtil.getLineAssign(
@@ -98,7 +97,9 @@ end
 -- prefixes each table member with env.tablePrefix
 function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
     util.assertAstHasTag(ast, "Table")
-    local tableId = config.counter.table()
+    local tableId = b.string(config.counter.table())
+    local tableValue = b.string(config.tablePrefix) .. b.string(tableId)
+    local tableCounterInc = emitUtil.Incrementer(config.tableElementCounter, 1)
     local fieldExpressions = ast
     if firstCall == nil then
         util.addComment(indent, lines, serializer.serTbl(ast))
@@ -106,45 +107,48 @@ function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
     emitter.emitResetTableECounter(indent, config, lines)
     emitter.emitTableValue(
         indent, config, lines, tableId,
-        b.s'', b.s(config.skalarTypes.tableType),
+        tableValue,
+        b.s(config.skalarTypes.tableType),
         b.s(config.defaultMtabTables))
     -- recurse into ast
     for _, fieldExp in ipairs(fieldExpressions) do
-        if (fieldExp.tag == "Pair") then
+        if fieldExp.tag == "Pair" then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif fieldExp.tag ~= "Table" then
+            local fieldIndex = tableId
+                .. b.paramExpansion(config.tableElementCounter)
             local either1orN = emitter.emitExpression(
                 indent, fieldExp, config, stack, lines)
+            -- cases when single or multiple values result from
+            -- the evaluation of an expression
             if either1orN:isLeft() then
+                util.addLine(indent, lines, tableCounterInc:render())
                 emitter.emitTableValue(
-                    indent, config, stack,
-                    lines, tableId,
+                    indent, config, stack, lines, fieldIndex,
                     emitUtil.derefValToValue(either1orN:getLeft()),
                     emitUtil.derefValToType(either1orN:getLeft()),
                     emitUtil.derefValToMtab(either1orN:getLeft()))
             else
+                print("TODO!!!")
                 -- TODO: case where a function was called!
             end
         else
-            local either = emitter.emitTable(
+            local subTable = emitter.emitTable(
                 indent, fieldExp, config, stack, lines, false)
-            assert(type(either) == "table" and either.getType ~= nil,
-                   "Must be an either")
-            assert(either:isLeft(), "Impossible state")
-                emitter.emitTableValue(
-                    indent, config, stack,
-                    lines, tableId,
-                    emitUtil.derefValToValue(either:getLeft()),
-                    emitUtil.derefValToType(either:getRight()))
+            emitter.emitTableValue(
+                indent, config, stack, lines, tableId,
+                emitUtil.derefValToValue(subTable:getLeft()),
+                emitUtil.derefValToType(subTable:getLeft()),
+                emitUtil.derefValToMtab(subTable:getLeft()))
         end
     end
-    return datatypes.Either():makeLeft(b.s(config.tablePrefix .. b.s(tableId)))
+    return datatypes.Either():makeLeft(tableValue)
 end
 
 -- returns a tempvalue of the result
 function emitter.emitCallClosure(
-        indent, _, lines, closureValue, argValueList)
+        indent, config, lines, closureValue, argValueList)
     local cmdLine =
         b.eval(
             emitUtil.derefValToValue(closureValue)
@@ -155,14 +159,19 @@ function emitter.emitCallClosure(
                     argValueList,
                     function(arg, accumulator)
                         return
-                            accumulator .. b.string' ' .. b.dQ(arg):noDep()
+                            accumulator .. b.string(' ')
+                            .. b.doubleQuote(arg):noDep()
                     end, b.string("")))
-    util.addLine(indent, lines, cmdLine())
-    return datatypes.Either():makeRight("")
+    util.addLine(indent, lines, cmdLine:render())
+    return datatypes.Either():makeRight(
+        emitUtil.emitSimpleTempValue(
+            indent, config, lines,
+            b.pE(config.bootstrap.retVarName)))
 end
 
+-- TODO: Marker
 function emitter.emitCall(indent, ast, config, stack, lines)
-    util.addLine(indent, lines, "# " .. serializer.serCall(ast))
+    util.addComment(indent, lines, serializer.serCall(ast))
     local functionName = ast[1][1]
     local functionExp = ast[1]
     local arguments = util.tableSlice(ast, 2, #ast, 1)
@@ -192,13 +201,11 @@ function emitter.emitCall(indent, ast, config, stack, lines)
         )
         return {}
     elseif functionName == "type" then
-        -- TODO: table!
         local typeStrValue = emitUtil.emitTempVal(
             indent, config, stack, lines, b.s("STR"),
             emitUtil.derefValToType(tempValues[1]))
         return { typeStrValue }
     else
-        -- TODO: table
         local funcValue = emitter.emitExpression(
             indent, functionExp, config, stack, lines)[1]
         return emitter.emitCallClosure(
@@ -471,14 +478,12 @@ end
 function emitter.emitBootstrap(indent, config, stack, lines)
     util.addComment(indent, lines, "Bootstrapping code")
     util.addLine(indent, lines, "PUTONTOP=0")
-    util.addLine(indent, lines, config.stackpointer .. "=0")
+    util.addLine(indent, lines, config.bootstrap.stackPointer .. "=0")
+    util.addLine(indent, lines, config.bootstrap.retVarName .. "=0")
     emitUtil.emitValAssignTuple(
-        indent, "VAL" .. config.nilVarName,
+        indent, "VAL" .. config.bootstrap.nilVarName,
         b.p(b.dQ(""):sL(-1) .. b.s' ' .. b.s'NIL'),
         lines)
-    emitUtil.emitValAssignTuple(
-        indent, "VALRET",
-        b.p(b.dQ(""):sL(-1) .. b.s' ' .. b.s'NIL'), lines)
 end
 
 function emitter.emitScopedBlock(indent, ast, config, stack, lines, occasion)

@@ -43,7 +43,7 @@ function emitUtil.Incrementer(varId, increment)
         b.eval(
             b.parentheses(
                 b.parentheses(
-                    varId .. b.string('+=') .. increment
+                    varId .. b.string('+=') .. b.string(increment)
                 ):sameAsSubtree()
             ):sameAsSubtree())
         :evalMin(0)
@@ -90,6 +90,13 @@ function emitUtil.emitTempVal(
     local commandLine = emitUtil.getLineAssign(
         lhsSlot, value, valuetype, metatable)
     util.addLine(indent, lines, commandLine:render())
+    return lhsSlot
+end
+
+function emitUtil.emitSimpleTempVal(indent, config, lines, value)
+    local lhsSlot = emitUtil.getUniqueSlot(config)
+    local cmdline = emitUtil.VarAssignVal(lhsSlot, value)
+    util.addLine(indent, lines, cmdline:render())
     return lhsSlot
 end
 

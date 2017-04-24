@@ -14,9 +14,11 @@ function orchestration.newConfig()
     config.varPrefix = "V" -- Variable
     config.valPrefix = "L" -- vaLue
     config.tableElementCounter = "TE"
-    config.nilVarName = "VARNIL"
-    config.retVarName = "VALRET"
-    config.stackpointer = "STACKPTR"
+    config.bootstrap = {
+        nilVarName = "VARNIL",
+        retVarName = "VALRETURNED",
+        stackPointer = "STACKPOINTER"
+    }
     config.defaultMtabNumbers = "MTABNUM"
     config.defaultMtabStrings = "MTABSTR"
     config.defaultMtabFunctions = "MTABFUN"
