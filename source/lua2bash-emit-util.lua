@@ -83,12 +83,12 @@ function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
                 emitUtil.derefValToMtab(valueslot))):render())
 end
 
--- writes a new tem variable into lines and gives back the slotname
+-- writes a new temp variable into lines and gives back the slotname
 function emitUtil.emitTempVal(
         indent, config, lines, value, valuetype, metatable)
     local lhsSlot = emitUtil.getUniqueSlot(config)
-    local commandLine =
-        emitUtil.getLineAssign(lhsSlot, value, valuetype, metatable)
+    local commandLine = emitUtil.getLineAssign(
+        lhsSlot, value, valuetype, metatable)
     util.addLine(indent, lines, commandLine:render())
     return lhsSlot
 end

@@ -340,6 +340,13 @@ function util.fillup(column)
     end
 end
 
+function util.assertAstHasTag(node, tag, message)
+    local stdMsg = "Node has not tag type" .. tag
+    message = message or stdMsg
+    assert(node.tag == tag, message)
+    os.exit(1)
+end
+
 -- function composition
 -- compose(fun1, fun2)("foobar") = fun1(fun2("foobar"))
 function util.compose(funOuter)

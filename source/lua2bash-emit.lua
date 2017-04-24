@@ -9,10 +9,7 @@ local emitUtil = require("lua2bash-emit-util")
 local emitter = {}
 
 function emitter.emitId(indent, ast, config, stack, lines)
-    if ast.tag ~= "Id" then
-        print("emitId(): not an Id node")
-        os.exit(1)
-    end
+    util.assertAstHasTag(ast, "Id")
     local varname = ast[1]
     local binding = scope.getMostCurrentBinding(stack, varname)
     -- undefined id's are expected to evaluate to nil
@@ -21,85 +18,61 @@ function emitter.emitId(indent, ast, config, stack, lines)
         return emitter.emitNil(indent, {tag = "Nil"}, config, stack, lines)
     end
     local emitVn = binding.symbol:getEmitVarname()
-    local tempSlot = emitUtil.getTempAssigneeSlot(config)
-    local cmdline = emitUtil.getLineTempVal(
-        tempSlot,
+    local tempSlot = emitUtil.emitTempVal(
+        indent, config, lines,
         emitUtil.derefVarToType(emitVn),
         emitUtil.derefVarToValue(emitVn),
         emitUtil.derefVarToMtab(emitVn))
-    util.addLine(indent, lines, cmdline:render())
     return datatypes.Either():makeLeft(tempSlot)
 end
 
 function emitter.emitNumber(indent, ast, config, stack, lines)
     local value = tostring(ast[1])
-    if ast.tag ~= "Number" then
-        print("emitNumber(): not a Number node")
-        os.exit(1)
-    end
-    local tempSlot = emitUtil.getTempAssigneeSlot(config)
-    local cmdline = emitUtil.getLineTempVal(
-        tempSlot,
-        b.s(value), b.s('NUM'), b.s(config.defaultMtabNumbers))
-    util.addLine(indent, lines, cmdline:render())
+    util.assertAstHasTag(ast, "Number")
+    local tempSlot = emitUtil.emitTempVal(
+        indent, config, lines,
+        b.string(value), b.string(config.skalarTypes.numberType),
+        b.string(config.defaultMtabNumbers))
     return datatypes.Either():makeLeft(tempSlot)
 end
 
-function emitter.emitNil(indent, ast, config, stack, lines)
-    if ast.tag ~= "Nil" then
-        print("emitNil(): not a Nil node")
-        os.exit(1)
-    end
-    local tempSlot = emitUtil.getTempAssigneeSlot(config)
-    local cmdline = emitUtil.getLineTempVal(
-        tempSlot,
-        b.s(''), b.s('NIL'), b.s(config.defaultMtabNil))
-    util.addLine(indent, lines, cmdline:render())
+function emitter.emitNil(indent, ast, config, _, lines)
+    util.assertAstHasTag(ast, "Nil")
+    local tempSlot = emitUtil. emitUtil.emitTempVal(
+        indent, config, lines,
+        b.string(''), b.string(config.skalarTypes.nilType),
+        b.string(config.defaultMtabNil))
     return datatypes.Either():makeLeft(tempSlot)
 end
 
-function emitter.emitString(indent, ast, config, stack, lines)
+function emitter.emitString(indent, ast, config, _, lines)
     local value = ast[1]
-    if ast.tag ~= "String" then
-        print("emitString(): not a string node")
-        os.exit(1)
-    end
-    local tempSlot = emitUtil.getTempAssigneeSlot(config)
-    local cmdline = emitUtil.getLineTempVal(
-        tempSlot,
-        b.s(value), b.s('STR'), b.s(config.defaultMtabStr))
-    util.addLine(indent, lines, cmdline:render())
+    util.assertAstHasTag(ast, "String")
+    local tempSlot = emitUtil.emitTempVal(
+        indent, config, lines,
+        b.string(value), b.string(config.skalarTypes.stringType),
+        b.string(config.defaultMtabStr))
     return datatypes.Either():makeLeft(tempSlot)
 end
 
-function emitter.emitFalse(indent, ast, config, stack, lines)
-    if ast.tag ~= "False" then
-        print("emitFalse(): not a False node!")
-        os.exit(1)
-    end
-    local tempSlot = emitUtil.getTempAssigneeSlot(config)
-    local cmdline = emitUtil.getLineTempVal(
-        tempSlot,
-        b.s('0'), b.s('0'), b.s(config.defaultMtabStr))
-    util.addLine(indent, lines, cmdline:render())
+function emitter.emitFalse(indent, ast, config, _, lines)
+    util.assertAstHasTag(ast, "False")
+    local tempSlot = emitUtil.emitTempVal(
+        indent, config, lines,
+        b.string('0'), b.string('0'), b.string(config.defaultMtabStr))
     return datatypes.Either():makeLeft(tempSlot)
 end
 
-function emitter.emitTrue(indent, ast, config, stack, lines)
-    if ast.tag ~= "True" then
-        print("emitTrue(): not a True node!")
-        os.exit(1)
-    end
-    local tempSlot = emitUtil.getTempAssigneeSlot(config)
-    local cmdline = emitUtil.getLineTempVal(
-        tempSlot,
-        b.s('1'), b.s('1'), b.s(config.defaultMtabStr))
-    util.addLine(indent, lines, cmdline:render())
+function emitter.emitTrue(indent, ast, config, _, lines)
+    util.assertAstHasTag(ast, "True")
+    local tempSlot = emitUtil.emitTempVal(
+        indent, config, lines,
+        b.string('1'), b.string('1'), b.string(config.defaultMtabStr))
     return datatypes.Either():makeLeft(tempSlot)
 end
 
-function emitter.emitTableValue(indent, config, lines, tblIdx,
-                                value, valuetype, metatable)
+function emitter.emitTableValue(
+        indent, config, lines, tblIdx, value, valuetype, metatable)
     local elementCounter = b.string(config.tableElementCounter)
     local incrementCmd = emitUtil.Incrementer(elementCounter, b.s'1')
     local typeString = b.string(config.skalarTypes.tableType)
@@ -115,38 +88,41 @@ function emitter.emitTableValue(indent, config, lines, tblIdx,
     return datatypes.Either():makeLeft(slot)
 end
 
--- prefixes each table member with env.tablePrefix
-function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
-    if ast.tag ~= "Table" then
-        print("emitTable(): not a Table!")
-        os.exit(1)
-    end
-    if firstCall == nil then
-        util.addLine(indent, lines, "# " .. serializer.serTbl(ast))
-    end
-    local tableId = config.counter.table()
+function emitter.emitResetTableECounter(indent, config, lines)
     local elementCounter = b.s(config.tableElementCounter)
     util.addLine(
-        indent, lines, elementCounter:render() .. " = 0",
+        indent, lines, elementCounter:render() .. "=0",
         "reset element counter")
-    emitter.emitTableValue(indent, config, stack, lines, tableId, b.s'')
+end
+
+-- prefixes each table member with env.tablePrefix
+function emitter.emitTable(indent, ast, config, stack, lines, firstCall)
+    util.assertAstHasTag(ast, "Table")
+    local tableId = config.counter.table()
+    local fieldExpressions = ast
+    if firstCall == nil then
+        util.addComment(indent, lines, serializer.serTbl(ast))
+    end
+    emitter.emitResetTableECounter(indent, config, lines)
+    emitter.emitTableValue(
+        indent, config, lines, tableId,
+        b.s'', b.s(config.skalarTypes.tableType),
+        b.s(config.defaultMtabTables))
     -- recurse into ast
-    for _, fieldExp in ipairs(ast) do
+    for _, fieldExp in ipairs(fieldExpressions) do
         if (fieldExp.tag == "Pair") then
             print("Associative tables not yet supported")
             os.exit(1)
         elseif fieldExp.tag ~= "Table" then
-            local either = emitter.emitExpression(
+            local either1orN = emitter.emitExpression(
                 indent, fieldExp, config, stack, lines)
-            assert(type(either) == "table" and either.getType ~= nil,
-                   "Must be an either")
-            if either:isLeft() then
+            if either1orN:isLeft() then
                 emitter.emitTableValue(
                     indent, config, stack,
                     lines, tableId,
-                    emitUtil.derefValToValue(either:getLeft()),
-                    emitUtil.derefValToType(either:getLeft()),
-                    emitUtil.derefValToMtab(either:getLeft()))
+                    emitUtil.derefValToValue(either1orN:getLeft()),
+                    emitUtil.derefValToType(either1orN:getLeft()),
+                    emitUtil.derefValToMtab(either1orN:getLeft()))
             else
                 -- TODO: case where a function was called!
             end
