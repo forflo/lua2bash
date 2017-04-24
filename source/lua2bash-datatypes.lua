@@ -102,7 +102,7 @@ function datatypes.Symbol(value, redefCount, curSlot, emitVarname)
     function obj:setEmitVarname(v) self._emitVarname = v; return self end
     function obj:setValue(v) self._value = v; return self end
     function obj:setRedefCnt(v) self._redefCount = v; return self end
-    setmetatable(t, datatypes.commonMtab)
+    setmetatable(obj, datatypes.commonMtab)
     return obj
 end
 
@@ -158,11 +158,11 @@ function datatypes.Stack()
     -- pop a value from the stack
     function t:pop(num)
         -- get num values from stack
-        local num = num or 1
+        num = num or 1
         -- return table
         local entries = {}
         -- get values into entries
-        for i = 1, num do
+        for _ = 1, num do
             -- get last entry
             if #self._et ~= 0 then
                 table.insert(entries, self._et[#self._et])
@@ -173,7 +173,7 @@ function datatypes.Stack()
             end
         end
         -- return unpacked entries
-        return unpack(entries)
+        return table.unpack(entries)
     end
 
     -- map on stacks from bottom to top

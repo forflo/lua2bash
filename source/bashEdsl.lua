@@ -84,7 +84,7 @@
 -- Pretty ugly, isn't it... That's exactly the reason why this EDSL exists
 
 
-dbg = require "debugger"
+local dbg = require "debugger"
 
 local function max(x, y)
     if x > y then return x
@@ -155,7 +155,7 @@ local function settify(activeChars)
 end
 
 local function isStringIn(str, tbl)
-    for k, v in pairs(tbl) do
+    for _, v in pairs(tbl) do
         if v == str then
             return true
         end
@@ -240,7 +240,7 @@ function dslObjects.Base(activeChars, begin, ending, dslobj)
     function t:dL(n) return self:deepLift(n) end
     function t:noDep() return self:noDependentQuoting() end
     function t:sQ(n) return self:setQuotingIndex(n) end
-    function t:sAS() return self:sameAsSubtree(n) end
+    function t:sAS() return self:sameAsSubtree() end
     setmetatable(t, mtab)
     return t
 end
@@ -252,8 +252,8 @@ function dslObjects.String(str)
     t._quotingIndex = 0
     t._type = bdsl.types.STRING
     function t:getType() return self._type end
-    function t:shallowLift(n) return self end
-    function t:deepLift(n) return self end
+    function t:shallowLift() return self end
+    function t:deepLift() return self end
     function t:getQuotingIndex() return 0 end
     function t:getSubtree() return nil end
     function t:setQuotingIndex(n)
@@ -293,7 +293,7 @@ function dslObjects.Eval(dslobj)
     t._evalThreshold = 1
     t._evalCount = t._subtree:getQuotingIndex() - t._evalThreshold
     -- member functions
-    function t:shallowLift(n) return self end
+    function t:shallowLift() return self end
     function t:deepLift(n)
         if not n then n = 1 end
         t:getSubtree():deepLift(n)

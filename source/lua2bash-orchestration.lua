@@ -1,5 +1,6 @@
 local datatypes = require("lua2bash-datatypes")
 local util = require("lua2bash-util")
+local emitter = require("lua2bash-emit")
 
 local orchestration = {}
 
@@ -50,7 +51,7 @@ end
 function orchestration.newEmitter(ast)
     return function()
         local stack, config = orchestration.newStack(), orchestration.newConfig()
-        lines = {}
+        local lines = {}
         emitter.emitBootstrap(0, config, stack, lines)
         emitter.emitBlock(0, ast, config, stack, lines)
         return lines

@@ -157,7 +157,7 @@ end
 
 function serializer.serDo(ast)
     return "do "
-        .. join(
+        .. util.join(
             util.imap(
                 ast,
                 function(e)
