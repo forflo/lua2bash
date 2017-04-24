@@ -76,7 +76,7 @@ function emitUtil.emitUpdateVar(indent, symbol, valueslot, lines)
     util.addLine(
         indent, lines,
         emitUtil.ValAssignTuple(
-            symbol:getCurSlot(),
+            assigneeSlot,
             emitUtil.ValTuple(
                 emitUtil.derefValToValue(valueslot),
                 emitUtil.derefValToType(valueslot),
@@ -90,7 +90,7 @@ function emitUtil.emitTempVal(
     local commandLine =
         emitUtil.getLineAssign(lhsSlot, value, valuetype, metatable)
     util.addLine(indent, lines, commandLine:render())
-    return assigneeSlot
+    return lhsSlot
 end
 
 -- typ and content must be values from bash EDSL
@@ -119,7 +119,7 @@ function emitUtil.ValAssignTuple(slot, valueTuple)
             slot
                 .. b.string('=')
                 .. valueTuple)
-        :evalMin(assigneeSlot:getQuotingIndex())
+        :evalMin(slot:getQuotingIndex())
         :evalThreshold(1)
 end
 
@@ -134,9 +134,9 @@ function emitUtil.ValTuple(value, valuetype, metatable)
     return
         b.parentheses(
             -- the double quotes of value must be resolved last
-            b.doubleQuotes(content):setQuotingIndex(quoting)
-                .. b.string(" ") .. valtype
-                .. b.string(" ") .. mtab)
+            b.doubleQuotes(value):setQuotingIndex(quoting)
+                .. b.string(" ") .. valuetype
+                .. b.string(" ") .. metatable)
 end
 
 function emitUtil.derefVarToValue(varname)
@@ -164,7 +164,7 @@ function emitUtil.derefValToMtab(valname)
 end
 
 function emitUtil.linearizePrefixTree(ast, result)
-    local result = result or {}
+    result = result or {}
     if type(ast) ~= "table" then
         return result
     end

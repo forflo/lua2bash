@@ -168,7 +168,7 @@ end
 
 -- returns a tempvalue of the result
 function emitter.emitCallClosure(
-        indent, config, lines, closureValue, argValueList)
+        indent, _, lines, closureValue, argValueList)
     local cmdLine =
         b.eval(
             emitUtil.derefValToValue(closureValue)
@@ -382,7 +382,6 @@ function emitter.emitUnop(indent, ast, config, stack, lines)
 end
 
 function emitter.emitBinop(indent, ast, config, stack, lines)
-    local ergId1 = util.getUniqueId()
     local left = emitter.emitExpression(
         indent, ast[2], config, stack, lines)[1]
     local right = emitter.emitExpression(
@@ -412,14 +411,14 @@ function emitter.emitBinop(indent, ast, config, stack, lines)
 end
 
 function emitter.getExpressionEmitters(indent, ast, config, stack, lines)
-    local emitters = {}
+    local emitters
     local expressions = ast
     if ast.tag ~= "ExpList" then
         print("emitExplist(): not an explist node!")
         os.exit(1)
     end
     emitters = util.imap(
-        ast,
+        expressions,
         function(expression)
             return function()
                 local tempValue = emitter.emitExpression(
@@ -507,11 +506,11 @@ function emitter.emitBootstrap(indent, config, stack, lines)
 end
 
 function emitter.emitScopedBlock(indent, ast, config, stack, lines, occasion)
+    occasion = occasion or datatypes.occasions.BLOCK
     local scopeNumber = config.counter.scope()
-    local occasion = occasion or datatypes.occasions.BLOCK
     local scopeName = "S" .. scopeNumber
     local newScope = datatypes.Scope(
-        occasion, scopeName, envId,
+        occasion, scopeName, scopeNumber,
         scope.getPathPrefix(stack) .. scopeName)
     -- push new scope on top
     stack:push(newScope)
@@ -525,9 +524,9 @@ end
 
 function emitter.emitBlock(indent, ast, config, stack, lines)
     -- emit all enclosed statements
-    for _, statementSubAST in ipairs(ast) do
+    for _, statement in ipairs(ast) do
         if type(statement) == "table" then
-            emitter.emitStatement(indent, statementSubAST, config, stack, lines)
+            emitter.emitStatement(indent, statement, config, stack, lines)
         else
             print("emitBlock error!??")
             os.exit(1)
@@ -693,7 +692,7 @@ function emitter.emitRepeat(indent, ast, config, stack, lines)
     -- TODO:
 end
 
-function emitter.emitBreak(indent, ast, config, stack, lines)
+function emitter.emitBreak(indent, _, _, _, lines)
     util.addLine(indent, lines, "break")
 end
 
@@ -735,7 +734,7 @@ function emitter.emitReturn(indent, ast, config, stack, lines)
         returnExpressions,
         function(expr)
             local either = emitter.emitExpression(
-                indent, firstExpression, config, stack, lines)
+                indent, expr, config, stack, lines)
             if either:isLeft() then
                 local tempVal = either:getLeft()
                 emitter.emitPutOnStack(indent, ast, config, tempVal, lines)
@@ -782,7 +781,6 @@ end
 
 function emitter.emitLocal(indent, ast, config, stack, lines)
     util.addComment(indent, lines, serializer.serLcl(ast))
-    local topScope = stack:top()
     local varNames = {}
     for i = 1, #ast[1] do
         varNames[i] = ast[1][i][1]
@@ -792,7 +790,7 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
     local memNumDiff =
         util.tblCountAll(varNames) - util.tblCountAll(locations)
     if memNumDiff > 0 then -- extend number of expressions to fit varNamelist
-        for i = 1, memNumDiff do
+        for _ = 1, memNumDiff do
             locations[#locations + 1] = emitter.emitNil(
                 indent, {tag = 'Nil'}, config, stack, lines)
         end
@@ -801,7 +799,7 @@ function emitter.emitLocal(indent, ast, config, stack, lines)
     for _, varName in pairs(varNames) do
         local bindingQuery = scope.getMostCurrentBinding(stack, varName)
         local someWhereDefined = bindingQuery ~= nil
-        local s, symbol
+        local symScope, symbol
         local location = iter()
         if someWhereDefined then
             symScope, symbol = bindingQuery.scope, bindingQuery.symbol
@@ -827,7 +825,7 @@ function emitter.emitSet(indent, ast, config, stack, lines)
     local emitters = emitter.getExpressionEmitters(
         indent, explist, config, stack, lines)
     local iterator = util.actionIIterator(emitters, util.call)
-    for k, lhs in ipairs(varlist) do
+    for _, lhs in ipairs(varlist) do
         if lhs.tag == "Id" then
             emitter.emitSimpleAssign(
                 indent, lhs, config, stack, lines, iterator())

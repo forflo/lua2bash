@@ -2,8 +2,8 @@ local util = {}
 
 local ntostring
 function ntostring(tbl, indent)
+    indent = indent or 0
     local function rep(i) return string.rep(" ", i) end
-    local indent = indent or 0
     if type(tbl) == "table" then
         local s = "{" .. "\n"
         for k, v in pairs(tbl) do
@@ -42,10 +42,10 @@ function util.tableFlatten(tbl, result)
 end
 
 function util.tableIConcat(tbl1, result)
-    result = {}
-    for k, v in ipairs(tbl1) do
+    result = result or {}
+    for _, v in ipairs(tbl1) do
         if type(v) == "table" then
-            for i, w in ipairs(v) do
+            for _, w in ipairs(v) do
                 result[#result + 1] = w
             end
         else
@@ -114,14 +114,14 @@ end
 
 function util.filter(tbl, fun)
     local result = {}
-    for k, v in pairs(tbl) do
+    for _, v in pairs(tbl) do
         if fun(v) then result[#result + 1] = v end
     end
     return result
 end
 
 function util.ifold(tbl, fun, acc)
-    for k, v in ipairs(tbl) do
+    for _, v in ipairs(tbl) do
         acc = fun(v, acc)
     end
     return acc
@@ -129,7 +129,7 @@ end
 
 function util.map(tbl, func)
     local result = {}
-    for k, v in pairs(tbl) do
+    for _, v in pairs(tbl) do
         result[#result + 1] = func(v)
     end
     return result
@@ -137,7 +137,7 @@ end
 
 function util.imap(tbl, func)
     local result = {}
-    for k, v in ipairs(tbl) do
+    for _, v in ipairs(tbl) do
         result[#result + 1] = func(v)
     end
     return result
@@ -154,7 +154,7 @@ function util.join(strings, char)
 end
 
 function util.getCounter(increment)
-    local increment = increment or 1
+    increment = increment or 1
     local upvalCount = 0
     return function()
         upvalCount = upvalCount + increment
@@ -180,8 +180,8 @@ end
 function util.zipI(left, right)
     if (left == nil or right == nil) then return nil end
     if #left ~= #right then return nil end
-    result = {}
-    for k,v in ipairs(left) do
+    local result = {}
+    for k, _ in ipairs(left) do
         result[k] = {left[k], right[k]}
     end
     return result
@@ -196,22 +196,22 @@ function util.addComment(indent, lines, comment)
 end
 
 function util.tableIAddInplace(dest, source)
-    local dest = dest or {} -- make new table if dest is nil
-    for k, v in ipairs(source) do dest[#dest + 1] = v end
+    dest = dest or {} -- make new table if dest is nil
+    for _, v in ipairs(source) do dest[#dest + 1] = v end
     return dest
 end
 
 function util.tableFullAdd(left, right)
-    result = {}
-    for k, v in pairs(left) do result[#result + 1] = v end
-    for k, v in pairs(right) do result[#result + 1] = v end
+    local result = {}
+    for _, v in pairs(left) do result[#result + 1] = v end
+    for _, v in pairs(right) do result[#result + 1] = v end
     return result
 end
 
 function util.tableIAdd(left, right)
-    result = {}
-    for k,v in ipairs(left) do result[#result + 1] = v end
-    for k,v in ipairs(right) do result[#result + 1] = v end
+    local result = {}
+    for _,v in ipairs(left) do result[#result + 1] = v end
+    for _,v in ipairs(right) do result[#result + 1] = v end
     return result
 end
 
@@ -274,7 +274,7 @@ end
 
 function util.tblCountAll(table)
     local counter = 0
-    for _1, _2 in pairs(table) do
+    for _, _ in pairs(table) do
         counter = counter + 1
     end
     return counter
@@ -282,7 +282,7 @@ end
 
 function util.extractIPairs(tab)
     local result = {}
-    for k,v in ipairs(tab) do
+    for _, v in ipairs(tab) do
         result[#result + 1] = v
     end
     return result
@@ -307,7 +307,7 @@ function util.traverser(ast, func, environment, predicate, recur)
             return
         end
     end
-    for k, v in ipairs(ast) do
+    for _, v in ipairs(ast) do
         util.traverser(v, func, environment, predicate, recur)
     end
 end
