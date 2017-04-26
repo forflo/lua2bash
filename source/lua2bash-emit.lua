@@ -535,6 +535,28 @@ end
 --   end
 -- end
 -- TODO: komplett neu schreiben
+
+local ab = require("lua2bash-ast-builder")
+function emitter.elaborateForNum(ast)
+    local block = ast[5] or ast[4]
+
+    if #ast == 4 then -- if no increment provided
+        ast[5] = ast[4]
+        ast[4] = ab.number(1)
+    end
+
+    local newAst =
+        ab.doStmt(
+            ab.localAssignment(
+                ab.namelist(
+                    ab.id('var'), ab.id('limit'), ab.id('step')
+                ),
+                ab.explist(
+                    ab.
+            ))
+        )
+end
+
 function emitter.emitFornum(indent, ast, config, stack, lines)
     -- push new scope only for the loop counter
     pushScope(env,

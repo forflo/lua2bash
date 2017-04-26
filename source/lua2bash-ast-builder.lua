@@ -1,3 +1,5 @@
+local util = require("lua2bash-util")
+
 local astBuilder = {}
 
 function astBuilder.forNum(loopVar, limit, step, block)
@@ -110,27 +112,54 @@ function astBuilder.Pair(fst, snd)
     return { tag = "Pair", pos = -1, fst, snd }
 end
 
-function astBuilder.Paren(exp)
+function astBuilder.paren(exp)
     return { tag = "Paren", pos = -1, exp }
 end
 
-function astBuilder.Index(prefixExp, bracketExp)
+function astBuilder.index(prefixExp, bracketExp)
     return { tag = "Index", pos = -1, prefixExp, bracketExp }
 end
 
-function astBuilder.Op(operator, left, right)
+function astBuilder.op(operator, left, right)
     return { tag = "Op", pos = -1, operator, left, right }
 end
 
+function astBuilder.block(...)
+    return { tag = "Block", pos = -1, ... }
+end
+
+-- usage example
+-- auxNaryAnd(astBuilder.id'foo', astBuilder.id'bar')
+function astBuilder.auxNaryAnd(first, ...)
+    return util.ifold(
+        table.pack(...),
+        function(value, accumulator)
+            return astBuilder.op(
+                astBuilder.operator['and'], accumulator, value)
+        end,
+        first)
+end
+
+function astBuilder.auxNamelist(...)
+    return
+        astBuilder.namelist(
+            table.unpack(
+                util.imap(
+                    table.pack(...),
+                    function(str)
+                        return astBuilder.id(str)
+                    end
+            )))
+end
 
 astBuilder.operator = {
- sub =  "sub", unm =  "unm", mul =  "mul",
- div =  "div", idiv = "idiv", bor =  "bor",
- shl =  "shl", len =  "len", pow =  "pow",
- mod =  "mod", band = "band", concat ="concat",
- lt =   "lt", ["not"]  =  "not", ["and"] =  "and",
- ["or"] =   "or", gt =   "gt", le =   "le",
- le =   "le", eq =   "eq"
+    sub =  "sub", unm =  "unm", mul =  "mul",
+    div =  "div", idiv = "idiv", bor =  "bor",
+    shl =  "shl", len =  "len", pow =  "pow",
+    mod =  "mod", band = "band", concat ="concat",
+    lt =   "lt", ["not"]  =  "not", ["and"] =  "and",
+    ["or"] =   "or", gt =   "gt", le =   "le",
+    le =   "le", eq =   "eq"
 }
 
 return astBuilder
