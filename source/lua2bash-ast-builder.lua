@@ -67,7 +67,7 @@ function astBuilder.globalAssignment(varlist, explist)
     return { tag = "Set", pos = -1, varlist, explist }
 end
 
-function astBuilder.varlist(...)
+function astBuilder.varList(...)
     return { tag = "VarList", pos = -1, ... }
 end
 
@@ -140,8 +140,8 @@ function astBuilder.auxNaryAnd(first, ...)
         first)
 end
 
-function astBuilder.auxVarlist(...)
-    astBuilder.varlist(
+function astBuilder.auxVarList(...)
+    astBuilder.varList(
         table.unpack(
             util.imap(
                 table.pack(...),
@@ -153,9 +153,9 @@ function astBuilder.auxVarlist(...)
     )
 end
 
-function astBuilder.auxNamelist(...)
+function astBuilder.auxNameList(...)
     return
-        astBuilder.namelist(
+        astBuilder.nameList(
             table.unpack(
                 util.imap(
                     table.pack(...),

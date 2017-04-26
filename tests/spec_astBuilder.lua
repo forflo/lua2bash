@@ -1,5 +1,5 @@
 local ab = require("lua2bash-ast-builder")
-local ser = require("lua2bsh-serialize-ast")
+local ser = require("lua2bash-serialize-ast")
 
 describe(
     "Ast builder test",
@@ -9,7 +9,7 @@ describe(
         it("tests auxNamelist",
            function()
                assert.are.same(
-                   ser.serNamelist(ab.auxNamelist("foo", "bar", "foo2")),
+                   ser.serNamelist(ab.auxNameList("foo", "bar", "foo2")),
                    "foo, bar, foo2")
         end)
 
