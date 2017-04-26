@@ -55,8 +55,8 @@ function astBuilder.breakStmt()
     return { tag = "Break", pos = -1 }
 end
 
-function astBuilder.doStmt(block)
-    return { tag = "Do", pos = -1, block }
+function astBuilder.doStmt(...)
+    return { tag = "Do", pos = -1, ... }
 end
 
 function astBuilder.returnStmt(...)

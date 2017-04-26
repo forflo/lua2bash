@@ -218,6 +218,7 @@ function serializer.serExp(ast)
     else
         print("Serializer: Node type not supported!")
         print("Node type:" .. ast.tag)
+        print(debug.traceback())
         os.exit(1)
     end
 end

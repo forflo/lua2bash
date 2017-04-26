@@ -1,10 +1,6 @@
-parser = require "lua-parser.parser"
-pp = require "lua-parser.pp"
-dbg = require "debugger"
-serializer = require "lua2bash-serialize-ast"
-emitter = require "lua2bash-emit"
-util = require "lua2bash-util"
-orchestration = require("lua2bash-orchestration")
+local parser = require "lua-parser.parser"
+local util = require "lua2bash-util"
+local orchestration = require("lua2bash-orchestration")
 
 if #arg ~= 1 then
     print("Usage: lua2bash.lua <string>")
@@ -18,8 +14,8 @@ if not ast then
     os.exit(1)
 end
 
-local emitter = orchestration.newEmitter(ast)
+local codeEmitter = orchestration.newEmitter(ast)
 
-print(util.join(emitter(), '\n'))
+print(util.join(codeEmitter(), '\n'))
 
 os.exit(0)
