@@ -60,11 +60,11 @@ function astBuilder.doStmt(block)
 end
 
 function astBuilder.returnStmt(...)
-    return { tag = "", pos = -1, ... }
+    return { tag = "Return", pos = -1, ... }
 end
 
 function astBuilder.globalAssignment(varlist, explist)
-    return { tag = "", pos = -1, varlist, explist }
+    return { tag = "Set", pos = -1, varlist, explist }
 end
 
 function astBuilder.varlist(...)
@@ -138,6 +138,19 @@ function astBuilder.auxNaryAnd(first, ...)
                 astBuilder.operator['and'], accumulator, value)
         end,
         first)
+end
+
+function astBuilder.auxVarlist(...)
+    astBuilder.varlist(
+        table.unpack(
+            util.imap(
+                table.pack(...),
+                function(str)
+                    return astBuilder.id(str)
+                end
+            )
+        )
+    )
 end
 
 function astBuilder.auxNamelist(...)
