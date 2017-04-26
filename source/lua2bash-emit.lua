@@ -475,9 +475,13 @@ function emitter.emitExecutePrefixexp(indent, prefixExp, config,
     return datatypes.Either():makeLeft(temp[#temp])
 end
 
-function emitter.emitBootstrap(indent, config, stack, lines)
+-- emits bash code that pops popElements elements
+function emitter.emitStackCleanup(popElements)
+    -- TODO:
+end
+
+function emitter.emitBootstrap(indent, config, _, lines)
     util.addComment(indent, lines, "Bootstrapping code")
-    util.addLine(indent, lines, "PUTONTOP=0")
     util.addLine(indent, lines, config.bootstrap.stackPointer .. "=0")
     util.addLine(indent, lines, config.bootstrap.retVarName .. "=0")
     emitUtil.emitValAssignTuple(
@@ -515,6 +519,21 @@ function emitter.emitBlock(indent, ast, config, stack, lines)
     end
 end
 
+-- for v = e1, e2, e3 do block end
+-- =>
+-- do
+--   local var, limit, step = tonumber(e1), tonumber(e2), tonumber(e3)
+--   if not (var and limit and step) then error() end
+--   var = var - step
+--   while true do
+--     var = var + step
+--     if (step >= 0 and var > limit) or (step < 0 and var < limit) then
+--       break
+--     end
+--     local v = var
+--     <block>
+--   end
+-- end
 -- TODO: komplett neu schreiben
 function emitter.emitFornum(indent, ast, config, stack, lines)
     -- push new scope only for the loop counter

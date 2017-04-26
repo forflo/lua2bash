@@ -151,8 +151,8 @@ function serializer.serIf(ast)
 end
 
 function serializer.serRep(ast)
-    return "repeat " .. serializer.serblock(ast[1])
-    .. "until " .. serializer.serexp(ast[2])
+    return "repeat " .. serializer.serBlock(ast[1])
+    .. "until " .. serializer.serExp(ast[2])
 end
 
 function serializer.serDo(ast)
