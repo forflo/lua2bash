@@ -519,23 +519,6 @@ function emitter.emitBlock(indent, ast, config, stack, lines)
     end
 end
 
--- from the language reference manual
--- for v = e1, e2, e3 do block end
--- =>
--- do
---   local var, limit, step = tonumber(e1), tonumber(e2), tonumber(e3)
---   if not (var and limit and step) then error() end
---   var = var - step
---   while true do
---     var = var + step
---     if (step >= 0 and var > limit) or (step < 0 and var < limit) then
---       break
---     end
---     local v = var
---     <block>
---   end
--- end
-
 local ab = require("lua2bash-ast-builder")
 
 function emitter.emitFornum(indent, ast, config, stack, lines)
