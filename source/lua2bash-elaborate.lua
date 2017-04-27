@@ -22,7 +22,6 @@ end
 --     <block>
 --   end
 -- end
-
 function elaborater.elaborateForNum(ast)
     if #ast == 4 then -- if no increment provided
         ast[5] = ast[4]
@@ -98,6 +97,43 @@ function elaborater.elaborateForNum(ast)
                         ab.nameList(loopIterator),
                         ab.expList(ab.id'var')),
                     table.unpack(block))))
+end
+
+-- for var_1, ···, var_n in explist do block end
+-- translates to
+-- do
+--     local f, s, var = explist
+--     while true do
+--         local var_1, ···, var_n = f(s, var)
+--         if var_1 == nil then break end
+--         var = var_1
+--         block
+--     end
+-- end
+function elaborater.elaborateForIn(ast)
+    local forInNameList , forInExpList = ast[1], ast[2]
+    local forInStatements = ast[3]
+    local firstName = forInNameList[1]
+
+    return ab.doStmt(
+        ab.localAssignment(
+            ab.nameList(ab.id'f', ab.id's', ab.id'var'),
+            forInExpList),
+        ab.whileLoop(
+            ab.trueLit(),
+            ab.block(
+                ab.localAssignment(
+                    forInNameList,
+                    ab.callStmt(
+                        ab.id'f', ab.id's', ab.id'var')),
+                ab.ifStmt(
+                    ab.op(
+                        ab.operator.eq, firstName, ab.nilLit()),
+                    ab.block(ab.breakStmt())),
+                ab.globalAssignment(
+                    ab.nameList(ab.id'var'),
+                    ab.expList(firstName)),
+                table.unpack(forInStatements))))
 end
 
 return elaborater
