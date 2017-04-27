@@ -2,24 +2,12 @@ local util = require("lua2bash-util")
 
 local astBuilder = {}
 
-function astBuilder.forNum(loopVar, limit, step, block)
-    return {
-        tag = "Fornum",
-        pos = -1,
-        [1] = loopVar,
-        [2] = limit,
-        [3] = step
-    }
+function astBuilder.forNum(loopVar, begin, limit, step, block)
+    return { tag = "Fornum", pos = -1, loopVar, begin, limit, step, block }
 end
 
 function astBuilder.forIn(namelist, explist, block)
-    return {
-        tag = "ForIn",
-        pos = -1,
-        [1] = namelist,
-        [2] = explist,
-        [3] = block
-    }
+    return { tag = "ForIn", pos = -1, namelist, explist, block }
 end
 
 function astBuilder.nameList(...)
@@ -32,7 +20,7 @@ end
 
 -- ... are the parameters
 function astBuilder.callStmt(prefixExp, ...)
-    return { tag = "Call", pos = -1, ... }
+    return { tag = "Call", pos = -1, prefixExp, ... }
 end
 
 function astBuilder.localAssignment(namelist, explist)
@@ -44,7 +32,7 @@ function astBuilder.repeatLoop(block, condition)
 end
 
 function astBuilder.whileLoop(condition, block)
-    return { tag = "Local", pos = -1, condition, block }
+    return { tag = "While", pos = -1, condition, block }
 end
 
 function astBuilder.ifStmt(condition, ifBlock, elseBlock)
@@ -172,7 +160,7 @@ astBuilder.operator = {
     mod =  "mod", band = "band", concat ="concat",
     lt =   "lt", ["not"]  =  "not", ["and"] =  "and",
     ["or"] =   "or", gt =   "gt", le =   "le",
-    le =   "le", eq =   "eq"
+    le =   "le", eq =   "eq", add = "add"
 }
 
 return astBuilder

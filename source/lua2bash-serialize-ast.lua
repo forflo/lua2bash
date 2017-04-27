@@ -9,7 +9,7 @@ function serializer.serNum(ast)
     return ast[1]
 end
 
-function serializer.serNil(ast)
+function serializer.serNil(_)
     return "nil"
 end
 
@@ -17,11 +17,11 @@ function serializer.serStr(ast)
     return "\"" .. ast[1] .. "\""
 end
 
-function serializer.serFal(ast)
+function serializer.serFal(_)
     return "false"
 end
 
-function serializer.serTru(ast)
+function serializer.serTru(_)
     return "true"
 end
 
@@ -181,6 +181,7 @@ function serializer.serStm(ast)
     elseif ast.tag == "Forin" then return serializer.serForIn(ast)
     elseif ast.tag == "Repeat" then return serializer.serRep(ast)
     elseif ast.tag == "Return" then return serializer.serRet(ast)
+    elseif ast.tag == "Break" then return serializer.serBrk(ast)
     elseif ast.tag == "If" then return serializer.serIf(ast)
     elseif ast.tag == "While" then return serializer.serWhi(ast)
     elseif ast.tag == "Do" then return serializer.serDo(ast)
@@ -188,10 +189,15 @@ function serializer.serStm(ast)
     end
 end
 
+function serializer.serBrk(_)
+    return "break"
+end
+
 function serializer.serBlock(ast)
     local parts = util.imap(
         ast,
-        function(elem) return serializer.serStm(elem) end)
+        function(elem)
+            return serializer.serStm(elem) end)
 
     return util.join(parts, '; ') .. '; '
 end
@@ -218,6 +224,7 @@ function serializer.serExp(ast)
     else
         print("Serializer: Node type not supported!")
         print("Node type:" .. ast.tag)
+        print(require'lua-parser.pp'.dump(ast))
         print(debug.traceback())
         os.exit(1)
     end
@@ -234,7 +241,7 @@ function serializer.serOp(ast)
     else
         -- unop
         return util.strToOpstr(ast[1])
-            .. " " .. serializer.serExp(ast[2])
+            .. " " .. "(" .. serializer.serExp(ast[2]) .. ")"
     end
 end
 

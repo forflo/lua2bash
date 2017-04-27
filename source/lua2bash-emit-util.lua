@@ -93,6 +93,8 @@ function emitUtil.emitTempVal(
     return lhsSlot
 end
 
+-- writes a simple <uniqueslot>"="<value> line and returns
+-- <uniqueslot>
 function emitUtil.emitSimpleTempVal(indent, config, lines, value)
     local lhsSlot = emitUtil.getUniqueSlot(config)
     local cmdline = emitUtil.VarAssignVal(lhsSlot, value)

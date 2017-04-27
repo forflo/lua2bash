@@ -62,28 +62,29 @@ end
 -- mainly used by the serializer functions
 function util.strToOpstr(str)
     if str == "add" then return "+"
-    elseif str == "sub" then return "-"
-    elseif str == "unm" then return "-"
-    elseif str == "mul" then return "*"
-    elseif str == "div" then return "/"
-    elseif str == "idiv" then return "//"
-    elseif str == "bor" then return "|"
-    elseif str == "shl" then return "<<"
-    elseif str == "len" then return "#"
-    elseif str == "pow" then return "^"
-    elseif str == "mod" then return "%"
-    elseif str == "band" then return "&"
+    elseif str == "sub"    then return "-"
+    elseif str == "unm"    then return "-"
+    elseif str == "mul"    then return "*"
+    elseif str == "div"    then return "/"
+    elseif str == "idiv"   then return "//"
+    elseif str == "bor"    then return "|"
+    elseif str == "shl"    then return "<<"
+    elseif str == "len"    then return "#"
+    elseif str == "pow"    then return "^"
+    elseif str == "mod"    then return "%"
+    elseif str == "band"   then return "&"
     elseif str == "concat" then return ".." -- probably special case
-    elseif str == "lt" then return "<"
-    elseif str == "not" then return str
-    elseif str == "and" then return str
-    elseif str == "or" then return str
-    elseif str == "gt" then return ">"
-    elseif str == "le" then return "<="
-    elseif str == "le" then return "<="
-    elseif str == "eq" then return "=="
+    elseif str == "lt"     then return "<"
+    elseif str == "not"    then return str
+    elseif str == "and"    then return str
+    elseif str == "or"     then return str
+    elseif str == "gt"     then return ">"
+    elseif str == "le"     then return "<="
+    elseif str == "le"     then return "<="
+    elseif str == "eq"     then return "=="
     else
         print("Serializer: Unknown operator!")
+        print(tostring(str))
         os.exit(1)
     end
 end
