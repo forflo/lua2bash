@@ -323,6 +323,26 @@ function util.nodePredicate(typ)
     end
 end
 
+function util.isExpNode(node)
+    local expTags = {
+        "Op", "Id", "True", "False", "Nil", "Number", "String", "Table",
+        "Function", "Call", "Pair", "Paren", "Index"
+    }
+    return util.exists(expTags, node.tag, util.operator.equ)
+end
+
+-- maps between lua types and the type tags used
+-- by the package lua-parser
+util.typeToType = {
+    ["number"] = "Number",
+    ["string"] = "String",
+    ["table"] = "Table",
+    ["nil"] = "Nil",
+    ["true"] = "True",
+    ["false"] = "False",
+    ["function"] = "Function"
+}
+
 function util.getUsedSymbols(ast)
     local visitor = function(astNode, env)
         env[astNode[1]] = true

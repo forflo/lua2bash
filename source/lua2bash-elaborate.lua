@@ -99,6 +99,7 @@ function elaborater.elaborateForNum(ast)
                     table.unpack(block))))
 end
 
+-- TODO: write test
 -- for var_1, ···, var_n in explist do block end
 -- translates to
 -- do
