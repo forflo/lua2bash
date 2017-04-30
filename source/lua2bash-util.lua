@@ -69,6 +69,7 @@ function util.strToOpstr(str)
     elseif str == "idiv"   then return "//"
     elseif str == "bor"    then return "|"
     elseif str == "shl"    then return "<<"
+    elseif str == "shr"    then return ">>"
     elseif str == "len"    then return "#"
     elseif str == "pow"    then return "^"
     elseif str == "mod"    then return "%"
@@ -80,10 +81,9 @@ function util.strToOpstr(str)
     elseif str == "or"     then return str
     elseif str == "gt"     then return ">"
     elseif str == "le"     then return "<="
-    elseif str == "le"     then return "<="
     elseif str == "eq"     then return "=="
     else
-        print("Serializer: Unknown operator!")
+        print("StrToOpstr: Unknown operator!")
         print(tostring(str))
         os.exit(1)
     end
@@ -345,10 +345,9 @@ function util.fillup(column)
 end
 
 function util.assertAstHasTag(node, tag, message)
-    local stdMsg = "Node has not tag type" .. tag
+    local stdMsg = "Node has not tag type: " .. tag
     message = message or stdMsg
     assert(node.tag == tag, message)
-    os.exit(1)
 end
 
 -- function composition

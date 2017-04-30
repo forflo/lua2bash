@@ -1,12 +1,14 @@
 local sC = require("lua2bash-staticChecker")
+local s = require("lua2bash-serialize-ast")
 local parser = require("lua-parser.parser")
+local pp = require("lua-parser.pp")
 local aQ = require("lua2bash-astQuery")
 
 local testcode = {
-    sE1 = "local a = - (1 + 2 * 3 - 4 % 2) < 4",
-    sE2 = "local a = 'foo' .. 'bar' .. 2 == 'foobar2' ~= 'baz'",
-    sE3 = "local a = #('foo' .. (3 // 4 / 5 * 6))",
-    sE4 = "local a = ({1,2,3,4})[1] << 11 >> 10"
+    "local a = - (1 + 2 * 3 - 4 % 2) < 4",
+    "local a = 'foo' .. 'bar' .. 2 == 'foobar2' ~= 'baz'",
+    "local a = #('foo' .. (3 // 4 / 5 * 6))",
+    "local a = ({1,2,3,4})[1] << 11 >> 10"
 }
 
 describe(
@@ -17,12 +19,13 @@ describe(
         it("tests simple expressions",
            function()
                for _, code in pairs(testcode) do
-                   local ast, errMsg = parser.parse(code)
+                   local ast, _ = parser.parse(code)
                    assert.Truthy(ast)
-                   -- better than ast[1][2][1]
-                   local walkTo = aQ.AstWalk(ast)
-                   local exp =
-                       walkTo:Statement(1):ExpList():Expression(1):unpack()
+                   local walk = aQ.AstWalk(ast)
+                   print(s.serialize(ast))
+                   print(pp.dump(ast))
+                   local exp = walk:Statement(1):ExpList():Expression(1):Node()
+                   --assert.True(sC.isStaticExp(exp))
                end
         end)
 end)

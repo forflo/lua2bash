@@ -175,7 +175,7 @@ function serializer.serRet(ast)
 end
 
 function serializer.serStm(ast)
-    if ast.tag == "Call" then return serializer.serCall(ast)
+    if ast.tag ==     "Call" then return serializer.serCall(ast)
     elseif ast.tag == "Fornum" then return serializer.serFor(ast)
     elseif ast.tag == "Local" then return serializer.serLcl(ast)
     elseif ast.tag == "Forin" then return serializer.serForIn(ast)
@@ -208,7 +208,7 @@ end
 
 -- always returns a location "string" and the result table
 function serializer.serExp(ast)
-    if ast.tag == "Op" then return serializer.serOp(ast)
+    if ast.tag ==     "Op" then return serializer.serOp(ast)
     elseif ast.tag == "Id" then return serializer.serId(ast)
     elseif ast.tag == "True" then return serializer.serTru(ast)
     elseif ast.tag == "False" then return serializer.serFal(ast)
@@ -243,6 +243,43 @@ function serializer.serOp(ast)
         return util.strToOpstr(ast[1])
             .. " " .. "(" .. serializer.serExp(ast[2]) .. ")"
     end
+end
+
+-- TODO: not complete
+serializer.tagFunMap = {
+    -- expression nodes
+    ["Op"] = serializer.serExp,
+    ["Id"] = serializer.serExp,
+    ["True"] = serializer.serExp,
+    ["False"] = serializer.serExp,
+    ["Nil"] = serializer.serExp,
+    ["Number"] = serializer.serExp,
+    ["String"] = serializer.serExp,
+    ["Table"] = serializer.serExp,
+    ["Function"] = serializer.serExp,
+    ["Call"] = serializer.serExp,
+    ["Pair"] = serializer.serExp,
+    ["Paren"] = serializer.serExp,
+    ["Index"] = serializer.serExp,
+    -- statement nodes
+    ["Call"] = serializer.serStm,
+    ["Fornum"] = serializer.serStm,
+    ["Local"] = serializer.serStm,
+    ["Forin"] = serializer.serStm,
+    ["Repeat"] = serializer.serStm,
+    ["Return"] = serializer.serStm,
+    ["Break"] = serializer.serStm,
+    ["If"] = serializer.serStm,
+    ["While"] = serializer.serStm,
+    ["Do"] = serializer.serStm,
+    ["Set"] = serializer.serStm,
+    -- entry points
+    ["Block"] = serializer.serBlock
+}
+
+function serializer.serialize(ast)
+    assert(serializer.tagFunMap[ast.tag], "tag " .. ast.tag .. " not in map")
+    return serializer.tagFunMap[ast.tag](ast)
 end
 
 function serializer.serIdx(ast)
