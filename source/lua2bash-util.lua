@@ -351,7 +351,7 @@ function util.assertAstHasTag(node, tag, message)
 end
 
 -- function composition
--- compose(fun1, fun2)("foobar") = fun1(fun2("foobar"))
+-- compose(fun1)(fun2)("foobar") = fun1(fun2("foobar"))
 function util.compose(funOuter)
     return function(funInner)
         return function(x)
@@ -360,6 +360,8 @@ function util.compose(funOuter)
     end
 end
 
+-- vararg function composition
+-- compose(fun1, fun2, ... fun_n)(x) = fun1(fun2(...fun_n(x)))
 function util.composeV(...)
     local functions = table.pack(...)
     return function(x)

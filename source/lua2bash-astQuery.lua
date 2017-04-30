@@ -20,11 +20,11 @@ function astQuery.nthExp(n, explist) return explist[n] end
 
 function astQuery.localElist(localAssign)
     util.assertAstHasTag(localAssign, "Local")
-    return localAssign[1]
+    return localAssign[2]
 end
 function astQuery.localNlist(localAssign)
     util.assertAstHasTag(localAssign, "Local")
-    return localAssign[2]
+    return localAssign[1]
 end
 
 function astQuery.Nlist(n, namelist)

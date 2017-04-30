@@ -14,7 +14,9 @@ function statcheck.isStaticTbl(ast)
     return result
 end
 
-function statcheck.isStaticPair(ast)
+function statcheck.isStaticPair(_)
+    print("NOT IMPLEMENTED YET")
+    return false
 end
 
 function statcheck.isStaticCall(ast)
@@ -72,17 +74,26 @@ function statcheck.isStaticSet(ast)
         statcheck.isStaticExplist(explist)
 end
 
+-- TODO: this currently is a dummy
+function statcheck.isStaticId(_)
+    return false
+end
+
 function statcheck.isStaticFor(ast)
     if #ast == 5 then
-        return statcheck.isStaticExp(ast[2])
+        return
+            statcheck.isStaticExp(ast[2])
             and statcheck.isStaticExp(ast[3])
             and statcheck.isStaticExp(ast[4])
             and statcheck.isStaticBlock(ast[5])
             and statcheck.isStaticId(ast[1])
-    else return statcheck.isStaticExp(ast[2])
+    else
+        return
+            statcheck.isStaticExp(ast[2])
             and statcheck.isStaticExp(ast[3])
             and statcheck.isStaticBlock(ast[5])
-            and statcheck.isStaticId(ast[1]) end
+            and statcheck.isStaticId(ast[1])
+    end
 end
 
 function statcheck.isStaticForIn(ast)
@@ -170,6 +181,15 @@ function statcheck.isStaticOp(ast)
     end
 end
 
+function statcheck.isStaticTable(ast)
+    return util.ifold(
+        ast,
+        function(fieldExp, acc)
+            return statcheck.isStaticExp(fieldExp) and acc
+        end,
+        true)
+end
+
 function statcheck.isStaticExp(ast)
     if ast.tag == "Op" then return statcheck.isStaticOp(ast)
     elseif ast.tag == "Id" then return statcheck.isStaticId(ast)
@@ -192,8 +212,8 @@ function statcheck.isStaticExp(ast)
 end
 
 function statcheck.isStaticPrefix(ast)
-    return statcheck.isStaticPrefix(ast[1])
-        .. statcheck.isStaticPrefix(ast[2])
+    return statcheck.isStaticExp(ast[1])
+        and statcheck.isStaticExp(ast[2])
 end
 
 return statcheck
