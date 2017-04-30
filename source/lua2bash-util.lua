@@ -297,8 +297,11 @@ function util.tableReverse(tab)
     return result
 end
 
--- does scope analysis tailored towards closure detection
-function util.traverser(ast, func, environment, predicate, recur)
+-- traverses a syntax tree and calls func with the current
+-- node for every node. func gets the ast and the environment
+-- func gets only called if predicate returns true for the
+-- current node
+function util.traverse(ast, func, environment, predicate, recur)
     if type(ast) ~= "table" then return end
     if predicate(ast) then
         func(ast, environment)
@@ -309,11 +312,11 @@ function util.traverser(ast, func, environment, predicate, recur)
         end
     end
     for _, v in ipairs(ast) do
-        util.traverser(v, func, environment, predicate, recur)
+        util.traverse(v, func, environment, predicate, recur)
     end
 end
 
-function util.getNodePredicate(typ)
+function util.nodePredicate(typ)
     return function(node)
         if node.tag == typ then return true
         else return false end
@@ -325,7 +328,7 @@ function util.getUsedSymbols(ast)
         env[astNode[1]] = true
     end
     local result = {}
-    util.traverser(ast, visitor, result, util.getNodePredicate("Id"), true)
+    util.traverse(ast, visitor, result, util.nodePredicate("Id"), true)
     return util.tableGetKeyset(result)
 end
 
