@@ -133,7 +133,7 @@ function statcheck.isStaticDo(ast)
     util.imap(
         ast,
         function(node)
-            result = result and statcheck.isStaticStmt(node)
+            result = result and statcheck.isStaticStm(node)
     end)
     return result
 end
@@ -160,6 +160,9 @@ function statcheck.isStaticStm(ast)
     elseif ast.tag == "While" then return statcheck.isStaticWhile(ast)
     elseif ast.tag == "Do" then return statcheck.isStaticDo(ast)
     elseif ast.tag == "Set" then return statcheck.isStaticSet(ast)
+    else
+        print("Wron node type")
+        os.exit(1)
     end
 end
 
@@ -168,7 +171,7 @@ function statcheck.isStaticBlock(ast)
     util.imap(
         ast,
         function(node)
-            result = result and statcheck.isStaticStmt(node)
+            result = result and statcheck.isStaticStm(node)
     end)
     return result
 end
@@ -215,5 +218,41 @@ function statcheck.isStaticPrefix(ast)
     return statcheck.isStaticExp(ast[1])
         and statcheck.isStaticExp(ast[2])
 end
+
+function statcheck.isStatic(ast)
+    assert(statcheck.tagFunMap[ast.tag], "Not in tag Fun Map")
+    return statcheck.tagFunMap[ast.tag](ast)
+end
+
+statcheck.tagFunMap = {
+    -- expression nodes
+    ["Op"] = statcheck.isStaticExp,
+    ["Id"] = statcheck.isStaticExp,
+    ["True"] = statcheck.isStaticExp,
+    ["False"] = statcheck.isStaticExp,
+    ["Nil"] = statcheck.isStaticExp,
+    ["Number"] = statcheck.isStaticExp,
+    ["String"] = statcheck.isStaticExp,
+    ["Table"] = statcheck.isStaticExp,
+    ["Function"] = statcheck.isStaticExp,
+    ["Call"] = statcheck.isStaticExp,
+    ["Pair"] = statcheck.isStaticExp,
+    ["Paren"] = statcheck.isStaticExp,
+    ["Index"] = statcheck.isStaticExp,
+    -- statement nodes
+    ["Call"] = statcheck.isStaticStm,
+    ["Fornum"] = statcheck.isStaticStm,
+    ["Local"] = statcheck.isStaticStm,
+    ["Forin"] = statcheck.isStaticStm,
+    ["Repeat"] = statcheck.isStaticStm,
+    ["Return"] = statcheck.isStaticStm,
+    ["Break"] = statcheck.isStaticStm,
+    ["If"] = statcheck.isStaticStm,
+    ["While"] = statcheck.isStaticStm,
+    ["Do"] = statcheck.isStaticStm,
+    ["Set"] = statcheck.isStaticStm,
+    -- entry points
+    ["Block"] = statcheck.isStaticBlock
+}
 
 return statcheck
