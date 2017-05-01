@@ -14,7 +14,7 @@ function decorator.decorate(ast)
             node.isStatic = staticChecker.isStatic(node)
         end,
         nil, -- no environment
-        util.isExpNode,
+        traverser.isExpNode,
         false) -- no recursion
     return ast
 end

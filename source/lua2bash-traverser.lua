@@ -47,7 +47,7 @@ function traverser.getUsedSymbols(ast)
         env[astNode[1]] = true
     end
     local result = {}
-    traverser.traverse(ast, visitor, result, util.nodePredicate("Id"), true)
+    traverser.traverse(ast, visitor, result, traverser.nodePredicate("Id"), true)
     return util.tableGetKeyset(result)
 end
 
