@@ -1,5 +1,4 @@
 local util = require("lua2bash-util")
-local staticChecker = require("lua2bash-staticChecker")
 local serializer = require("lua2bash-serialize-ast")
 local dbg = require("debugger")
 
@@ -8,7 +7,7 @@ local constantFolder = {}
 -- uses loadstring to evaluate terms
 
 local function foldingVisitor(node)
-    local foldable = staticChecker.isStatic(node)
+    local foldable = node.isStatic
     if foldable then
         local eval, errMsg = loadstring('return ' .. serializer.serialize(node))
         assert(eval, errMsg)
