@@ -1,4 +1,5 @@
 local datatypes = require("lua2bash-datatypes")
+local traverser = require("lua2bash-traverser")
 local util = require("lua2bash-util")
 local scope = require("lua2bash-scope")
 local serializer = require("lua2bash-serialize-ast")
@@ -217,7 +218,7 @@ end
 -- with the exception of the global scope.
 -- otherwise direct recursions would not be possible
 function emitter.snapshotEnvironment(indent, ast, config, stack, lines)
-    local usedSyms = util.getUsedSymbols(ast)
+    local usedSyms = traverser.getUsedSymbols(ast)
     local validSymbols = util.filter(
         usedSyms,
         function(sym)

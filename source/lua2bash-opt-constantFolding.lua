@@ -1,5 +1,6 @@
 local util = require("lua2bash-util")
 local serializer = require("lua2bash-serialize-ast")
+local traverser = require("lua2bash-traverser")
 local dbg = require("debugger")
 
 local constantFolder = {}
@@ -29,7 +30,7 @@ local function foldingVisitor(node)
 end
 
 function constantFolder.foldConst(root)
-    util.traverse(root, foldingVisitor, nil, util.isExpNode, false)
+    traverser.traverse(root, foldingVisitor, nil, util.isExpNode, false)
     return root
 end
 

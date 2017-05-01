@@ -167,7 +167,8 @@ util.operator = {
         add = function(x, y) return x + y end,
         sub = function(x, y) return x - y end,
         equ = function(x, y) return x == y end,
-        neq = function(x, y) return x ~= y end
+        neq = function(x, y) return x ~= y end,
+        logAnd = function(x, y) return x and y end
 }
 
 function util.exists(tbl, value, comparator)
@@ -297,40 +298,6 @@ function util.tableReverse(tab)
     return result
 end
 
--- traverses a syntax tree and calls func with the current
--- node for every node. func gets the ast and the environment
--- func gets only called if predicate returns true for the
--- current node
-function util.traverse(ast, func, environment, predicate, recur)
-    if type(ast) ~= "table" then return end
-    if predicate(ast) then
-        func(ast, environment)
-        -- don't traverse this subtree.
-        -- the function func takes care of that
-        if not (recur) then
-            return
-        end
-    end
-    for _, v in ipairs(ast) do
-        util.traverse(v, func, environment, predicate, recur)
-    end
-end
-
-function util.nodePredicate(typ)
-    return function(node)
-        if node.tag == typ then return true
-        else return false end
-    end
-end
-
-function util.isExpNode(node)
-    local expTags = {
-        "Op", "Id", "True", "False", "Nil", "Number", "String", "Table",
-        "Function", "Call", "Pair", "Paren", "Index"
-    }
-    return util.exists(expTags, node.tag, util.operator.equ)
-end
-
 -- maps between lua types and the type tags used
 -- by the package lua-parser
 util.typeToType = {
@@ -342,15 +309,6 @@ util.typeToType = {
     ["false"] = "False",
     ["function"] = "Function"
 }
-
-function util.getUsedSymbols(ast)
-    local visitor = function(astNode, env)
-        env[astNode[1]] = true
-    end
-    local result = {}
-    util.traverse(ast, visitor, result, util.nodePredicate("Id"), true)
-    return util.tableGetKeyset(result)
-end
 
 -- currying just for fun
 function util.fillup(column)

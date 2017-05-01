@@ -1,4 +1,5 @@
 local util = require("lua2bash-util")
+local dbg = require("debugger")
 -- this module implements a predicate function
 -- which can be used to determine whether an AST
 -- can be statically evaluated
@@ -22,14 +23,14 @@ end
 function statcheck.isStaticCall(ast)
     local prefixExpr = ast[1]
     local arguments = util.tableSlice(ast, 2, #ast, 1)
-    return statcheck.isStaticPrefix(prefixExpr) and
+    --dbg()
+    return statcheck.isStaticExp(prefixExpr) and
         util.ifold(
             util.imap(
                 arguments,
                 function(exp)
                     return statcheck.isStaticExp(exp) end),
-            function(b, acc)
-                return acc and b end,
+            util.operator.logAnd,
             true)
 end
 

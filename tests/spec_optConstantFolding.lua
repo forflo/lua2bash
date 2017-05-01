@@ -2,6 +2,7 @@ local sC = require("lua2bash-staticChecker")
 local parser = require("lua-parser.parser")
 local aQ = require("lua2bash-astQuery")
 local f = require("lua2bash-opt-constantFolding")
+local d = require("lua2bash-decorateAst")
 
 local statements =
 "local a = - (1 + 2 * 3 - 4 % 2) < 4;" ..
@@ -22,13 +23,15 @@ local loop = [[
 describe(
     "constant folding test",
     function()
-        randomize(true)
+        randomize(false)
 
         it("tests constant folding inside loops",
            function()
                local ast, _ = parser.parse(loop)
                assert.Truthy(ast)
-               local folded = f.foldConst(ast)
+               local decorated = d.decorate(ast)
+               assert.Truthy(decorated)
+               local folded = f.foldConst(decorated)
         end)
 
         it("tests simple statement list AST ",
@@ -41,7 +44,9 @@ describe(
                    { tag = "Number", pos = -1, [1] = 2 },
                }
                assert.Truthy(ast)
-               local folded = f.foldConst(ast)
+               local decorated = d.decorate(ast)
+               assert.Truthy(decorated)
+               local folded = f.foldConst(decorated)
                assert.Truthy(folded)
                for i = 1, #statementsResults do
                    assert.are.same(
