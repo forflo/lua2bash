@@ -30,7 +30,7 @@ local function foldingVisitor(node)
 end
 
 function constantFolder.foldConst(root)
-    traverser.traverse(root, foldingVisitor, nil, traverser.isExpNode, false)
+    traverser.traverse(root, foldingVisitor, traverser.isExpNode, false)
     return root
 end
 

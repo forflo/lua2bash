@@ -7,11 +7,12 @@ local traverser = {}
 -- node for every node. func gets the ast and the environment.
 -- func will only called if predicate returns true for the
 -- current node
-function traverser.traverse(ast, func, environment, predicate, recur, parentStack)
+function traverser.traverseWorker(
+        ast, func, predicate, recur, parentStack)
     parentStack = parentStack or datastructs.Stack()
     if type(ast) ~= "table" then return end
     if predicate(ast) then
-        func(ast, environment, parentStack)
+        func(ast, parentStack)
         -- don't traverse this subtree.
         -- the function func takes care of that
         if not recur then
@@ -20,11 +21,15 @@ function traverser.traverse(ast, func, environment, predicate, recur, parentStac
     end
     for _, node in ipairs(ast) do
         parentStack:push(ast)
-        traverser.traverse(
-            node, func, environment,
-            predicate, recur, parentStack)
+        traverser.traverse(node, func, predicate, recur, parentStack)
         parentStack:pop()
     end
+end
+
+function traverser.traverse(
+        ast, func, targetPredicate, recurOnTrue)
+    traverser.traverseWorker(ast, func, targetPredicate, recurOnTrue, nil)
+    return ast
 end
 
 function traverser.nodePredicate(typ)
@@ -43,11 +48,12 @@ function traverser.isExpNode(node)
 end
 
 function traverser.getUsedSymbols(ast)
-    local visitor = function(astNode, env)
-        env[astNode[1]] = true
-    end
     local result = {}
-    traverser.traverse(ast, visitor, result, traverser.nodePredicate("Id"), true)
+    local visitor = function(astNode, _)
+        local varName = astNode[1]
+        result[varName] = true
+    end
+    traverser.traverse(ast, visitor, traverser.nodePredicate("Id"), true)
     return util.tableGetKeyset(result)
 end
 

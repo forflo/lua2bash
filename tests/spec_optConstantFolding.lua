@@ -32,6 +32,8 @@ describe(
                local decorated = d.decorate(ast)
                assert.Truthy(decorated)
                local folded = f.foldConst(decorated)
+               assert.Truthy(folded)
+
         end)
 
         it("tests simple statement list AST ",
