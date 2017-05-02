@@ -21,6 +21,9 @@ function decorator.decorate(ast)
         traverser.isExpNode,
         false) -- no recursion
 
+    -- adds the field local assignments to each block node
+
+
     return ast
 end
 

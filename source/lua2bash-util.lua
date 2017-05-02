@@ -310,7 +310,7 @@ util.typeToType = {
     ["function"] = "Function"
 }
 
-function util.isStatementNode(node)
+function util.isStmtNode(node)
     local stmtTags = {
         "Call", "Fornum", "Local", "Forin", "Repeat",
         "Return", "Break", "If", "While", "Do", "Set"
