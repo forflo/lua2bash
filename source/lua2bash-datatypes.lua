@@ -207,4 +207,32 @@ function datatypes.Stack()
     return t
 end
 
+function datatypes.CompileTimeScope()
+    -- TODO:
+end
+
+function datatypes.SpaghettiStack(
+        parentSS, localAssigns, assigns, reason)
+    local t = {}
+    t._parent = parent
+    t._localAssigns = localAssigns
+    t._assigns = assigns
+    t._reason = reason
+    t._childs = {}
+
+    function t:addChild(childStack)
+        self._scopes[#self._scopes + 1] = scope
+    end
+    function t:nThScope(n)
+        return self._scopes[n]
+    end
+
+    function t:parent()
+        return self._parent
+    end
+
+    setmetatable(t, datatypes.commonMtab)
+    return t
+end
+
 return datatypes

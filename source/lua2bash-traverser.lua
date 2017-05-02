@@ -26,10 +26,36 @@ function traverser.traverseWorker(
     end
 end
 
+-- regular top down traversal
 function traverser.traverse(
         ast, func, targetPredicate, recurOnTrue)
     traverser.traverseWorker(ast, func, targetPredicate, recurOnTrue, nil)
     return ast
+end
+
+-- depth first traversal
+-- @func - the function to call if predicate(<currentNode>) is true
+--     Gets called with <currentNode> and with the result of @joinFunc
+-- @joinFunc - The traverser always calls itself recursively on all
+--     nested tables (if any) before it calles @func.
+--     Thus, for n nested tables inside @ast, there are n results
+--     from the recursion itself. @joinFunc provides a means to join
+--     those results before they get passed to @func
+function traverser.traverseBottomUp(
+        ast, func, predicate, joinFunc)
+    joinFunc = joinFunc or util.identity
+    local recursionResult
+    if type(ast) ~= "table" then return ast end
+    recursionResult = util.imap(
+        ast,
+        function(node)
+            return traverser.traverseBottomUp(
+                node, func, predicate, joinFunc) end)
+    if predicate(ast) then
+        return func(ast, joinFunc(recursionResult))
+    else
+        return nil
+    end
 end
 
 function traverser.nodePredicate(typ)

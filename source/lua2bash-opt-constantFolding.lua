@@ -13,7 +13,7 @@ local function foldingVisitor(node)
         local eval, errMsg = loadstring('return ' .. serializer.serialize(node))
         assert(eval, errMsg)
         local result = eval()
-        -- delete all previous childs
+        -- delete all tags and previous childs
         --dbg()
         for k, _ in pairs(node) do
             node[k] = nil
@@ -30,8 +30,32 @@ local function foldingVisitor(node)
 end
 
 function constantFolder.foldConst(root)
-    traverser.traverse(root, foldingVisitor, traverser.isExpNode, false)
+    traverser.traverse(root, foldingVisitor, util.isExpNode, false)
     return root
+end
+
+local function propagateVisitor(node, _)
+    assert(node.localAssignments, "AST decoration is missing: localAssigns")
+    assert(node.globalAssignments, "AST decoration is missing: globAssigns")
+
+end
+
+-- This constant propagation algorithm works in one go even for
+-- more complicated cascading constants such as:
+----
+-- local a=3
+-- do
+--   local b=a
+--   do
+--     local u, c = foo.a, b
+--     print(c) -- c will become 3
+--   end
+-- end
+----
+-- However, it must be repeated every time after constant folding
+-- happens because only this might cause new constants to appear
+function constantFolder.propagate(root)
+    traverser.traverse(root, propagateVisitor, util.isBlockNode, true)
 end
 
 return constantFolder

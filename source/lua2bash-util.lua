@@ -136,6 +136,8 @@ function util.map(tbl, func)
     return result
 end
 
+-- Note that if func returns nil, LUA's table semantic leads to
+-- no additional field being added to the resulting map
 function util.imap(tbl, func)
     local result = {}
     for _, v in ipairs(tbl) do
@@ -144,14 +146,29 @@ function util.imap(tbl, func)
     return result
 end
 
+-- The identity function
+function util.identity(x) return x end
+
 function util.join(strings, char)
-    if #strings == 0 then return "" end
+    if not strings or #strings == 0 then return "" end
     local result = strings[1]
     if #strings == 1 then return strings[1] end
     for i=2, #strings do
         result = result .. char .. strings[i]
     end
     return result
+end
+
+function util.bind(argument, func)
+    return function(...)
+        return func(argument, ...)
+    end
+end
+
+function util.flip(func)
+    return function(left, right)
+        return func(right, left)
+    end
 end
 
 function util.getCounter(increment)
@@ -309,6 +326,10 @@ util.typeToType = {
     ["false"] = "False",
     ["function"] = "Function"
 }
+
+function util.isNode(node)
+    return node.tag ~= nil
+end
 
 function util.isStmtNode(node)
     local stmtTags = {
