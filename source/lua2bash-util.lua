@@ -310,6 +310,35 @@ util.typeToType = {
     ["function"] = "Function"
 }
 
+function util.isStatementNode(node)
+    local stmtTags = {
+        "Call", "Fornum", "Local", "Forin", "Repeat",
+        "Return", "Break", "If", "While", "Do", "Set"
+    }
+
+    return util.exists(stmtTags, node.tag, util.operator.equ)
+end
+
+function util.isBlockNode(node)
+    return util.exists({"Block", "Do"}, node.tag, util.operator.equ)
+end
+
+function util.isExpNode(node)
+    local expTags = {
+        "Op", "Id", "True", "False", "Nil", "Number", "String", "Table",
+        "Function", "Call", "Pair", "Paren", "Index"
+    }
+    return util.exists(expTags, node.tag, util.operator.equ)
+end
+
+function util.isConstantNode(node)
+    local constTags = {
+        "True", "False", "Number",
+        "Nil", "String"
+    }
+    return util.exists(constTags, node.tag. util.operator.equ)
+end
+
 -- currying just for fun
 function util.fillup(column)
     return function(str)

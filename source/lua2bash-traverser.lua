@@ -39,14 +39,6 @@ function traverser.nodePredicate(typ)
     end
 end
 
-function traverser.isExpNode(node)
-    local expTags = {
-        "Op", "Id", "True", "False", "Nil", "Number", "String", "Table",
-        "Function", "Call", "Pair", "Paren", "Index"
-    }
-    return util.exists(expTags, node.tag, util.operator.equ)
-end
-
 function traverser.getUsedSymbols(ast)
     local result = {}
     local visitor = function(astNode, _)

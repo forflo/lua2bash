@@ -10,12 +10,19 @@ function decorator.decorate(ast)
     -- value be determined by the isStatic predicate
     traverser.traverse(
         ast,
-        function(node)
+        function(node, _)
+            -- we can safely ignore the fact that this might also
+            -- be run on call nodes that are mere statements
+            -- it is left to the static checker to decide
+            -- whether those calls have side effects or not.
+            -- In case of a side effect, the calls will remain untouched
             node.isStatic = staticChecker.isStatic(node)
         end,
         traverser.isExpNode,
         false) -- no recursion
+
     return ast
 end
+
 
 return decorator
