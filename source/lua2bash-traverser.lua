@@ -9,7 +9,6 @@ local traverser = {}
 -- current node
 function traverser.traverseWorker(
         ast, func, predicate, recur, parentStack)
-    parentStack = parentStack or datastructs.Stack()
     if type(ast) ~= "table" then return end
     if predicate(ast) then
         func(ast, parentStack)
@@ -21,7 +20,8 @@ function traverser.traverseWorker(
     end
     for _, node in ipairs(ast) do
         parentStack:push(ast)
-        traverser.traverse(node, func, predicate, recur, parentStack)
+        traverser.traverseWorker(
+            node, func, predicate, recur, parentStack)
         parentStack:pop()
     end
 end
@@ -29,7 +29,9 @@ end
 -- regular top down traversal
 function traverser.traverse(
         ast, func, targetPredicate, recurOnTrue)
-    traverser.traverseWorker(ast, func, targetPredicate, recurOnTrue, nil)
+    traverser.traverseWorker(
+        ast, func, targetPredicate, recurOnTrue,
+        datastructs.Stack())
     return ast
 end
 

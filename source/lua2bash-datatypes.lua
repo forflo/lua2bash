@@ -153,6 +153,7 @@ function datatypes.Stack()
                 table.insert(self._et, v)
             end
         end
+        return self
     end
 
     -- pop a value from the stack
@@ -189,6 +190,10 @@ function datatypes.Stack()
         return self._et[#self._et]
     end
 
+    function t:genericIIterator()
+        return datatypes.GenericIIterator(self._et)
+    end
+
     function t:bottom()
         if self._et[1] then return self._et[1]
         else return nil end
@@ -203,6 +208,38 @@ function datatypes.Stack()
         return #self._et
     end
 
+    setmetatable(t, datatypes.commonMtab)
+    return t
+end
+
+function datatypes.GenericIIterator(tbl)
+    local t = {}
+    t._tbl = tbl
+    t._currentIdx = 0
+    function t:advance(n)
+        assert((n + self._currentIdx) >= 0
+                and (n + self._currentIdx) <= self._length,
+            "Invalid andvance count")
+        self._currentIdx = self._currentIdx + n
+        return self
+    end
+    -- common functions
+    function t:currentObj()
+        return self._tbl[self._currentIdx]
+    end
+    function t:currentIdx()
+        return self._currentIdx
+    end
+    function t:length()
+        return #self._tbl
+    end
+    -- iterator conversions
+    function t:IIterator()
+        return util.statefulIIterator(self._tbl)
+    end
+    function t:reverseIIterator()
+        return util.reverseIIterator(self._tbl)
+    end
     setmetatable(t, datatypes.commonMtab)
     return t
 end

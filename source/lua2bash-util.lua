@@ -206,6 +206,10 @@ function util.zipI(left, right)
     return result
 end
 
+function util.zipIWith(left, func, right)
+    
+end
+
 function util.addLine(indent, lines, line, comment)
     lines[#lines + 1] = util.augmentLine(indent, line, comment)
 end
@@ -254,6 +258,14 @@ function util.statefulIIterator(tbl)
     local index = 0
     return function()
         index = index + 1
+        return tbl[index]
+    end
+end
+
+function util.reverseIIterator(tbl)
+    local index = #tbl + 1
+    return function()
+        index = index - 1
         return tbl[index]
     end
 end

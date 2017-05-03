@@ -68,26 +68,17 @@ function decorator.decorate(ast)
     return ast
 end
 
+function decorator.decorateWithPaths(ast)
+    traverser.traverse(
+        ast,
+        function() end,
+        function(_) return true end,
+        true)
+end
+
 
 function decorator.makeScopeTree(ast)
-    local localAssignments =
-        util.imap(
-            ast,
-            function(statement)
-                if statement.tag == "Local" then
-                    return statement
-                else
-                    return nil
-        end end)
-    local assignments =
-        util.imap(
-            ast,
-            function(statement)
-                if statement.tag == "Set" then
-                    return statement
-                else
-                    return nil
-        end end)
+    local d = decorator
     local spaghettiStack
     traverser.traverse(
         ast,
@@ -95,14 +86,15 @@ function decorator.makeScopeTree(ast)
             -- start
             if node == ast then
                 spaghettiStack = datastructs.SpaghettiStack(
-                    nil, localAssignments, assignments, "Block")
+                    nil, d.localAssignments(ast),
+                    d.assignments(ast), "Block")
                 return
             end
 
             if util.isBlockNode(node) then
                 local tempStack = datastructs.SpaghettiStack(
-                    spaghettiStack, localAssignments(node),
-                    assignments(node), "Block")
+                    spaghettiStack, d.localAssignments(node),
+                    d.assignments(node), "Block")
                 spaghettiStack = tempStack
             else
 
@@ -112,6 +104,28 @@ function decorator.makeScopeTree(ast)
         true)
 end
 
+function decorator.localAssignments(ast)
+    return
+        util.imap(
+            ast,
+            function(statement)
+                if statement.tag == "Local" then
+                    return statement
+                else
+                    return nil
+        end end)
+end
 
+function decorator.assignments(ast)
+    return
+        util.imap(
+            ast,
+            function(statement)
+                if statement.tag == "Set" then
+                    return statement
+                else
+                    return nil
+        end end)
+end
 
 return decorator

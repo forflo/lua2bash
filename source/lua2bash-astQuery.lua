@@ -7,7 +7,7 @@ function astQuery.firstNodeOfType()
 end
 
 function astQuery.nthStatement(n, block)
-    util.assertAstHasTag(block, "Block")
+    assert(util.isBlockNode(block), "Is no Block node!")
     return block[n]
 end
 
@@ -36,6 +36,12 @@ function astQuery.Elist(n, explist)
     return explist[n]
 end
 
+function astQuery.nthParameter(n, call)
+    util.assertAstHasTag(call, "Call")
+    assert(#call >= n, "Parameter does not exist")
+    return call[n]
+end
+
 function astQuery.AstWalk(ast)
     local t = {}
     t._node = ast
@@ -44,6 +50,11 @@ function astQuery.AstWalk(ast)
     function t:Statement(n)
         return self:setNode(
             astQuery.nthStatement(
+                n, t:currentNode()))
+    end
+    function t:Parameter(n)
+        return self:setNode(
+            astQuery.nthParameter(
                 n, t:currentNode()))
     end
     function t:ExpList()
