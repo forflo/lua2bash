@@ -206,8 +206,23 @@ function util.zipI(left, right)
     return result
 end
 
+function util.zipIteratorWith(iterL, func, iterR)
+    local result, tLeft, tRight = {}
+    repeat
+        tLeft, tRight = iterL(), iterR()
+        result[#result + 1] = func(tLeft, tRight)
+    until (tLeft and tRight)
+    return result
+end
+
 function util.zipIWith(left, func, right)
-    
+    if (left == nil or right == nil) then return nil end
+    if #left ~= #right then return nil end
+    local result = {}
+    for i = 1, #left do
+        result[i] = func(left[i], right[i])
+    end
+    return result
 end
 
 function util.addLine(indent, lines, line, comment)

@@ -27,15 +27,16 @@ describe(
                    assert.Truthy(parentStack)
                    assert.True(parentStack:getn() > 0)
                    local walk = astQuery.AstWalk(ast)
-                   assert.are.same(
-                       parentStack,
-                       -- build up the stack as it should be at this moment
+                   util.zipIteratorWith(
+                       parentStack:genericIIterator(),
+                       assert.are.same,
                        datastructs.Stack()
                            :push(walk:Node())
                            -- implicit block surrounding the AST
                            :push(walk:Statement(1):Node())
                            :push(walk:Statement(2):Node())
-                           :push(walk:Statement(1):Node()))
+                           :push(walk:Statement(1):Node())
+                           :genericIIterator())
                end
                traverser.traverse(
                    ast, visitor, traverser.nodePredicate('Op'), false)
