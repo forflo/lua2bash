@@ -10,6 +10,17 @@ describe(
     function()
         randomize(true)
 
+        -- TODO: transfer into spec_util
+        it("tests whether deep copy works",
+           function()
+               local t1 = {1, {2, 3, {4, 5, {6, 7}}}}
+               local t2 = {a = 1, b = 2, c = { t1 }}
+               local t1cpy = util.tableDeepCopy(t1)
+               local t2cpy = util.tableDeepCopy(t2)
+               assert.are.same(t1, t1cpy)
+               assert.are.same(t2, t2cpy)
+        end)
+
         it("tests the normal top down traverser",
            function()
                -- smoke test
@@ -28,7 +39,7 @@ describe(
                    assert.True(parentStack:getn() > 0)
                    local walk = astQuery.AstWalk(ast)
                    util.zipIteratorWith(
-                       parentStack:genericIIterator(),
+                       parentStack:genericIIterator():IIterator(),
                        assert.are.same,
                        datastructs.Stack()
                            :push(walk:Node())
@@ -36,7 +47,8 @@ describe(
                            :push(walk:Statement(1):Node())
                            :push(walk:Statement(2):Node())
                            :push(walk:Statement(1):Node())
-                           :genericIIterator())
+                           :genericIIterator()
+                           :IIterator())
                end
                traverser.traverse(
                    ast, visitor, traverser.nodePredicate('Op'), false)

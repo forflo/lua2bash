@@ -208,10 +208,12 @@ end
 
 function util.zipIteratorWith(iterL, func, iterR)
     local result, tLeft, tRight = {}
-    repeat
         tLeft, tRight = iterL(), iterR()
+    while (tLeft and tRight) do
         result[#result + 1] = func(tLeft, tRight)
-    until (tLeft and tRight)
+        --print(tLeft, tRight)
+        tLeft, tRight = iterL(), iterR()
+    end
     return result
 end
 
@@ -243,6 +245,18 @@ function util.tableFullAdd(left, right)
     local result = {}
     for _, v in pairs(left) do result[#result + 1] = v end
     for _, v in pairs(right) do result[#result + 1] = v end
+    return result
+end
+
+function util.tableDeepCopy(tbl)
+    local result = {}
+    for k, v in pairs(tbl) do
+        if type(v) ~= "table" then
+            result[k] = v
+        else
+            result[k] = util.tableDeepCopy(v)
+        end
+    end
     return result
 end
 
