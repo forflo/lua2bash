@@ -194,6 +194,10 @@ function datatypes.Stack()
         return datatypes.GenericIIterator(self._et)
     end
 
+    function t:deepCopy()
+        return util.tableDeepCopy(self)
+    end
+
     function t:bottom()
         if self._et[1] then return self._et[1]
         else return nil end
@@ -215,10 +219,10 @@ end
 function datatypes.GenericIIterator(tbl)
     local t = {}
     t._tbl = tbl
-    t._currentIdx = 0
+    t._currentIdx = 1
     function t:advance(n)
         assert((n + self._currentIdx) >= 0
-                and (n + self._currentIdx) <= self._length,
+                and (n + self._currentIdx) <= self:length(),
             "Invalid andvance count")
         self._currentIdx = self._currentIdx + n
         return self
@@ -233,6 +237,8 @@ function datatypes.GenericIIterator(tbl)
     function t:length()
         return #self._tbl
     end
+    function t:setMin() self._currentIdx = 1; return self end
+    function t:setMax() self._currentIdx = self:length(); return self end
     -- iterator conversions
     function t:IIterator()
         return util.statefulIIterator(self._tbl)

@@ -21,6 +21,34 @@ describe(
                assert.are.same(t2, t2cpy)
         end)
 
+        -- TODO: tranver into spec_astQuery
+        it("tests whether ast path works",
+           function()
+               local code =
+               [[do
+                   local a=1;
+                   do
+                       print(1 * 3)
+                   end; end]]
+               local ast, _ = parser.parse(code)
+               assert.Truthy(ast)
+
+               local visitor = function(node, parentStack)
+                   assert.Truthy(node)
+                   assert.Truthy(parentStack)
+                   assert.True(parentStack:getn() > 0)
+                   local path = astQuery.AstPath():initByStack(parentStack)
+                   local walk = astQuery.AstWalk(ast)
+                   assert.Truthy(path)
+                   assert.True(path:depth() == 4)
+                   assert.are.same(path:goTop():Node(), walk:Node())
+                   assert.are.same(path:goDown():Node(), walk:Statement(1):Node())
+                   assert.are.same(path:goDown():Node(), walk:Statement(2):Node())
+               end
+               traverser.traverse(
+                   ast, visitor, traverser.nodePredicate('Op'), false)
+        end)
+
         it("tests the normal top down traverser",
            function()
                -- smoke test
