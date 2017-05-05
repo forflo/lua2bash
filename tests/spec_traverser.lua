@@ -2,6 +2,7 @@ local astQuery = require("lua2bash-astQuery")
 local parser = require("lua-parser.parser")
 --local dbg = require("debugger")
 local util = require("lua2bash-util")
+local decorator = require("lua2bash-decorateAst")
 local traverser = require("lua2bash-traverser")
 local datastructs = require("lua2bash-datatypes")
 
@@ -19,6 +20,45 @@ describe(
                local t2cpy = util.tableDeepCopy(t2)
                assert.are.same(t1, t1cpy)
                assert.are.same(t2, t2cpy)
+        end)
+
+        it("tests creation of a simple spaghetti tree",
+           function()
+               local scopes =
+               [[do
+                   local a = 1;
+                   do
+                     local b = a;
+                   end;
+                   do
+                     local c = a;
+                     a = a + 1;
+                     print(1 * 3) end; end]]
+               local ast, _ = parser.parse(scopes)
+               local counter, scopeTrees = 0, {}
+               assert.Truthy(ast)
+               traverser.traverse(
+                   ast,
+                   function(block, _)
+                       local scopeTree =
+                           traverser.traverseBottomUp(
+                               block,
+                               function(_, bottomResults)
+                                   return { table.unpack(bottomResults) }
+                               end,
+                               util.isBlockNode)
+                       counter = counter + 1 -- just for assertion
+                       scopeTrees[#scopeTrees + 1] =
+                           require'ml'.tstring(scopeTree)
+                       block.scopeTree = scopeTree
+                   end,
+                   util.isBlockNode,
+                   true)
+               assert.Truthy(ast)
+               assert.True(counter == 4)
+               assert.are.same(
+                   util.join(scopeTrees, ''),
+                   "{{{},{}}}{{},{}}{}{}")
         end)
 
         -- TODO: tranver into spec_astQuery

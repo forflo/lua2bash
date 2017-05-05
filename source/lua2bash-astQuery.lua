@@ -101,7 +101,7 @@ end
 -- AST more easily withough having to think about whether to increment
 -- the stack index by one or decrementing it by one in order to go up or down.
 function astQuery.AstPath()
-    local t = {}
+    local t = { }
     t._genericIterator = nil
     function t:initByStack(parentStack)
         self._genericIterator = parentStack:deepCopy():genericIIterator()

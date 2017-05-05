@@ -1,11 +1,20 @@
 local util = require("lua2bash-util")
 local traverser = require("lua2bash-traverser")
 local staticChecker = require("lua2bash-staticChecker")
-local datastructs = require("lua2bash-")
+local datastructs = require("lua2bash-datatypes")
+local astQuery = require("lua2bash-astQuery")
 
 local decorator = {}
 
 function decorator.decorate(ast)
+
+    decorator.decorateWithStatic(ast)
+    decorator.decorateWithPaths(ast)
+
+    return ast
+end
+
+function decorator.decorateWithStatic(ast)
     -- every root expression sub-AST shall be decorated
     -- by an additional attribute called isStatic whose
     -- value be determined by the isStatic predicate
@@ -21,89 +30,50 @@ function decorator.decorate(ast)
         end,
         util.isExpNode,
         false) -- no recursion
-
-    -- adds the field local assignments to each block node
-    traverser.traverse(
-        ast,
-        function(block, _)
-            local localAssignments =
-                util.imap(
-                    block,
-                    function(statement)
-                        if statement.tag == "Local" then
-                            return statement
-                        else
-                            return nil
-                        end
-                end)
-            local globalAssignments =
-                util.imap(
-                    block,
-                    function(statement)
-                        if statement.tag == "Set" then
-                            return statement
-                        else
-                            return nil
-                        end
-                    end)
-            block.localAssignments = localAssignments
-            block.globalAssignments = globalAssignments
-        end,
-        util.isBlockNode,
-        false)
-
-    -- Determines constants
-    -- complexity of this call probably O(n^2). Not good, but
-    -- simple and I don't care about performance here
-
-    traverser.traverse(
-        ast,
-        function(block, _)
-            assert(block.localAssignments, "Block misses decoration: localAssign")
-            local localAssigns = block.localAssignments
-        end,
-        util.isBlockNode,
-        true)
-
-    return ast
 end
 
 function decorator.decorateWithPaths(ast)
     traverser.traverse(
         ast,
-        function() end,
+        function(node, parentStack)
+            node.path = astQuery.AstPath():initByStack(parentStack)
+        end,
         function(_) return true end,
         true)
 end
 
-
-function decorator.makeScopeTree(ast)
-    local d = decorator
-    local spaghettiStack
+-- TODO: This is very inefficient (O(n^2)). Make it linear
+-- with respect to time and storage!
+-- Decorates with scopeTrees aka spaghetti trees
+-- but precalculated
+-- depends on decorator.decorateWithPaths
+function decorator.decorateWithScopeTrees(ast)
     traverser.traverse(
         ast,
-        function(node, _)
-            -- start
-            if node == ast then
-                spaghettiStack = datastructs.SpaghettiStack(
-                    nil, d.localAssignments(ast),
-                    d.assignments(ast), "Block")
-                return
-            end
-
-            if util.isBlockNode(node) then
-                local tempStack = datastructs.SpaghettiStack(
-                    spaghettiStack, d.localAssignments(node),
-                    d.assignments(node), "Block")
-                spaghettiStack = tempStack
-            else
-
-            end
+        function(block, _)
+            -- TODO: are these lines really unnecessary
+            -- local temp = astQuery.AstPath(parentStack)
+            -- local immediateParent = temp:goBottom():Node()
+            local scopeTree =
+                traverser.traverseBottomUp(
+                    block,
+                    function(b, bottomResults)
+                        return {
+                            localAssigns = decorator.localAssignments(b),
+                            globalAssigns = decorator.assignments(b),
+                            table.unpack(bottomResults)
+                        }
+                    end,
+                    util.isBlockNode,
+                    util.identity)
+            -- scopeTree.scopeReason = immediateParent.tag
+            block.scopeTree = scopeTree
         end,
-        util.isNode,
+        util.isBlockNode,
         true)
 end
 
+-- non-recursive
 function decorator.localAssignments(ast)
     return
         util.imap(
@@ -116,6 +86,7 @@ function decorator.localAssignments(ast)
         end end)
 end
 
+-- non-recursive
 function decorator.assignments(ast)
     return
         util.imap(
