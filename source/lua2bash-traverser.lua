@@ -8,12 +8,11 @@ local traverser = {}
 -- func will only called if predicate returns true for the
 -- current node
 function traverser.traverseWorker(
-        ast, func, predicate, recur,
-        terminator, parentStack)
-    local nodeIterator = util.statefulIIterator(ast)
-    local node, cont = nodeIterator(), true
+        ast, func, predicate, recur, parentStack, terminator)
     if type(ast) ~= "table" then return true end
     if terminator(ast) then return false end
+    local nodeIterator = util.statefulIIterator(ast)
+    local node, cont = nodeIterator(), true
     if predicate(ast) then
         func(ast, parentStack)
         -- don't traverse this subtree.
@@ -25,20 +24,19 @@ function traverser.traverseWorker(
     while node ~= nil and cont do
         parentStack:push(ast)
         cont = traverser.traverseWorker(
-            node, func, predicate, recur, terminator, parentStack)
+            node, func, predicate, recur, parentStack, terminator)
         parentStack:pop()
         node = nodeIterator()
     end
+    return true
 end
 
 -- regular top down traversal
--- if terminator returns true for a given node, the
--- recursion on that node does not continue
-function traverser.traverse(ast, func, targetPredicate, recurOnTrue, terminator)
+function traverser.traverse(ast, func, targetPredicate, recurOnTrue)
+    local defaultTerminator = util.bind(false, util.identity)
     traverser.traverseWorker(
         ast, func, targetPredicate, recurOnTrue,
-        terminator or util.bind(false, util.identity),
-        datastructs.Stack())
+        datastructs.Stack(), defaultTerminator)
     return ast
 end
 
