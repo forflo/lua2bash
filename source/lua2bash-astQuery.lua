@@ -210,7 +210,7 @@ function astQuery.treeQuery(ast)
     end
 
     function t.isNthSibling(n)
-        return function(_ , _, siblingNumberStack)
+        return function(_, _, siblingNumberStack)
             return siblingNumberStack:top() == n
         end
     end
@@ -228,6 +228,81 @@ function astQuery.treeQuery(ast)
             local newParentStack = parentStack:copyPop()
             local newSiblingStack = siblingNumberStack:copyPop()
             return predicate(immediateParent, newParentStack, newSiblingStack)
+        end
+    end
+
+    function t.nthSibling(n, predicate)
+        return function(_, parentStack, siblingNumStack)
+            local immediateParent = parentStack:top()
+            assert(immediateParent[n], 'Sibling does not exist: '
+                       .. immediateParent.tag .. " " .. n)
+            local sibling = immediateParent[n]
+            local newNumStack = siblingNumStack:copyPop()
+            return predicate(sibling, parentStack, newNumStack:push(n))
+        end
+    end
+
+    function t.forallLeftSibling(predicate)
+        return function(node, parentStack, siblingNumStack)
+            local currentSiblingNum = siblingNumStack:top()
+            return t.forallSiblingsBetween(
+                predicate, 1, currentSiblingNum - 1)
+            (node, parentStack, siblingNumStack)
+        end
+    end
+
+    function t.forallSiblingsBetween(predicate, from, to)
+        return function(node, parentStack, siblingNumStack)
+            assert(from >= 0 and to <= #parentStack:top(),
+                   "Invalid boundaries. Sibling count is: " .. #parentStack:top())
+            local result = true
+            for i = from, to do
+                result = result and t.nthSibling(
+                    i, predicate)(node, parentStack, siblingNumStack)
+            end
+            return result
+        end
+    end
+
+    function t.existsSiblingsBetween(predicate, from, to)
+        return function(node, parentStack, siblingNumStack)
+            assert(from >= 0 and to <= #parentStack:top(),
+                   "Invalid boundaries. Sibling count is: " .. #parentStack:top())
+            local result = false
+            for i = from, to do
+                result = result or t.nthSibling(
+                    i, predicate)(node, parentStack, siblingNumStack)
+            end
+            return result
+        end
+    end
+
+    function t.forallRightSiblings(predicate)
+        return function(node, parentStack, siblingNumStack)
+            local currentSiblingNum = siblingNumStack:top()
+            local maxSiblingNum = #parentStack:top()
+            assert(currentSiblingNum <= maxSiblingNum,
+                   'CurrentSiblingNum was bigger than maximum!')
+            return t.forallSiblingsBetween(
+                predicate, currentSiblingNum + 1, maxSiblingNum)
+            (node, parentStack, siblingNumStack)
+        end
+    end
+
+    function t.holdsForOneLeftSibling(predicate)
+        return function(node, parentStack, siblingNumStack)
+            local currentSiblingNum = siblingNumStack:top()
+            return t.existsSiblingsBetween(predicate, 1, currentSiblingNum - 1)
+            (node, parentStack, siblingNumStack)
+        end
+    end
+
+    function t.holdsForOneRightSibling(predicate)
+        return function(node, parentStack, siblingNumStack)
+            local currentSiblingNum = siblingNumStack:top()
+            local max = #(parentStack:top())
+            return t.existsSiblingsBetween(predicate, currentSiblingNum + 1, max)
+            (node, parentStack, siblingNumStack)
         end
     end
 
