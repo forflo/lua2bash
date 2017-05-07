@@ -1,5 +1,5 @@
 local util = require("lua2bash-util")
-local datastructs = require("lua2bash-datatypes")
+local traverser = require("lua2bash-traverser")
 
 local astQuery = {}
 
@@ -131,6 +131,160 @@ function astQuery.AstPath()
     function t:Node()
         return self._genericIterator:currentObj()
     end
+    return t
+end
+
+-- declarative EDSL
+function astQuery.treeQuery(ast)
+    assert(ast, 'no valid ast given')
+    local t = {}
+    t._ast = ast
+    t._predicate = util.bind(true, util.identity)
+
+    function t:filter(predicate)
+        if type(predicate) == 'string' then
+            self:filterAdd(t.has_tag(predicate))
+        else
+            self:filterAdd(predicate)
+        end
+    end
+
+    function t:filterAdd(predicate)
+        self._predicate = function(node)
+            return predicate(node) and self._predicate(node)
+        end
+        return self
+    end
+
+    function t:listLrDepthFirst()
+        local result = {}
+        local adderFunc = function(e) result[#result + 1] = e end
+        traverser.traverse(self._ast, adderFunc, self._predicate, true)
+        return result
+    end
+
+    function t:foreach(func, recur)
+        traverser.traverse(
+            self._ast, func, self._predicate, recur)
+    end
+
+    -- predicates, predicate generators and predicate combinators
+    function t.hasTag(tag)
+        assert(type(tag) == 'string', 'wrong argument type')
+        return function(node, _, _)
+            assert(node.tag, 'node does not have a tag attribute')
+            return node.tag == tag
+        end
+    end
+
+    function t.isExp()
+        return function(node, _, _)
+            assert(node.tag, 'node does not have a tag attribute')
+            return util.isExpNode(node)
+        end
+    end
+
+    function t.isStmt()
+        return function(node, _, _)
+            assert(node.tag, 'node does not have a tag attribute')
+            return util.isStmtNode(node)
+        end
+    end
+
+    function t.isStmtList()
+        return function(node, _, _)
+            assert(node.tag, 'node does not have a tag attribute')
+            return util.isBlockNode(node)
+        end
+    end
+
+    function t.isLiteral()
+        return function(node, _, _)
+            assert(node.tag, 'node does not have a tag attribute')
+            return util.isConstantNode()
+        end
+    end
+
+    function t.isTerminal()
+        return t.hasNChilds(0)
+    end
+
+    function t.isNthSibling(n)
+        return function(_ , _, siblingNumberStack)
+            return siblingNumberStack:top() == n
+        end
+    end
+
+    function t.hasNChilds(n)
+        return function(node, _, _)
+            return #node == n
+        end
+    end
+
+    -- combinators
+    function t.parent(predicate)
+        return function(_, parentStack, siblingNumberStack)
+            local immediateParent = parentStack:top()
+            local newParentStack = parentStack:copyPop()
+            local newSiblingStack = siblingNumberStack:copyPop()
+            return predicate(immediateParent, newParentStack, newSiblingStack)
+        end
+    end
+
+    function t.nthChild(n, predicate)
+        return function(node, parentStack, siblingNumberStack)
+            assert(node[n], 'there is n node number' .. n)
+            local newNode = node[n]
+            parentStack:push(node)
+            siblingNumberStack:push(n)
+            -- here call to actual predicate
+            local result = predicate(newNode, parentStack, siblingNumberStack)
+            siblingNumberStack:pop()
+            parentStack:pop()
+            return result -- TODO: this ok?
+        end
+    end
+
+    function t.nthParent(n, predicate)
+        return function(_, parentStack, siblingNumberStack)
+            assert(parentStack:getn(n), 'there is no nth parent: ' .. n)
+            local newNode = parentStack:getNth(n)
+            local newParentStack = parentStack:copyNPop(n)
+            local newSiblingStack = siblingNumberStack:copyNPop(n)
+            return predicate(newNode, newParentStack, newSiblingStack)
+        end
+    end
+
+    -- returns a predicate that is true if and only if
+    -- predicate returns true for all parents
+    function t.forallParents(predicate)
+        return function(node, parentStack, siblingNumberStack)
+            util.ifold(
+                util.imap(
+                    util.iota(parentStack:getn()),
+                    function(num)
+                        return t.nth_parent(num, predicate)
+                        (node, parentStack, siblingNumberStack)
+                end),
+                util.operator.logAnd,
+                true)
+        end
+    end
+
+    function t.existsParents(predicate)
+        return function(node, parentStack, siblingNumberStack)
+            util.ifold(
+                util.imap(
+                    util.iota(parentStack:getn()),
+                    function(num)
+                        return t.nth_parent(num, predicate)
+                        (node, parentStack, siblingNumberStack)
+                end),
+                util.operator.logOr,
+                true)
+        end
+    end
+
     return t
 end
 

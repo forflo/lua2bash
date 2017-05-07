@@ -128,6 +128,37 @@ function util.ifold(tbl, fun, acc)
     return acc
 end
 
+function util.iota(upper)
+    local counter = 0
+    return function()
+        if counter < upper then
+            counter = counter + 1
+            return counter
+        else
+            return nil
+        end
+    end
+end
+
+function util.iterFold(iterator, func, acc)
+    for v in iterator do
+        acc = func(v, acc)
+    end
+    return acc
+end
+
+function util.iterMap(iterator, func)
+    local start = nil
+    return function()
+        start = iterator()
+        if start then
+            return func(start)
+        else
+            return nil
+        end
+    end
+end
+
 function util.map(tbl, func)
     local result = {}
     for _, v in pairs(tbl) do
@@ -185,7 +216,9 @@ util.operator = {
         sub = function(x, y) return x - y end,
         equ = function(x, y) return x == y end,
         neq = function(x, y) return x ~= y end,
-        logAnd = function(x, y) return x and y end
+        logAnd = function(x, y) return x and y end,
+        logOr = function(x, y) return x or y end,
+        logNot = function(x) return not x end,
 }
 
 function util.exists(tbl, value, comparator)
@@ -372,7 +405,18 @@ function util.isNode(node)
     return node.tag ~= nil
 end
 
+function util.areStmtNodes(...)
+    return util.ifold(
+        table.pack(...),
+        util.operator.logAnd,
+        true)
+end
+
 function util.isStmtNode(node)
+    return util.isStmtNodeH(node)
+end
+
+function util.isStmtNodeH(node)
     local stmtTags = {
         "Call", "Fornum", "Local", "Forin", "Repeat",
         "Return", "Break", "If", "While", "Do", "Set"

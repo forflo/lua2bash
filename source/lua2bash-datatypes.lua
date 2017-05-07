@@ -177,6 +177,22 @@ function datatypes.Stack()
         return table.unpack(entries)
     end
 
+    function t:copyPop()
+        local copy = self:deepCopy()
+        copy:pop()
+        return copy
+    end
+
+    function t:copyNPop(n)
+        local copy = self:deepCopy()
+        copy:pop(n)
+        return copy
+    end
+
+    function t:copyPush(v)
+        return self:deepCopy():push(v)
+    end
+
     -- map on stacks from bottom to top
     function t:map(fun)
         local result = {}

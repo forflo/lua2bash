@@ -8,35 +8,48 @@ local traverser = {}
 -- func will only called if predicate returns true for the
 -- current node
 function traverser.traverseWorker(
-        ast, func, predicate, recur, parentStack, terminator)
-    if type(ast) ~= "table" then return true end
-    if terminator(ast) then return false end
-    local nodeIterator = util.statefulIIterator(ast)
-    local node, cont = nodeIterator(), true
-    if predicate(ast) then
-        func(ast, parentStack)
+        node, func, predicate, recur, parentStack, terminator, siblingNumberStack)
+    if not traverser.isNode(node) then return true end
+    if terminator(node) then return false end
+    local currentSiblingIdx = 0
+    local nodeIterator = util.statefulIIterator(node)
+    local childNode, cont = nodeIterator(), true
+    if predicate(node, parentStack, siblingNumberStack) then
+        func(node, parentStack)
         -- don't traverse this subtree.
         -- the function func takes care of that
         if not recur then
             return true
         end
     end
-    while node ~= nil and cont do
-        parentStack:push(ast)
+    while childNode ~= nil and cont do
+        parentStack:push(node)
+        siblingNumberStack:push(currentSiblingIdx)
+        currentSiblingIdx = currentSiblingIdx + 1
         cont = traverser.traverseWorker(
-            node, func, predicate, recur, parentStack, terminator)
+            childNode, func, predicate, recur,
+            parentStack, terminator, siblingNumberStack)
         parentStack:pop()
-        node = nodeIterator()
+        siblingNumberStack:pop()
+        childNode = nodeIterator()
     end
     return true
+end
+
+function traverser.isNode(obj)
+    if type(obj) == "table" then return true end
 end
 
 -- regular top down traversal
 function traverser.traverse(ast, func, targetPredicate, recurOnTrue)
     local defaultTerminator = util.bind(false, util.identity)
+    local initialParentStack = datastructs.Stack()
+    local initialSiblingStack = datastructs.Stack():push(1)
     traverser.traverseWorker(
-        ast, func, targetPredicate, recurOnTrue,
-        datastructs.Stack(), defaultTerminator)
+        ast, func,
+        targetPredicate, recurOnTrue,
+        initialParentStack, defaultTerminator,
+        initialSiblingStack)
     return ast
 end
 

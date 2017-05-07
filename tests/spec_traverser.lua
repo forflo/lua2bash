@@ -11,6 +11,23 @@ describe(
     function()
         randomize(true)
 
+        it("tests whether siblings work",
+           function()
+               local code = [[do print(1); print(2); print(3); end]]
+               local ast, _ = parser.parse(code)
+               local aqw = astQuery.AstWalk
+               local print1 =
+                   aqw(ast) :Statement(1):Statement(1):Node().tag == "Call"
+               local print2 =
+                   aqw(ast) :Statement(1):Statement(2):Node().tag == "Call"
+               local print3 =
+                   aqw(ast) :Statement(1):Statement(3):Node().tag == "Call"
+
+               assert.True(util.areStmtNodes(print1, print2, print3))
+
+
+        end)
+
         -- TODO: transfer into spec_util
         it("tests whether deep copy works",
            function()
