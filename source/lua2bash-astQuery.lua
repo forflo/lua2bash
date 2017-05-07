@@ -320,6 +320,28 @@ function astQuery.treeQuery(ast)
         end
     end
 
+    -- if you want to query for print(x + y)
+    -- local ast = +{print(x+y)}
+    -- local Q = astQuery.treeQuery
+    -- Q(ast)
+    --   :filter 'Call'
+    --   :filter(
+    --     t.firstChildsSatisfy(
+    --       t.has_tag'Id',
+    --       t.has_tag'Op' and t.firstChildsSatisfy(
+    --         t.has_value'add', t.has_tag'Id', t.has_tag'Id')))
+    function t.firstChildsSatisfy(...)
+        local predicates = table.pack(...)
+        return function(node, parentStk, siblingNumStk)
+            local result = true
+            for i in 1, #predicates do
+                result = result and
+                    t.nthChild(i, predicates[i])(node, parentStk, siblingNumStk)
+            end
+            return result
+        end
+    end
+
     function t.nthParent(n, predicate)
         return function(_, parentStack, siblingNumberStack)
             assert(parentStack:getn(n), 'there is no nth parent: ' .. n)
@@ -358,6 +380,11 @@ function astQuery.treeQuery(ast)
                 util.operator.logOr,
                 true)
         end
+    end
+
+    -- predicate holds at least ntimes
+    function t.PathSatisfiesGtN(n, predicate)
+
     end
 
     return t
