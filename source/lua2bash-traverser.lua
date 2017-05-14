@@ -8,31 +8,33 @@ local traverser = {}
 -- func will only called if predicate returns true for the
 -- current node
 function traverser.traverseWorker(
-        node, func, predicate, recur, parentStack, terminator, siblingNumberStack)
+        node, funcDown, funcUp, predicate, recur,
+        parentStack, terminator, siblingNumberStack)
     if not traverser.isNode(node) then return true end
     if terminator(node) then return false end
-    local currentSiblingIdx = 0
-    local nodeIterator = util.statefulIIterator(node)
-    local childNode, cont = nodeIterator(), true
     if predicate(node, parentStack, siblingNumberStack) then
-        func(node, parentStack)
+        funcDown(node, parentStack)
         -- don't traverse this subtree.
         -- the function func takes care of that
         if not recur then
             return true
         end
     end
+    local currentSiblingIdx = 0
+    local nodeIterator = util.statefulIIterator(node)
+    local childNode, cont = nodeIterator(), true
     while childNode ~= nil and cont do
         parentStack:push(node)
         siblingNumberStack:push(currentSiblingIdx)
         currentSiblingIdx = currentSiblingIdx + 1
         cont = traverser.traverseWorker(
-            childNode, func, predicate, recur,
+            childNode, funcDown, funcUp, predicate, recur,
             parentStack, terminator, siblingNumberStack)
         parentStack:pop()
         siblingNumberStack:pop()
         childNode = nodeIterator()
     end
+    funcUp(node, parentStack)
     return true
 end
 
@@ -46,11 +48,50 @@ function traverser.traverse(ast, func, targetPredicate, recurOnTrue)
     local initialParentStack = datastructs.Stack()
     local initialSiblingStack = datastructs.Stack():push(1)
     traverser.traverseWorker(
-        ast, func,
+        ast, func, util.identitiy,
         targetPredicate, recurOnTrue,
         initialParentStack, defaultTerminator,
         initialSiblingStack)
     return ast
+end
+
+-- regular top down traversal
+-- also for the specification of a down traverser
+function traverser.traverseUpDown(
+        ast, funcDown, funcUp, targetPredicate, recurOnTrue)
+    local defaultTerminator = util.bind(false, util.identity)
+    local initialParentStack = datastructs.Stack()
+    local initialSiblingStack = datastructs.Stack():push(1)
+    traverser.traverseWorker(
+        ast, funcDown, funcUp,
+        targetPredicate, recurOnTrue,
+        initialParentStack, defaultTerminator,
+        initialSiblingStack)
+    return ast
+end
+
+function traverser.scopeModPredicate(node)
+    local tag = node.tag
+    local predicateResult = false
+    local result = nil
+    -- todo
+end
+
+function traverser.scopedTraverser(ast, func, predicate, recur)
+    local scopeStack = datastructs.Stack()
+    -- construct new predicate that contains scopeStack as upvalue
+    local newPredicate = function(node, parentStack, siblingNumStack)
+        return traverser.scopeModePredicate(node) or
+            predicate(node, parentStack, siblingNumStack, scopeStack)
+    end
+    local newFunc = function(node, parentStack)
+        if traverser.scopeModPredicate(node) then
+
+        end
+        func(node, parentStack)
+    end
+    -- now call the regular traverser with the modified functions
+    return traverser.traverse(ast, newFunc, newPredicate, recur)
 end
 
 -- depth first traversal

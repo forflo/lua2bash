@@ -1,14 +1,28 @@
 local util = {}
 
-local ntostring
-function ntostring(tbl, indent)
-    indent = indent or 0
-    local function rep(i) return string.rep(" ", i) end
+-- functions can be rotated with << and >>
+-- functions can be bound with util.tostring < value
+-- functions can be composed with func .. func
+
+function util.tostring(tbl, indent, format)
+    if format == nil then format = false end
+    if indent == nil then indent = 0 end
+    local delim = util.expIfStrict(format, '\n', ',')
+    local function rep(i)
+        if not format then return "" else
+        return string.rep(" ", i) end
+    end
     if type(tbl) == "table" then
-        local s = "{" .. "\n"
+        local s = "{"
+        local count, isLast = 0, false
+        local numElements = util.tblCountAll(tbl)
+        if format then s = s .. '\n' end
         for k, v in pairs(tbl) do
+            count = count + 1
+            if numElements == count then isLast = true end
             s = s .. rep(indent + 2) .. tostring(k)
-                .. " = " .. ntostring(v, indent + 2) .. "\n"
+                .. " = " .. util.tostring(v, indent + 2, format)
+            if not isLast then s = s .. delim end
         end
         s = s .. rep(indent) .. "}"
         return s
@@ -16,8 +30,8 @@ function ntostring(tbl, indent)
         return tostring(tbl)
     end
 end
-util.tostring = ntostring
 
+--util.tostringNoFmt = util.rotRight(util.tostring)
 
 -- print(util.tostring{1,2,3})
 -- print(util.tostring{"foo", "bar"})
@@ -89,9 +103,28 @@ function util.strToOpstr(str)
     end
 end
 
+-- util.iterate(f, arg, n)
+-- f(f(...f(arg)))
+--  ^ n-times
 function util.iterate(fun, arg, n)
-    if (n <= 1) then return fun(arg)
-    else return util.iterate(fun, fun(arg), n - 1) end
+    if (n < 1) then return nil end
+    if (n == 1) then
+        return fun(arg)
+    else
+        return util.iterate(fun, fun(arg), n - 1)
+    end
+end
+
+-- like util.iterate but returns a function
+function util.selfCompose(fun, n)
+    if (n < 1) then return function() return nil end end
+    return function(...)
+        local r = table.pack(...)
+        for _ = 1, n do
+            r = table.pack(fun(table.unpack(r)))
+        end
+        return table.unpack(r)
+    end
 end
 
 -- adds indentation and optionally a comment
@@ -129,10 +162,15 @@ function util.ifold(tbl, fun, acc)
 end
 
 function util.iota(upper)
-    local counter = 0
+    return util.range(1, upper, 1)
+end
+
+function util.range(lower, upper, step)
+    step = step or 1
+    local counter = lower - 1
     return function()
         if counter < upper then
-            counter = counter + 1
+            counter = counter + step
             return counter
         else
             return nil
@@ -196,9 +234,38 @@ function util.bind(argument, func)
     end
 end
 
+-- special case of util.rotate where f only has two parameters
 function util.flip(func)
     return function(left, right)
         return func(right, left)
+    end
+end
+
+-- changes a function f(a1, a2, a3, ..., a_n) into
+-- f(a2, a3, ..., a_n, a1)
+function util.rotL(func, shiftBy)
+    shiftBy = shiftBy or 1
+    return function(...)
+        local args = table.pack(...)
+        return util.rotR(func, #args - shiftBy)(...)
+    end
+end
+
+-- changes a function f(a1, a2, a3, ..., a_n) into
+-- f(a_n, a1, a2, ..., a_(n-1))
+function util.rotR(func, shiftBy)
+    shiftBy = shiftBy or 1
+    return function(...)
+        local arguments = table.pack(...)
+        local shifts = shiftBy % #arguments
+        if shifts == 0 then return func(...) end -- no rotations necessary
+        local newHead = util.tableSlice(
+            arguments, #arguments - shifts + 1, #arguments, 1)
+        local newTail = util.tableSlice(
+            arguments, 1, #arguments - shifts, 1)
+        local newArguments = util.tableIAdd(newHead, newTail)
+--        print(util.tostring(newArguments))
+        return func(table.unpack(newArguments))
     end
 end
 
@@ -324,6 +391,14 @@ function util.statefulIIterator(tbl)
     end
 end
 
+function util.iter(tbl)
+    if util.tblCountAll(tbl) ~= #tbl then
+        return util.statefulKVIterator(tbl)
+    else
+        return util.statefulIIterator(tbl)
+    end
+end
+
 function util.reverseIIterator(tbl)
     local index = #tbl + 1
     return function()
@@ -331,6 +406,15 @@ function util.reverseIIterator(tbl)
         return tbl[index]
     end
 end
+
+-- table.pack(...) does: t = { ... }; t.n = #t; return t
+-- util.pack(...) does: return { ... }
+function util.pack(...)
+    return { ... }
+end
+
+-- just for naming symmetry
+util.unpack = table.unpack
 
 -- returns iterator that does
 -- return action(next) on each call on next

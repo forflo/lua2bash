@@ -18,6 +18,33 @@ datatypes.commonMtab = {
     end
 }
 
+function datatypes.Tuple(...)
+    local t = {}
+    t._elements = table.pack(...)
+    local mtab = {}
+    mtab.__tostring = function(tuple)
+        return '(' .. util.join(util.imap(
+                                    tuple._elements, util.tostring), ', ') .. ')'
+    end
+    -- mtab.__newindex = function
+    function t:arity()
+        return #self._elements
+    end
+    function t:elem(number)
+        assert(type(number) == 'number', 'Invalid type of number')
+        return self._elements[number]
+    end
+    function t:update(number, value)
+        assert(type(number) == 'number', 'Invalid type of number')
+        self._elements[number] = value
+        return self
+    end
+    function t:first() return self._elements[1] end
+    function t:second() return self._elements[2] end
+    setmetatable(t, mtab)
+    return t
+end
+
 function datatypes.Either()
     local t = {}
     t._right, t._left, t._isLeft = nil, nil, nil
