@@ -5,12 +5,12 @@ local util = {}
 -- functions can be composed with func .. func
 
 function util.tostring(tbl, indent, format)
-    if format == nil then format = false end
+    if format == nil then format = true end
     if indent == nil then indent = 0 end
     local delim = util.expIfStrict(format, '\n', ',')
     local function rep(i)
-        if not format then return "" else
-        return string.rep(" ", i) end
+        if format then return string.rep(" ", i)
+        else return '' end
     end
     if type(tbl) == "table" then
         local s = "{"
@@ -20,9 +20,14 @@ function util.tostring(tbl, indent, format)
         for k, v in pairs(tbl) do
             count = count + 1
             if numElements == count then isLast = true end
-            s = s .. rep(indent + 2) .. tostring(k)
-                .. " = " .. util.tostring(v, indent + 2, format)
-            if not isLast then s = s .. delim end
+            s = s .. rep(indent + 2) .. '[' .. tostring(k) .. ']'
+                .. rep(1) .. '=' .. rep(1)
+                .. util.tostring(v, indent + 2, format)
+            if format then
+                s = s .. delim
+            else
+                if not isLast then s = s .. delim end
+            end
         end
         s = s .. rep(indent) .. "}"
         return s
@@ -31,7 +36,9 @@ function util.tostring(tbl, indent, format)
     end
 end
 
---util.tostringNoFmt = util.rotRight(util.tostring)
+function util.toflatstring(tbl)
+    return util.bind(false, util.pullFirst(util.tostring, 3))(tbl, 0)
+end
 
 -- print(util.tostring{1,2,3})
 -- print(util.tostring{"foo", "bar"})
@@ -241,8 +248,27 @@ function util.flip(func)
     end
 end
 
+-- A call to pullFirst(f, 3)(1,2,3) calls f like f(2,3,1)
+-- useful in combination with util.bind which only binds
+-- the first argument
+function util.pullFirst(func, n)
+    n = n or 1
+    if n <= 1 then
+        return func
+    else
+        return function(...)
+            local arguments = table.pack(...)
+            local newHead = util.tableSlice(arguments, 2, n, 1)
+            newHead[#newHead + 1] = arguments[1]
+            local newTail = util.tableSlice(arguments, n + 1, #arguments, 1)
+            local newArgs = util.tableIAdd(newHead, newTail)
+            return func(table.unpack(newArgs))
+        end
+    end
+end
+
 -- changes a function f(a1, a2, a3, ..., a_n) into
--- f(a2, a3, ..., a_n, a1)
+-- f(a2, a3, ..., a_n, a1) = f(a1, a2, a3, ..., a_n)
 function util.rotL(func, shiftBy)
     shiftBy = shiftBy or 1
     return function(...)
@@ -251,8 +277,8 @@ function util.rotL(func, shiftBy)
     end
 end
 
--- changes a function f(a1, a2, a3, ..., a_n) into
--- f(a_n, a1, a2, ..., a_(n-1))
+-- changes a function call f(a1, a2, a3, ..., a_n) into
+-- f(a_n, a1, a2, ..., a_(n-1)) = f(3)
 function util.rotR(func, shiftBy)
     shiftBy = shiftBy or 1
     return function(...)
@@ -264,9 +290,24 @@ function util.rotR(func, shiftBy)
         local newTail = util.tableSlice(
             arguments, 1, #arguments - shifts, 1)
         local newArguments = util.tableIAdd(newHead, newTail)
---        print(util.tostring(newArguments))
         return func(table.unpack(newArguments))
     end
+end
+
+-- things like util.bind(3, util.rotR(util.pack))(1,2)
+-- look like they produce {1,2,3} but they don't
+-- it is like util.rotR(util.pack)(3,1,2) which does produce
+-- {2,3,1}
+-- util.rotR(util.bind(3, util.pack))(1,2) produces {3,2,1}
+-- In order to achieve something like the things we WANT
+-- we have to invert rotR and rotL
+-- since util.bind(3, util.rotL(util.pack))(1,2) IS {1,2,3}
+function util.bindRotR(func, s)
+    return util.rotL(func, s)
+end
+
+function util.bindRotL(func, s)
+    return util.rotR(func, s)
 end
 
 function util.getCounter(increment)

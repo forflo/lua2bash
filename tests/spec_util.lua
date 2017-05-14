@@ -66,4 +66,57 @@ describe(
                assert.are.same(util.selfCompose(succ, 3)(0), 3)
                assert.are.same(util.selfCompose(succ, 10)(42), 52)
         end)
+
+        it("tests the function pullFirst",
+           function()
+               local pack = function(...) return { ... } end
+               local input = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+               local result1 = {2, 1, 3, 4, 5, 6, 7, 8, 9}
+               local result2 = {3, 1, 2, 4, 5, 6, 7, 8, 9}
+               local result3 = {8, 1, 2, 3, 4, 5, 6, 7, 9}
+               local result4 = {9, 1, 2, 3, 4, 5, 6, 7, 8}
+               assert.are.same(
+                   util.pullFirst(pack, 1)(table.unpack(input)), input)
+               assert.are.same(
+                   util.pullFirst(pack, 2)(table.unpack(result1)), input)
+               assert.are.same(
+                   util.pullFirst(pack, 3)(table.unpack(result2)), input)
+               assert.are.same(
+                   util.pullFirst(pack, 8)(table.unpack(result3)), input)
+               assert.are.same(
+                   util.pullFirst(pack, 9)(table.unpack(result4)), input)
+        end)
+
+        it('tests the bind function in combination with pullFirst and rotate',
+           function()
+               local output = {1, 2, 3}
+               local func1 = util.bind(3, util.bindRotR(util.pack, 1))
+               local func2 = util.bind(1, func1)
+               local func3 = util.bind(2, func2)
+               local tf1 = util.bind(2, util.bindRotL(util.pack, 1))
+
+               local composed1 = util.bind(2, util.pullFirst(util.pack, 2))
+               local composed2 = util.bind(3, util.pullFirst(composed1, 3))
+               local composed3 = util.bind(1, util.pullFirst(composed2, 1))
+
+               local composed12 = util.bind(3, util.pullFirst(util.pack, 3))
+               local composed22 = util.bind(1, util.pullFirst(util.pack, 1))
+
+               assert.are.same(composed1(1,3), {1,2,3})
+               assert.are.same(composed2(1), {1,2,3})
+               assert.are.same(composed3(), {1,2,3})
+               assert.are.same(composed12(1,2), {1,2,3})
+               assert.are.same(composed22(2,3), {1,2,3})
+               assert.are.same(func1(1, 2), {1, 2, 3})
+               assert.are.same(func3(), {1,2,3})
+               assert.are.same(tf1(3, 1), {1,2,3})
+        end)
+
+        it("test the function tostring and toflatstring",
+           function()
+               local t = {1, {2, {3, {4, 5}}}}
+               local str = '{[1]=1,[2]={[1]=2,[2]={[1]=3,[2]={[1]=4,[2]=5}}}}'
+               assert.are.same(util.toflatstring(t), str)
+               assert.are.False(util.tostring(t) == str)
+        end)
 end)
