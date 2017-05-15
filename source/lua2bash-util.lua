@@ -550,6 +550,10 @@ function util.isStmtNodeH(node)
     return util.exists(stmtTags, node.tag, util.operator.equ)
 end
 
+function util.index(indexer, indexee)
+    return indexee[indexer]
+end
+
 function util.isBlockNode(node)
     return util.exists({"Block", "Do"}, node.tag, util.operator.equ)
 end

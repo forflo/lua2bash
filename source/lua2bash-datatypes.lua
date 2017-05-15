@@ -105,6 +105,26 @@ function datatypes.SymbolTable()
     return t
 end
 
+function datatypes.BinderTable()
+    local t = {}
+    t._stackTable = {} -- contains varname <-> bindingStack pairs
+    function t:addBinding(varName, bindingNode)
+        local stack = self._symbolTable[varName]
+        if stack == nil then
+            stack = datatypes.Stack()
+        end
+        stack:push(bindingNode)
+        return self
+    end
+    function t:addBindings(bindingNode, ...)
+        for _, varName in ipairs(table.pack(...)) do
+            self:addBinding(varName, bindingNode)
+        end
+    end
+    setmetatable(t, datatypes.commonMtab)
+    return t
+end
+
 function datatypes.Symbol(value, redefCount, curSlot, emitVarname)
     local obj = {}
     obj._curSlot = curSlot
