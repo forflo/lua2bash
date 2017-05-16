@@ -1,5 +1,6 @@
 local util = require("lua2bash-util")
 local datastructs = require("lua2bash-datatypes")
+local dbg = require("debugger")
 
 local traverser = {}
 
@@ -18,19 +19,24 @@ function traverser.traverseWorker(
         return continueNext
     end
     -- Determine what functions to call
-    local preFunc, postFunc, count = nil, nil, 0
+    local preFuncs, postFuncs, count = {}, {}, 0
     for tuple in util.iter(tuples) do
         local pRes = tuple:first()(node, parentStack, siblingNumberStack)
         if pRes then
-            preFunc = tuple:elem(2)
-            postFunc = tuple:elem(3)
+            --dbg()
+            preFuncs[#preFuncs + 1] = tuple:elem(2)
+            postFuncs[#postFuncs + 1] = tuple:elem(3)
             count = count + 1
         end
     end
-    assert(count == 1, 'Only one predicate can match. Count: ' .. count)
+    -- if count > 1 then
+    -- print('more than one functions will be run!: ' .. count) end
+    --
     -- function call before recursion
-    local recur = preFunc(node, parentStack, siblingNumberStack)
-    -- don't traverse this subtree.
+    local recur = false
+    for _, preFunc in ipairs(preFuncs) do
+        recur = recur or preFunc(node, parentStack, siblingNumberStack)
+    end
     if recur == false then
         return continueNext
     end
@@ -41,16 +47,18 @@ function traverser.traverseWorker(
         parentStack:push(node)
         siblingNumberStack:push(currentSiblingIdx)
         continue = traverser.traverseWorker(
-            childNode, tuples, recur,
-            parentStack, terminator, siblingNumberStack)
+            childNode, tuples, parentStack,
+            terminator, siblingNumberStack)
         parentStack:pop()
         siblingNumberStack:pop()
-        -- advance counters and iterators
+        --
         childNode = nodeIterator()
         currentSiblingIdx = currentSiblingIdx + 1
     end
     -- function call after recursion
-    postFunc(node, parentStack, siblingNumberStack)
+    for _, postFunc in ipairs(postFuncs) do
+        postFunc(node, parentStack, siblingNumberStack)
+    end
     return continueNext
 end
 
@@ -77,15 +85,14 @@ end
 -- otherwise the traversal of the subtree will not be done.
 -- After that, postFunc will be executed.
 -- Both, preFunc and postFunc get the same arguments as predicate
-function traverser.scopedTraverser(ast, preFunc, postFunc, predicate)
+function traverser.traverseScoped(ast, preFunc, postFunc, predicate)
     local defaultTerminator = util.bind(false, util.identity)
     local initialParentStack = datastructs.Stack()
     local initialSiblingStack = datastructs.Stack():push(1)
     local scopeStack = datastructs.Stack()
     -- construct new predicate that contains scopeStack as upvalue
     local scopedPredicate = function(node, parentStack, siblingNumStack)
-        return traverser.scopeModePredicate(node) or
-            predicate(node, parentStack, siblingNumStack, scopeStack)
+        return predicate(node, parentStack, siblingNumStack, scopeStack)
     end
     local scopedPreFunc = function(node, parentStack, siblingNumStack)
         return preFunc(node, parentStack, siblingNumStack, scopeStack)
@@ -106,7 +113,7 @@ function traverser.scopedTraverser(ast, preFunc, postFunc, predicate)
                 datastructs.BinderTable():addBindings(node, varNames)
             scopeStack:push(binderTable)
         end
-        return true -- traverse further
+        return false -- traverse further
     end
     local postExp = function(node, _, _)
         if node.tag == 'Function' then
@@ -119,25 +126,25 @@ function traverser.scopedTraverser(ast, preFunc, postFunc, predicate)
         if tag == 'Local' then
             -- only after the subtree of local is traversed
             -- the new variables become visible!
-            return true
+            return false
         elseif tag == 'Forin' then
             -- names must be a list of strings
             local varNames = util.imap(node[1], util.bind(1, util.index))
             local newBinderTable =
                 datastructs.BinderTable():addBindings(node, varNames)
             scopeStack:push(newBinderTable)
-            return true
+            return false
         elseif tag == 'Fornum' then
             local varName = node[1][1]
             local newBinderTable =
                 datastructs.BinderTable():addBinding(node, varName)
             scopeStack:push(newBinderTable)
-            return true
+            return false
         elseif tag == 'Repeat' then
             -- TODO: implement this special case!
-            return false
-        else
             return true
+        else
+            return false
         end
     end
     local postStmt = function(node, _, _)

@@ -1,6 +1,8 @@
-local aQ = require("lua2bash-ast-builder")
+local aB = require("lua2bash-ast-builder")
+local Q = require("lua2bash-ast-query").treeQuery
+local util = require("lua2bash-util")
 local ser = require("lua2bash-serialize-ast")
-local parser = require("lua-parser.parse")
+local parser = require("lua-parser.parser")
 
 local testCode = [[
 do
@@ -42,13 +44,81 @@ describe(
     function()
         randomize(true)
 
-        it("tests normal node predicates",
+        it("tests isTerminal predicate",
            function()
-               local Q = aQ.treeQuery
-               local ast, _ = parser.parse(testCode)
-        end)
+               local amount, lower, upper = 1000, 1, 1000
+               local terminals = { }
+               local ast = nil
+               for i = 1, amount do
+                   local assignment
+                   terminals[i] = aB.numberLit(math.random(lower, upper))
+                   assignment =
+                       aB.localAssignment(
+                           aB.nameList(aB.id'x'),
+                           aB.expList(terminals[i]))
+                   ast = aB.doStmt(
+                       aB.whileLoop(
+                           aB.trueLit(),
+                           aB.block(
+                               assignment,
+                               aB.breakStmt())),
+                       assignment,
+                       ast)
+               end
+               ast = aB.block(ast)
+               -- print(require'ml'.tstring(ast))
+               -- local serializedAst = ser(ast)
+               -- print(serializedAst)
 
-        it("",
-           function()
+               local count1, count2, count3 = 0, 0, 0
+               local tQ = Q(ast)
+
+               local query = tQ
+                   :filter('While')
+                   :where(tQ.nthChild(1, tQ.isExp()))
+
+               -- This demonstrates the three different ways to
+               -- count how often we had a match
+               query:foreach(function() count1 = count1 + 1 end)
+               for _ in query:iterator() do count2 = count2 + 1 end
+               count3 = #(query:list())
+
+               assert.True(count1 == amount)
+               assert.are.same(count1, count2, count3)
+               print(count1, count2, count3)
+
+               tQ = Q(ast)
+               assert.True(
+                   #tQ
+                       :filter('While')
+                       :where(tQ.nthChild(1, tQ.isStmt()))
+                       :list() == 0)
+
+               tQ = Q(ast)
+               assert.True(#(tQ
+                       :filter('While')
+                       :where(tQ.nthChild(1, tQ.isExp()))
+                       :where(tQ.nthChild(2, tQ.isStmt()))
+                           :list()) == 0)
+
+               tQ = Q(ast)
+               assert.True(
+                   #(tQ
+                         :filter('While')
+                         :where(tQ.nthChild(1, tQ.isExp()))
+                         :where(
+                             tQ.nthChild(
+                                 2, tQ.nthChild(1, tQ.hasTag'Forin')))
+                         :list()) == 0)
+
+               tQ = Q(ast)
+               assert.True(
+                   #(tQ
+                         :filter('While')
+                         :where(tQ.nthChild(1, tQ.isExp()))
+                         :where(
+                             tQ.nthChild(
+                                 2, tQ.nthChild(1, tQ.hasTag'Local')))
+                         :list()) == 1000)
         end)
 end)

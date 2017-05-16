@@ -109,7 +109,7 @@ function datatypes.BinderTable()
     local t = {}
     t._stackTable = {} -- contains varname <-> bindingStack pairs
     function t:addBinding(varName, bindingNode)
-        local stack = self._symbolTable[varName]
+        local stack = self._stackTable[varName]
         if stack == nil then
             stack = datatypes.Stack()
         end

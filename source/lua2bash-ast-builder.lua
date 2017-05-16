@@ -135,10 +135,7 @@ function astBuilder.auxVarList(...)
                 table.pack(...),
                 function(str)
                     return astBuilder.id(str)
-                end
-            )
-        )
-    )
+                end)))
 end
 
 function astBuilder.auxNameList(...)
@@ -149,8 +146,7 @@ function astBuilder.auxNameList(...)
                     table.pack(...),
                     function(str)
                         return astBuilder.id(str)
-                    end
-            )))
+                    end)))
 end
 
 astBuilder.operator = {
@@ -159,7 +155,7 @@ astBuilder.operator = {
     shl =  "shl", len =  "len", pow =  "pow",
     mod =  "mod", band = "band", concat ="concat",
     lt =   "lt", ["not"]  =  "not", ["and"] =  "and",
-    ["or"] =   "or", gt =   "gt", le =   "le",
+    ["or"] =   "or", gt =   "gt",
     le =   "le", eq =   "eq", add = "add"
 }
 

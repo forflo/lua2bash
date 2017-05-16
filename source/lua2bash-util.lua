@@ -153,6 +153,27 @@ function util.expIfStrict(cond, expTrue, expFalse)
     else return expFalse end
 end
 
+-- both, ifilter and filter, build a new table from
+-- elements for which predicate holds true
+function util.ifilter(tbl, predicate)
+    local result = {}
+    for _, elem in ipairs(tbl) do
+        if predicate(elem) then
+            result[#result + 1] = elem
+        end
+    end
+    return result
+end
+
+util.predicates = {
+    isTable = function(e) return type(e) == 'table' end,
+    isFunction = function(e) return type(e) == 'function' end,
+    isNumber = function(e) return type(e) == 'number' end,
+    isString = function(e) return type(e) == 'string' end,
+    isUserdata = function(e) return type(e) == 'userdata' end,
+    isThread = function(e) return type(e) == 'thread' end
+}
+
 function util.filter(tbl, fun)
     local result = {}
     for _, v in pairs(tbl) do
@@ -327,7 +348,12 @@ util.operator = {
         logAnd = function(x, y) return x and y end,
         logOr = function(x, y) return x or y end,
         logNot = function(x) return not x end,
+        concat = function(x, y) return x .. y end,
 }
+
+function util.index(indexer, indexee)
+    return indexee[indexer]
+end
 
 function util.exists(tbl, value, comparator)
     local result = false
@@ -550,10 +576,6 @@ function util.isStmtNodeH(node)
     return util.exists(stmtTags, node.tag, util.operator.equ)
 end
 
-function util.index(indexer, indexee)
-    return indexee[indexer]
-end
-
 function util.isBlockNode(node)
     return util.exists({"Block", "Do"}, node.tag, util.operator.equ)
 end
@@ -612,6 +634,53 @@ function util.composeV(...)
             final = functions[i](final)
         end
         return final
+    end
+end
+
+-- predicate combinator
+function util.predAnd(left, right)
+    assert(type(left) == 'function', type(right == 'function'),
+           'not a function')
+    return function(...)
+        return (left(...) and right(...))
+    end
+end
+
+function util.predOr(left, right)
+    assert(type(left) == 'function', type(right == 'function'),
+           'not a function')
+    return function(...)
+        return (left(...) or right(...))
+    end
+end
+
+function util.predNot(pred)
+    assert(type(pred) == 'function', 'not a function')
+    return function(...)
+        return not pred(...)
+    end
+end
+
+function util.predOneOf(...)
+    local predicates = table.pack(...)
+
+    return function(...)
+        for _, predicate in ipairs(predicates) do
+            if predicate(...) then return true end
+        end
+        return false
+    end
+end
+
+function util.predForall(...)
+    local predicates = table.pack(...)
+
+    return function(...)
+        local result = true
+        for _, predicate in ipairs(predicates) do
+            result = result and predicate(...)
+        end
+        return result
     end
 end
 

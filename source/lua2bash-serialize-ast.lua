@@ -262,7 +262,6 @@ serializer.tagFunMap = {
     ["Paren"] = serializer.serExp,
     ["Index"] = serializer.serExp,
     -- statement nodes
-    ["Call"] = serializer.serStm,
     ["Fornum"] = serializer.serStm,
     ["Local"] = serializer.serStm,
     ["Forin"] = serializer.serStm,
@@ -287,4 +286,11 @@ function serializer.serIdx(ast)
         .. serializer.serExp(ast[2]) .. "]"
 end
 
+local mtab = {
+    __call = function(callee, argument)
+        return callee.serialize(argument)
+    end
+}
+
+setmetatable(serializer, mtab)
 return serializer
