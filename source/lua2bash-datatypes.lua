@@ -125,6 +125,91 @@ function datatypes.BinderTable()
     return t
 end
 
+function datatypes.ScopeManager()
+    local t = {}
+    t._currentScopeStack = datatypes.Stack()
+    t._scopeStackHistory = datatypes.Stack()
+    function t:push(node)
+        local tag = node.tag
+        if tag == 'Local' then
+            -- only after the subtree of local is traversed
+            -- the new variables become visible!
+        elseif tag == 'Forin' then
+            -- names must be a list of strings
+            local varNames = util.imap(node[1], util.bind(1, util.index))
+            local newBinderTable =
+                datastructs.BinderTable():addBindings(node, varNames)
+            self._currentScopeStack:push(newBinderTable)
+        elseif tag == 'Fornum' then
+            local varName = node[1][1]
+            local newBinderTable =
+                datastructs.BinderTable():addBinding(node, varName)
+            scopeStack:push(newBinderTable)
+        elseif node.tag == 'Function' then
+            local varNames = util.imap(node[1], util.bind(1, util.index))
+            local binderTable =
+                datastructs.BinderTable():addBindings(node, varNames)
+            scopeStack:push(binderTable)
+        end
+    end
+    function t:preBlock(blockNode)
+        self._currentScopeStack:push(datatypes.BinderTable())
+        self:snapshot(blockNode)
+    end
+    function t:postBlock(blockNode)
+        self._currentScopeStack:pop()
+        self:snapshot(blockNode)
+    end
+
+    function t:snapshot(node)
+        self._scopeStackHistory:push{
+            reason = node,
+            scopeStack = self._currentScopeStack:deepCopy()
+        }
+    end
+    function t:pop(node)
+
+    end
+    return t
+end
+
+function datatypes.Predicate(pred)
+    local t = {}
+    local mtab = {}
+    t._predicate = pred
+    function t:lor(right)
+        return datatypes.Predicate(util.predOr(self._predicate, right:unpack()))
+    end
+    function t:land(right)
+        return datatypes.Predicate(util.predAnd(self._predicate, right:unpack()))
+    end
+    function t:negate()
+        return datatypes.Predicate(util.predNot(self._predicate))
+    end
+    -- operator overloading
+    function mtab.__call(callee, ...)
+        return callee:execute(...)
+    end
+    function mtab.__band(left, right)
+        return left:land(right)
+    end
+    function mtab.__bor(left, right)
+        return left:lor(right)
+    end
+    function mtab.__bnot(left, _)
+        return left:negate()
+    end
+    -- non public
+    function t:unpack()
+        return self._predicate
+    end
+    function t:execute(...)
+        return self._predicate(...)
+    end
+    setmetatable(t, mtab)
+    return t
+end
+
 function datatypes.Symbol(value, redefCount, curSlot, emitVarname)
     local obj = {}
     obj._curSlot = curSlot

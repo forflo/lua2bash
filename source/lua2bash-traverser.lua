@@ -1,6 +1,5 @@
 local util = require("lua2bash-util")
 local datastructs = require("lua2bash-datatypes")
-local dbg = require("debugger")
 
 local traverser = {}
 
@@ -32,12 +31,13 @@ function traverser.traverseWorker(
     -- if count > 1 then
     -- print('more than one functions will be run!: ' .. count) end
     --
-    -- function call before recursion
-    local recur = false
+    -- function call before recursion.
+    local noRecurSubtree = false
     for _, preFunc in ipairs(preFuncs) do
-        recur = recur or preFunc(node, parentStack, siblingNumberStack)
+        noRecurSubtree = noRecurSubtree or (
+            preFunc(node, parentStack, siblingNumberStack) == 'norecur')
     end
-    if recur == false then
+    if noRecurSubtree == true then
         return continueNext
     end
     -- recursion into subtree
@@ -85,8 +85,8 @@ end
 -- otherwise the traversal of the subtree will not be done.
 -- After that, postFunc will be executed.
 -- Both, preFunc and postFunc get the same arguments as predicate
-function traverser.traverseScoped(ast, preFunc, postFunc, predicate)
-    local defaultTerminator = util.bind(false, util.identity)
+function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
+    local defaultTerminator = terminator or util.bind(false, util.identity)
     local initialParentStack = datastructs.Stack()
     local initialSiblingStack = datastructs.Stack():push(1)
     local scopeStack = datastructs.Stack()
@@ -113,7 +113,7 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate)
                 datastructs.BinderTable():addBindings(node, varNames)
             scopeStack:push(binderTable)
         end
-        return false -- traverse further
+        return 'recur' -- traverse further
     end
     local postExp = function(node, _, _)
         if node.tag == 'Function' then
@@ -126,25 +126,25 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate)
         if tag == 'Local' then
             -- only after the subtree of local is traversed
             -- the new variables become visible!
-            return false
+            return 'recur'
         elseif tag == 'Forin' then
             -- names must be a list of strings
             local varNames = util.imap(node[1], util.bind(1, util.index))
             local newBinderTable =
                 datastructs.BinderTable():addBindings(node, varNames)
             scopeStack:push(newBinderTable)
-            return false
+            return 'recur'
         elseif tag == 'Fornum' then
             local varName = node[1][1]
             local newBinderTable =
                 datastructs.BinderTable():addBinding(node, varName)
             scopeStack:push(newBinderTable)
-            return false
+            return 'recur'
         elseif tag == 'Repeat' then
             -- TODO: implement this special case!
-            return true
+            return 'norecur'
         else
-            return false
+            return 'recur'
         end
     end
     local postStmt = function(node, _, _)
@@ -175,6 +175,33 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate)
     return traverser.traverseWorker(
         ast, tuples, initialParentStack,
         defaultTerminator, initialSiblingStack)
+end
+
+-- returns the parent stack, sibling stack and scope stack
+-- at the position when 'node' is reached
+function traverser.seekTraverserState(ast, node)
+    local resultParentStack, resultSiblingStack, resultScopeStack
+    local terminate = false
+
+    local function terminator(_, _, _, _) return terminate end
+
+    local function predicate(traversalNode)
+        if traversalNode == node then
+            terminate = true
+            return true
+        else
+            return false
+        end
+    end
+
+    local function pre(_, parentStack, siblingStack, scopeStack)
+        resultParentStack = parentStack:deepCopy()
+        resultSiblingStack = siblingStack:deepCopy()
+        resultScopeStack = scopeStack:deepCopy()
+    end
+
+    traverser.traverseScoped(ast, pre, util.identity, predicate, terminator)
+    return resultParentStack, resultSiblingStack, resultScopeStack
 end
 
 -- depth first traversal
