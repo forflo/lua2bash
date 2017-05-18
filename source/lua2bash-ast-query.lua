@@ -141,37 +141,25 @@ function astQuery.treeQuery(ast, boxedPred)
     assert(ast, 'no valid ast given')
     local t = {}
     t._ast = ast
-    t._predicate = boxedPred or datatypes.Predicate(util.bind(true, util.identity))
+    t._predicate = boxedPred or
+        datatypes.Predicate(util.bind(true, util.identity))
 
     function t:ast() return self._ast end
     function t:predicate() return self._predicate end
 
-    function t:filter(predOrString)
-        local resultQuery
-        local boxedPred
-        if type(predOrString) == 'string' then
-        else
-            boxedPred = datatypes.Predicate(predOrString)
-            self:forAll(self._predicate, p)
-        end
-        return self
-    end
-
-    function t:filterTag(tag)
+    function t:filter(tag)
         assert(type(tag) == 'string', 'Not string!')
-        local boxedPred = t.hasTag(tag)
-        resultQuery = astQuery.treeQuery(
+        return astQuery.treeQuery(
             self:ast(),
-            util.predForall(self:predicate(), boxedPred))
+            datatypes.Predicate(
+                util.predForall(self:predicate(), t.hasTag(tag))))
     end
 
-    function t:filterPred(predicate)
-
-    end
-
-    function t:forAll(...)
-        self._predicate = util.predForall(...)
-        return self
+    function t:where(predicate)
+        return astQuery.treeQuery(
+            self:ast(),
+            datatypes.Predicate(
+                util.predForall(self:predicate(), predicate)))
     end
 
     function t:list()
@@ -180,12 +168,13 @@ function astQuery.treeQuery(ast, boxedPred)
             result[#result + 1] = e
         end
         traverser.traverseScoped(
-            self._ast, accumulate, util.identity, self:predicate():unbox())
+            self._ast, accumulate,
+            util.identity, self:predicate():unpack())
         return result
     end
 
     -- so you can write
-    -- for i in Q(ast) :filter('Call') :iterator() do
+    -- for i in Q(ast) :where('Call') :iterator() do
     -- end
     function t:iterator()
         return util.iter(self:list())
@@ -193,7 +182,8 @@ function astQuery.treeQuery(ast, boxedPred)
 
     function t:foreach(func)
         traverser.traverseScoped(
-            self._ast, func, util.identity, self:predicate():unbox())
+            self._ast, func, util.identity,
+            self:predicate():unpack())
     end
 
 
@@ -214,116 +204,118 @@ function astQuery.treeQuery(ast, boxedPred)
         assert(type(tag) == 'string', 'Wrong argument type')
         return datatypes.Predicate(
             function(node, _, _, _)
-                assert(node.tag, 'Node does not have a tag attribute')
-                return node.tag == tag
+                return node ~= nil and node.tag == tag
         end)
     end
 
     function t.isExp()
-        return datatypes.Predicate(function(node, _, _, _)
-            assert(node.tag, 'Node does not have a tag attribute')
-            return util.isExpNode(node)
+        return datatypes.Predicate(
+            function(node, _, _, _)
+                return node ~= nil and util.isExpNode(node)
         end)
     end
 
     function t.isStmt()
-        return datatypes.Predicate(function(node, _, _, _)
-            assert(node.tag, 'Node does not have a tag attribute')
-            if node.tag == 'Call' then return false
-            else return util.isStmtNode(node) end
+        return datatypes.Predicate(
+            function(node, _, _, _)
+                if node == nil then return false end
+                if node.tag == 'Call' then return false
+                else return util.isStmtNode(node) end
         end)
     end
 
     function t.isBlock()
-        return datatypes.Predicate(function(node, _, _, _)
-            assert(node.tag, 'node does not have a tag attribute')
-            return util.isBlockNode(node)
+        return datatypes.Predicate(
+            function(node, _, _, _)
+                return node ~= nil and util.isBlockNode(node)
         end)
     end
 
     function t.isLiteral()
-        return datatypes.Predicate(function(node, _, _, _)
-            assert(node.tag, 'node does not have a tag attribute')
-            return util.isConstantNode()
+        return datatypes.Predicate(
+            function(node, _, _, _)
+                return node ~= nil and util.isConstantNode()
         end)
     end
 
     function t.isTerminal()
-        return t.hasNChilds(0)
+        return t.hasChilds(0)
     end
 
-    function t.isNthSibling(nth)
+    function t.isValidNode()
+        return function(node, _, _, _)
+            return node ~= nil and node.tag ~= nil
+        end
+    end
+
+    function t.isNthSibling(n)
         return datatypes.Predicate(
-            function(_, _, siblingNumberStack, _)
-                return (siblingNumberStack:top() == nth)
+            function(node, _, siblingNumberStack, _)
+                return node ~= nil and siblingNumberStack:top() == n
         end)
     end
 
     -- nodes are always tables
-    function t.hasNChilds(childCount)
+    function t.hasChilds(childCount)
         return datatypes.Predicate(
             function(node, _, _, _)
-                return childCount == #util.ifilter(
-                    node, util.predicates.isTable)
+                return
+                    node ~= nil
+                    and childCount == #util.ifilter(
+                        node, util.predicates.isTable)
         end)
     end
 
     function t.hasValue(value)
         return datatypes.Predicate(
             function(node, parentStack, sibNumStack, scopeStack)
-                return t.hasNChilds(0)(
-                    node, parentStack, sibNumStack, scopeStack) and
-                    node[1] == value
+                return
+                    node ~= nil
+                    and t.hasChilds(0)(
+                        node, parentStack,
+                        sibNumStack, scopeStack)
+                    and node[1] == value
             end)
     end
 
-    -- combinators
-    function t.parent(predicate)
-        return datatypes.Predicate(
-            function(_, parentStack, siblingNumberStack, scopeStack)
-                local immediateParent = parentStack:top()
-                local newParentStack = parentStack:copyPop()
-                local newSiblingStack = siblingNumberStack:copyPop()
-                return predicate(
-                    immediateParent, newParentStack,
-                    newSiblingStack, scopeStack)
-        end)
-    end
-
+    -- sibling combinators
     function t.nthSibling(n, predicate)
         return datatypes.Predicate(
-            function(_, parentStack, siblingNumStack, scopeStack)
+            function(_, parentStack, siblingNumStack, _)
+                if parentStack:top()[n] == nil then
+                    return predicate(nil, parentStack, nil, nil)
+                end
                 local immediateParent = parentStack:top()
-                assert(immediateParent[n], 'Sibling does not exist: '
-                           .. immediateParent.tag .. " " .. n)
-                local sibling = immediateParent[n]
-                local newNumStack = siblingNumStack:copyPop()
+                local siblingsNode = immediateParent[n]
+                local siblingsNumStack = siblingNumStack:copyPop()
+                local siblingsScopeStack =
+                    traverser.seekTraverserState(t._ast, siblingsNode)
                 return predicate(
-                    sibling, parentStack, newNumStack:push(n), scopeStack)
+                    siblingsNode, parentStack,
+                    siblingsNumStack:push(n), siblingsScopeStack)
         end)
     end
-
+    -- shortcuts
     t.fstSibling = util.bind(1, t.nthSibling)
     t.sndSibling = util.bind(2, t.nthSibling)
     t.trdSibling = util.bind(3, t.nthSibling)
-    t.fthSibling = util.bind(4, t.nthSibling)
+    t.forthSibling = util.bind(4, t.nthSibling)
+    t.fifthSibling = util.bind(4, t.nthSibling)
 
     function t.allLeftSiblings(predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
                 local currentSiblingNum = siblingNumStack:top()
                 return t.forallSiblingsBetween(
-                    predicate, 1, currentSiblingNum - 1)
-                (node, parentStack, siblingNumStack, scopeStack)
+                    predicate, 1, currentSiblingNum - 1)(
+                    node, parentStack, siblingNumStack, scopeStack)
         end)
     end
 
     function t.forallSiblingsBetween(predicate, from, to)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
-                assert(from >= 0 and to <= #parentStack:top(),
-                       "Invalid boundaries. Sibling count is: "
-                           .. #parentStack:top())
+                assert(from >= 1, 'Invalid lower bound')
                 local result = true
                 for i = from, to do
                     result = result and t.nthSibling(
@@ -337,9 +329,7 @@ function astQuery.treeQuery(ast, boxedPred)
     function t.existsSiblingsBetween(predicate, from, to)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
-                assert(from >= 0 and to <= #parentStack:top(),
-                       "Invalid boundaries. Sibling count is: "
-                           .. #parentStack:top())
+                assert(from >= 1, 'Invalid lower bound: ' .. from)
                 local result = false
                 for i = from, to do
                     result = result or t.nthSibling(
@@ -355,15 +345,13 @@ function astQuery.treeQuery(ast, boxedPred)
             function(node, parentStack, siblingNumStack, scopeStack)
                 local currentSiblingNum = siblingNumStack:top()
                 local maxSiblingNum = #parentStack:top()
-                assert(currentSiblingNum <= maxSiblingNum,
-                       'CurrentSiblingNum was bigger than maximum!')
                 return t.forallSiblingsBetween(
-                    predicate, currentSiblingNum + 1, maxSiblingNum)
-                (node, parentStack, siblingNumStack, scopeStack)
+                    predicate, currentSiblingNum + 1, maxSiblingNum)(
+                    node, parentStack, siblingNumStack, scopeStack)
         end)
     end
 
-    function t.leftSibling(predicate)
+    function t.previousSibling(predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
                 local currentSiblingNum = siblingNumStack:top()
@@ -373,35 +361,25 @@ function astQuery.treeQuery(ast, boxedPred)
         end)
     end
 
-    function t.rightSibling(predicate)
+    function t.nextSibling(predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
                 local currentSiblingNum = siblingNumStack:top()
                 local max = #(parentStack:top())
                 return t.existsSiblingsBetween(
-                    predicate, currentSiblingNum + 1, max)
-                (node, parentStack, siblingNumStack, scopeStack)
+                    predicate, currentSiblingNum + 1, max)(
+                    node, parentStack, siblingNumStack, scopeStack)
         end)
     end
 
-    -- if there is no nth child in the current node the predicate
-    -- will automatically return false
+    ----
+    -- child combinators
+    -- [1] since we assume 'predicate' to handle nodes that are
+    -- nil correctly, we can just call it
     function t.nthChild(n, predicate)
         return datatypes.Predicate(
-            function(node, parentStack, siblingNumberStack, scopeStack)
-                if node[n] == nil then
-                    return false
-                else
-                    local newNode, result = node[n], nil
-                    parentStack:push(node)
-                    siblingNumberStack:push(n)
-                    -- here call to actual predicate
-                    result = predicate(
-                        newNode, parentStack, siblingNumberStack, scopeStack)
-                    siblingNumberStack:pop()
-                    parentStack:pop()
-                    return result -- TODO: this ok?
-                end
+            function(node, _, _, _)
+                return predicate(traverser.seekTraverserState(t._ast, node[n]))
         end)
     end
 
@@ -415,68 +393,63 @@ function astQuery.treeQuery(ast, boxedPred)
     --       t.hasTag'Id',
     --       t.hasTag'Op' and t.firstChildsSatisfy(
     --         t.has_value'add', t.hasTag'Id', t.hasTag'Id')))
-    function t.firstChildsSatisfy(...)
+    function t.firstChilds(...)
         local predicates = table.pack(...)
         return datatypes.Predicate(
-            function(node, parentStk, siblingNumStk, _)
+            function(node, parentStk, siblingNumStk, scopeStack)
                 local result = true
                 for i in 1, #predicates do
                     result = result and
                         t.nthChild(i, predicates[i])(
-                            node, parentStk, siblingNumStk)
+                            node, parentStk, siblingNumStk, scopeStack)
                 end
                 return result
         end)
     end
 
+    ----
+    -- parent combinators
     -- if there is no nth parent => false
     function t.nthParent(n, predicate)
         return datatypes.Predicate(
-            function(_, parentStack, siblingNumberStack, scopeStack)
-                if parentStack:getn(n) == nil then return false end
-                local newNode = parentStack:getNth(n)
-                local newParentStack = parentStack:copyNPop(n)
-                local newSiblingStack = siblingNumberStack:copyNPop(n)
-                return predicate(newNode, newParentStack, newSiblingStack)
+            function(_, parentStack, _, _)
+                local parentsNode = parentStack:getNth(n)
+                return predicate(
+                    traverser.seekTraverserState(t._ast, parentsNode))
         end)
     end
 
-    t.fstParent = util.bind(1, t.nthParent)
-    t.sndParent = util.bind(2, t.nthParent)
-    t.trdParent = util.bind(3, t.nthParent)
-    t.fthParent = util.bind(4, t.nthParent)
+    t.parent = util.bind(1, t.nthParent)
+    t.grandParent = util.bind(2, t.nthParent)
+    t.greatGrandParent = util.bind(3, t.nthParent)
 
-    -- returns a predicate that is true if and only if
-    -- predicate returns true for all parents
-    function t.forallParents(predicate)
+    function t.foldParents(operation, startValue, predicate)
         return datatypes.Predicate(
-            function(node, parentStack, siblingNumberStack, _)
-                util.ifold(
+            function(node, parentStack, siblingNumberStack, scopeStack)
+                -- TODO: is this conventionally OK to just return false
+                -- in case of the root node?
+                local numOfParents = parentStack:getn()
+                if numOfParents == 0 then return false end
+                return util.ifold(
                     util.imap(
-                        util.iota(parentStack:getn()),
+                        util.iota(numOfParents),
                         function(num)
-                            return t.nth_parent(num, predicate)(
-                                node, parentStack, siblingNumberStack)
+                            return t.nthParent(num, predicate)(
+                                node, parentStack,
+                                siblingNumberStack, scopeStack)
                     end),
-                    util.operator.logAnd,
-                    true)
+                    operation,
+                    startValue)
         end)
     end
 
-    function t.existsParents(predicate)
-        return datatypes.Predicate(
-            function(node, parentStack, siblingNumberStack, _)
-                util.ifold(
-                    util.imap(
-                        util.iota(parentStack:getn()),
-                        function(num)
-                            return t.nth_parent(num, predicate)
-                            (node, parentStack, siblingNumberStack)
-                    end),
-                    util.operator.logOr,
-                    true)
-        end)
-    end
+    -- forall x in parentStack: predicate(x)
+    t.forallParents = util.bind(
+        true, util.bind(util.operator.logAnd, t.foldParents))
+
+    -- exists x in parentStack: predicate(x)
+    t.oneOfParents = util.bind(
+        false, util.bind(util.operator.logOr, t.foldParents))
 
     return t
 end

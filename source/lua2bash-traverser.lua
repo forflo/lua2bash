@@ -177,14 +177,15 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
         defaultTerminator, initialSiblingStack)
 end
 
+-- TODO: This is inefficient immediate following scope
+-- stacks can be calculated much more efficiently
 -- returns the parent stack, sibling stack and scope stack
 -- at the position when 'node' is reached
 function traverser.seekTraverserState(ast, node)
+    if node == nil then return nil, nil, nil, nil end
     local resultParentStack, resultSiblingStack, resultScopeStack
     local terminate = false
-
     local function terminator(_, _, _, _) return terminate end
-
     local function predicate(traversalNode)
         if traversalNode == node then
             terminate = true
@@ -193,15 +194,13 @@ function traverser.seekTraverserState(ast, node)
             return false
         end
     end
-
     local function pre(_, parentStack, siblingStack, scopeStack)
         resultParentStack = parentStack:deepCopy()
         resultSiblingStack = siblingStack:deepCopy()
         resultScopeStack = scopeStack:deepCopy()
     end
-
     traverser.traverseScoped(ast, pre, util.identity, predicate, terminator)
-    return resultParentStack, resultSiblingStack, resultScopeStack
+    return node, resultParentStack, resultSiblingStack, resultScopeStack
 end
 
 -- depth first traversal

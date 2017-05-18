@@ -3,6 +3,7 @@ local Q = require("lua2bash-ast-query").treeQuery
 local util = require("lua2bash-util")
 local ser = require("lua2bash-serialize-ast")
 local parser = require("lua-parser.parser")
+local treeQuery = require('lua2bash-ast-query').treeQuery
 
 local testCode = [[
 do
@@ -76,32 +77,27 @@ describe(
                local query = tQ
                    :filter('While')
                    :where(tQ.nthChild(1, tQ.isExp()))
-
                -- This demonstrates the three different ways to
                -- count how often we had a match
                query:foreach(function() count1 = count1 + 1 end)
                for _ in query:iterator() do count2 = count2 + 1 end
                count3 = #(query:list())
-
                assert.True(count1 == amount)
                assert.are.same(count1, count2, count3)
                print(count1, count2, count3)
 
-               tQ = Q(ast)
                assert.True(
                    #tQ
                        :filter('While')
                        :where(tQ.nthChild(1, tQ.isStmt()))
                        :list() == 0)
 
-               tQ = Q(ast)
                assert.True(#(tQ
                        :filter('While')
                        :where(tQ.nthChild(1, tQ.isExp()))
                        :where(tQ.nthChild(2, tQ.isStmt()))
                            :list()) == 0)
 
-               tQ = Q(ast)
                assert.True(
                    #(tQ
                          :filter('While')
@@ -111,7 +107,6 @@ describe(
                                  2, tQ.nthChild(1, tQ.hasTag'Forin')))
                          :list()) == 0)
 
-               tQ = Q(ast)
                assert.True(
                    #(tQ
                          :filter('While')
@@ -121,5 +116,24 @@ describe(
                                  2, tQ.nthChild(1, tQ.hasTag'Local')))
                          :list()) == 1000)
 
+
+               -- tests for all nodes that do not have a
+               -- fourth and fifth sibling
+
+               -- syntax tree: { `Local{ { `Id "a", `Id "b", `Id "c",
+               --   `Id "d", `Id "e" }, { `Number "1" } } }
+               local ast, _ =
+                   parser.parse([[local a, b, c, d, e = 1;]])
+
+               Q = treeQuery(ast)
+               local nodeCount =
+                   #Q
+                   :filter(
+                       Q.isValidNode()
+                           & Q.forthSibling(~ Q.isValidNode())
+                           & Q.fifthSibling(~ Q.isValidNode()))
+                   :list()
+
+               assert.True(nodeCount == 5)
         end)
 end)

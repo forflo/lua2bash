@@ -125,53 +125,6 @@ function datatypes.BinderTable()
     return t
 end
 
-function datatypes.ScopeManager()
-    local t = {}
-    t._currentScopeStack = datatypes.Stack()
-    t._scopeStackHistory = datatypes.Stack()
-    function t:push(node)
-        local tag = node.tag
-        if tag == 'Local' then
-            -- only after the subtree of local is traversed
-            -- the new variables become visible!
-        elseif tag == 'Forin' then
-            -- names must be a list of strings
-            local varNames = util.imap(node[1], util.bind(1, util.index))
-            local newBinderTable =
-                datastructs.BinderTable():addBindings(node, varNames)
-            self._currentScopeStack:push(newBinderTable)
-        elseif tag == 'Fornum' then
-            local varName = node[1][1]
-            local newBinderTable =
-                datastructs.BinderTable():addBinding(node, varName)
-            scopeStack:push(newBinderTable)
-        elseif node.tag == 'Function' then
-            local varNames = util.imap(node[1], util.bind(1, util.index))
-            local binderTable =
-                datastructs.BinderTable():addBindings(node, varNames)
-            scopeStack:push(binderTable)
-        end
-    end
-    function t:preBlock(blockNode)
-        self._currentScopeStack:push(datatypes.BinderTable())
-        self:snapshot(blockNode)
-    end
-    function t:postBlock(blockNode)
-        self._currentScopeStack:pop()
-        self:snapshot(blockNode)
-    end
-
-    function t:snapshot(node)
-        self._scopeStackHistory:push{
-            reason = node,
-            scopeStack = self._currentScopeStack:deepCopy()
-        }
-    end
-    function t:pop(node)
-
-    end
-    return t
-end
 
 function datatypes.Predicate(pred)
     local t = {}
@@ -352,8 +305,11 @@ function datatypes.Stack()
     end
 
     function t:getNth(n)
-        if n < 0 or n > #self._et then return nil
-        else return self._et[n] end
+        if n < 0 or n > #self._et then
+            return nil
+        else
+            return self._et[n]
+        end
     end
 
     function t:getn()
