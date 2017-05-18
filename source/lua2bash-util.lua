@@ -450,6 +450,16 @@ function util.decCC(config)
     config.columnCount = config.columnCount - config.indentSize
 end
 
+function util.robustIIterator(tbl)
+    if type(tbl) == 'table' then
+        return util.statefulIIterator(tbl)
+    else
+        return function()
+            return nil
+        end
+    end
+end
+
 function util.statefulIIterator(tbl)
     local index = 0
     return function()

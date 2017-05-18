@@ -243,9 +243,10 @@ function astQuery.treeQuery(ast, boxedPred)
     end
 
     function t.isValidNode()
-        return function(node, _, _, _)
-            return node ~= nil and node.tag ~= nil
-        end
+        return datatypes.Predicate(
+            function(node, _, _, _)
+                return node ~= nil and node.tag ~= nil
+        end)
     end
 
     function t.isNthSibling(n)
@@ -281,18 +282,13 @@ function astQuery.treeQuery(ast, boxedPred)
     -- sibling combinators
     function t.nthSibling(n, predicate)
         return datatypes.Predicate(
-            function(_, parentStack, siblingNumStack, _)
-                if parentStack:top()[n] == nil then
-                    return predicate(nil, parentStack, nil, nil)
+            function(_, parentStack, _, _)
+                local immediateParent, siblingsNode = parentStack:top(), nil
+                if immediateParent then
+                    siblingsNode = immediateParent[n]
                 end
-                local immediateParent = parentStack:top()
-                local siblingsNode = immediateParent[n]
-                local siblingsNumStack = siblingNumStack:copyPop()
-                local siblingsScopeStack =
-                    traverser.seekTraverserState(t._ast, siblingsNode)
                 return predicate(
-                    siblingsNode, parentStack,
-                    siblingsNumStack:push(n), siblingsScopeStack)
+                    traverser.seekTraverserState(t._ast, siblingsNode))
         end)
     end
     -- shortcuts
@@ -300,7 +296,7 @@ function astQuery.treeQuery(ast, boxedPred)
     t.sndSibling = util.bind(2, t.nthSibling)
     t.trdSibling = util.bind(3, t.nthSibling)
     t.forthSibling = util.bind(4, t.nthSibling)
-    t.fifthSibling = util.bind(4, t.nthSibling)
+    t.fifthSibling = util.bind(5, t.nthSibling)
 
     function t.allLeftSiblings(predicate)
         return datatypes.Predicate(
@@ -383,6 +379,10 @@ function astQuery.treeQuery(ast, boxedPred)
         end)
     end
 
+    t.fstChild = util.bind(1, t.nthChild)
+    t.sndChild = util.bind(2, t.nthChild)
+    t.thdChild = util.bind(3, t.nthChild)
+
     -- if you want to query for print(x + y)
     -- local ast = +{print(x+y)}
     -- local Q = astQuery.treeQuery
@@ -398,7 +398,7 @@ function astQuery.treeQuery(ast, boxedPred)
         return datatypes.Predicate(
             function(node, parentStk, siblingNumStk, scopeStack)
                 local result = true
-                for i in 1, #predicates do
+                for i = 1, #predicates do
                     result = result and
                         t.nthChild(i, predicates[i])(
                             node, parentStk, siblingNumStk, scopeStack)

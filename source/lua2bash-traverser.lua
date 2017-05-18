@@ -63,7 +63,8 @@ function traverser.traverseWorker(
 end
 
 function traverser.isNode(obj)
-    if type(obj) == "table" then return true end
+    if type(obj) == "table" then return true
+    else return false end
 end
 
 -- regular top down traversal
@@ -158,7 +159,7 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
     end
     -- Since only one predicate in tuples (see below) can return true
     -- Call nodes are only considered expression nodes for this matter
-    local stmtPred = function(node, _, _)
+    local stmtPred = function(node, _, _, _)
         if node.tag == 'Call' then return false
         else return util.isStmtNode(node) end
     end
