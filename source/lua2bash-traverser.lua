@@ -14,15 +14,14 @@ function traverser.traverseWorker(
     if terminator(node, parentStack, siblingNumberStack) then
         return abortRecursion
     end
-    if traverser.isNode(node) == false then
-        return continueNext
-    end
+--    if traverser.isNode(node) == false then
+--        return continueNext
+--    end
     -- Determine what functions to call
     local preFuncs, postFuncs, count = {}, {}, 0
     for tuple in util.iter(tuples) do
-        local pRes = tuple:first()(node, parentStack, siblingNumberStack)
-        if pRes then
-            --dbg()
+        local res = tuple:first()(node, parentStack, siblingNumberStack)
+        if res then
             preFuncs[#preFuncs + 1] = tuple:elem(2)
             postFuncs[#postFuncs + 1] = tuple:elem(3)
             count = count + 1
@@ -41,7 +40,7 @@ function traverser.traverseWorker(
         return continueNext
     end
     -- recursion into subtree
-    local currentSiblingIdx, nodeIterator = 1, util.statefulIIterator(node)
+    local currentSiblingIdx, nodeIterator = 1, util.robustIIterator(node)
     local childNode, continue = nodeIterator(), true
     while childNode ~= nil and continue do
         parentStack:push(node)
@@ -108,6 +107,7 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
     local scopePop = function(_, _, _) scopeStack:pop() end
     -- Expression node handling
     local preExp = function(node, _, _)
+        if not traverser.isNode(node) then return 'recur' end
         if node.tag == 'Function' then
             local varNames = util.imap(node[1], util.bind(1, util.index))
             local binderTable =
@@ -117,12 +117,14 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
         return 'recur' -- traverse further
     end
     local postExp = function(node, _, _)
+        if not traverser.isNode(node) then return 'recur' end
         if node.tag == 'Function' then
             scopeStack:pop()
         end
     end
     -- Statement node handling
     local preStmt = function(node, _, _)
+        if not traverser.isNode(node) then return 'recur' end
         local tag = node.tag
         if tag == 'Local' then
             -- only after the subtree of local is traversed
@@ -149,6 +151,7 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
         end
     end
     local postStmt = function(node, _, _)
+        if not traverser.isNode(node) then return 'recur' end
         local tag = node.tag
         if tag == 'Forin' or tag == 'Fornum' then
             scopeStack:pop()
@@ -160,11 +163,16 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
     -- Since only one predicate in tuples (see below) can return true
     -- Call nodes are only considered expression nodes for this matter
     local stmtPred = function(node, _, _, _)
+        if not traverser.isNode(node) then return 'recur' end
         if node.tag == 'Call' then return false
         else return util.isStmtNode(node) end
     end
-    local expPred = util.isExpNode
-    local blockPred = util.isBlockNode
+    local expPred = function(node, _, _)
+        return traverser.isNode(node) and util.isExpNode(node)
+    end
+    local blockPred = function(node, _, _)
+        return traverser.isNode(node) and util.isBlockNode(node)
+    end
     -- This is the configuration list for the traverser
     local tuples = {
         datastructs.Tuple(stmtPred, preStmt, postStmt),

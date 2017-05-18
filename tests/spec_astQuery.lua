@@ -6,7 +6,7 @@ local parser = require("lua-parser.parser")
 local pp = require'lua-parser.pp'
 local treeQuery = require('lua2bash-ast-query').treeQuery
 
-local testCode = [[
+local testc = [[
 do
     local x =
         (function(x)
@@ -28,6 +28,7 @@ do
             else
                 print(x+y)
                 g = function(m)
+                    print(please+dontfindme)
                     againNest = function(f) return f end
                     return m
                 end
@@ -38,11 +39,33 @@ do
         print(1+2)
         print(a+b)
         print(3*4)
+        print(a*z)
         print(5+3)
         print(4)
     end
 end
     ]]
+
+local testCode = [[
+do
+    do local y = x local f = y end -- some dummy code
+    do
+        f = function(x)
+            if x == nil then return x + 1
+            elseif x == 3 then return x + 3
+            else
+                print(x+y)
+                g = function(m)
+                    print(please+dontfindme)
+                    print(6 + 6)
+                end
+            end
+        end
+        print(1+2) print(a+b)
+        print(8*4) print(a*z)
+        print(5+3) print(5*a)
+    end
+end]]
 
 describe(
     "Ast Query test",
@@ -108,7 +131,7 @@ describe(
                          :where(tQ.nthChild(1, tQ.isExp()))
                          :where(
                              tQ.nthChild(
-                                 2, tQ.nthChild(1, tQ.hasTag'Forin')))
+                                 2, tQ.nthChild(1, tQ.tag'Forin')))
                          :list()) == 0)
 
                assert.True(
@@ -117,7 +140,7 @@ describe(
                          :where(tQ.nthChild(1, tQ.isExp()))
                          :where(
                              tQ.nthChild(
-                                 2, tQ.nthChild(1, tQ.hasTag'Local')))
+                                 2, tQ.nthChild(1, tQ.tag'Local')))
                          :list()) == amount)
 
                assert.True(
@@ -125,7 +148,7 @@ describe(
                          :filter 'While'
                          :where(
                              tQ.fstChild(tQ.isExp()) &
-                             tQ.sndChild(tQ.fstChild(tQ.hasTag'Local')))
+                             tQ.sndChild(tQ.fstChild(tQ.tag'Local')))
                          :list()) == amount)
 
                assert.True(
@@ -134,7 +157,7 @@ describe(
                          :where(
                              tQ.firstChilds(
                                  tQ.isExp(),
-                                 tQ.fstChild(tQ.hasTag'Local')))
+                                 tQ.fstChild(tQ.tag'Local')))
                          :list()) == amount)
 
                -- tests for all nodes that do not have a
@@ -156,22 +179,23 @@ describe(
 
                assert.True(nodeCount == 5)
 
-               local tcAst, _ = parser.parse(testCode)
-
-               Q = treeQuery(tcAst)
-               local prints =
-                   Q
-                   : filter 'Call'
-                   : where(
+               local AST, _ = parser.parse(testCode)
+               local even = function(value) return value % 2 == 0 end
+               Q = treeQuery(AST)
+               Q
+                   :filter 'Call'
+                   :where(
                        Q.firstChilds(
-                           Q.hasTag'Id',
-                           Q.hasTag'Op' & Q.firstChilds(
-                               Q.hasTag'Id',
-                               Q.hasTag'Id'))):list()
-               print(pp.dump(tcAst))
-               print(#prints)
-               for k, v in ipairs(prints) do
-                   print(ser(v))
-               end
+                           Q.tag'Id',
+                           Q.tag'Op' & Q.firstChilds(
+                               Q.value('add') | Q.value('mul'),
+                               Q.tag'Id' |
+                                   Q.number(Q.value(even)) |
+                                   Q.number(Q.value(5)),
+                               Q.tag'Id' |
+                                   Q.number(Q.value(even)))))
+                   :where(Q.parent(Q.isBlock()))
+                   :where(~Q.grandParent(Q.tag'Function'))
+                   :foreach(util.composeV(print, ser))
         end)
 end)

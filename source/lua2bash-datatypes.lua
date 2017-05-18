@@ -312,6 +312,14 @@ function datatypes.Stack()
         end
     end
 
+    function t:getNthTop(n)
+        if n < 0 or n > #self._et then
+            return nil
+        else
+            return self._et[#self._et - n + 1]
+        end
+    end
+
     function t:getn()
         return #self._et
     end

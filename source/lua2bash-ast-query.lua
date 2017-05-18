@@ -152,7 +152,7 @@ function astQuery.treeQuery(ast, boxedPred)
         return astQuery.treeQuery(
             self:ast(),
             datatypes.Predicate(
-                util.predForall(self:predicate(), t.hasTag(tag))))
+                util.predForall(self:predicate(), t.tag(tag))))
     end
 
     function t:where(predicate)
@@ -200,25 +200,51 @@ function astQuery.treeQuery(ast, boxedPred)
     end
 
     -- predicates, predicate generators and predicate combinators
-    function t.hasTag(tag)
+    function t.tag(tag)
         assert(type(tag) == 'string', 'Wrong argument type')
         return datatypes.Predicate(
             function(node, _, _, _)
-                return node ~= nil and node.tag == tag
+                return traverser.isNode(node) and node.tag == tag
+        end)
+    end
+
+    function t.value(predOrValue)
+        if type(predOrValue) == 'function' then
+            return t.valuePredicate(predOrValue)
+        else
+            return t.valueVal(predOrValue)
+        end
+    end
+
+    function t.valueVal(value)
+        return datatypes.Predicate(
+            function(node, _, _, _)
+                return not traverser.isNode(node) and node == value
+        end)
+    end
+
+    function t.valuePredicate(plainPred)
+        return datatypes.Predicate(
+            function(node, _, _, _)
+                if not traverser.isNode(node) then
+                    return plainPred(node)
+                else
+                    return false
+                end
         end)
     end
 
     function t.isExp()
         return datatypes.Predicate(
             function(node, _, _, _)
-                return node ~= nil and util.isExpNode(node)
+                return traverser.isNode(node) and util.isExpNode(node)
         end)
     end
 
     function t.isStmt()
         return datatypes.Predicate(
             function(node, _, _, _)
-                if node == nil then return false end
+                if not traverser.isNode(node) then return false end
                 if node.tag == 'Call' then return false
                 else return util.isStmtNode(node) end
         end)
@@ -227,14 +253,14 @@ function astQuery.treeQuery(ast, boxedPred)
     function t.isBlock()
         return datatypes.Predicate(
             function(node, _, _, _)
-                return node ~= nil and util.isBlockNode(node)
+                return traverser.isNode(node) and util.isBlockNode(node)
         end)
     end
 
     function t.isLiteral()
         return datatypes.Predicate(
             function(node, _, _, _)
-                return node ~= nil and util.isConstantNode()
+                return traverser.isNode(node) and util.isConstantNode()
         end)
     end
 
@@ -245,14 +271,14 @@ function astQuery.treeQuery(ast, boxedPred)
     function t.isValidNode()
         return datatypes.Predicate(
             function(node, _, _, _)
-                return node ~= nil and node.tag ~= nil
+                return traverser.isNode(node) and node.tag ~= nil
         end)
     end
 
     function t.isNthSibling(n)
         return datatypes.Predicate(
             function(node, _, siblingNumberStack, _)
-                return node ~= nil and siblingNumberStack:top() == n
+                return traverser.isNode(node) and siblingNumberStack:top() == n
         end)
     end
 
@@ -261,7 +287,7 @@ function astQuery.treeQuery(ast, boxedPred)
         return datatypes.Predicate(
             function(node, _, _, _)
                 return
-                    node ~= nil
+                    traverser.isNode(node)
                     and childCount == #util.ifilter(
                         node, util.predicates.isTable)
         end)
@@ -271,7 +297,7 @@ function astQuery.treeQuery(ast, boxedPred)
         return datatypes.Predicate(
             function(node, parentStack, sibNumStack, scopeStack)
                 return
-                    node ~= nil
+                    traverser.isNode(node)
                     and t.hasChilds(0)(
                         node, parentStack,
                         sibNumStack, scopeStack)
@@ -298,17 +324,17 @@ function astQuery.treeQuery(ast, boxedPred)
     t.forthSibling = util.bind(4, t.nthSibling)
     t.fifthSibling = util.bind(5, t.nthSibling)
 
-    function t.allLeftSiblings(predicate)
+    function t.forallLeftSiblings(predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
                 local currentSiblingNum = siblingNumStack:top()
                 return t.forallSiblingsBetween(
-                    predicate, 1, currentSiblingNum - 1)(
+                    1, currentSiblingNum - 1, predicate)(
                     node, parentStack, siblingNumStack, scopeStack)
         end)
     end
 
-    function t.forallSiblingsBetween(predicate, from, to)
+    function t.forallSiblingsBetween(from, to, predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
                 assert(from >= 1, 'Invalid lower bound')
@@ -322,7 +348,7 @@ function astQuery.treeQuery(ast, boxedPred)
         end)
     end
 
-    function t.existsSiblingsBetween(predicate, from, to)
+    function t.existsSiblingsBetween(from, to, predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
                 assert(from >= 1, 'Invalid lower bound: ' .. from)
@@ -336,13 +362,13 @@ function astQuery.treeQuery(ast, boxedPred)
         end)
     end
 
-    function t.allRightSiblings(predicate)
+    function t.forallRightSiblings(predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumStack, scopeStack)
                 local currentSiblingNum = siblingNumStack:top()
                 local maxSiblingNum = #parentStack:top()
                 return t.forallSiblingsBetween(
-                    predicate, currentSiblingNum + 1, maxSiblingNum)(
+                    currentSiblingNum + 1, maxSiblingNum, predicate)(
                     node, parentStack, siblingNumStack, scopeStack)
         end)
     end
@@ -407,13 +433,17 @@ function astQuery.treeQuery(ast, boxedPred)
         end)
     end
 
+    function t.number(predicate)
+        return t.tag'Number' & t.fstChild(predicate)
+    end
+
     ----
     -- parent combinators
     -- if there is no nth parent => false
     function t.nthParent(n, predicate)
         return datatypes.Predicate(
             function(_, parentStack, _, _)
-                local parentsNode = parentStack:getNth(n)
+                local parentsNode = parentStack:getNthTop(n)
                 return predicate(
                     traverser.seekTraverserState(t._ast, parentsNode))
         end)
