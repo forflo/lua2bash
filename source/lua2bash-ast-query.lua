@@ -135,69 +135,35 @@ function astQuery.AstPath()
     return t
 end
 
--- declarative tree query EDSL
--- tailored to our AST format
-function astQuery.treeQuery(ast, boxedPred)
-    assert(ast, 'no valid ast given')
+-- usage entry point
+function astQuery.astQuery(astRoot)
+    assert(astRoot, 'no valid ast root given')
+    local this = {}
+    this._astRoot = astRoot
+    this._combinators = astQuery.astQueryCombinators(astRoot)
+    -- mtab fancyness
+    local mtab = {}
+    mtab.__index = function(indexee, key)
+        return indexee._combinators[key]
+    end
+    mtab.__call = function(callee, startingNode)
+        return callee:starting(startingNode)
+    end
+
+    function this:starting(s)
+        return astQuery.astQueryObj(self._astRoot, s, self._combinators)
+    end
+
+    setmetatable(this, mtab)
+    return this
+end
+
+-- AstQuery predicate combinators and AstQuery predicate
+-- generators always are directly related to the root of the
+-- AST to query. Thus, astRoot needs to be given as constructor parameter
+function astQuery.astQueryCombinators(astRoot)
     local t = {}
-    t._ast = ast
-    t._predicate = boxedPred or
-        datatypes.Predicate(util.bind(true, util.identity))
-
-    function t:ast() return self._ast end
-    function t:predicate() return self._predicate end
-
-    function t:filter(tag)
-        assert(type(tag) == 'string', 'Not string!')
-        return astQuery.treeQuery(
-            self:ast(),
-            datatypes.Predicate(
-                util.predForall(self:predicate(), t.tag(tag))))
-    end
-
-    function t:where(predicate)
-        return astQuery.treeQuery(
-            self:ast(),
-            datatypes.Predicate(
-                util.predForall(self:predicate(), predicate)))
-    end
-
-    function t:list()
-        local result = {}
-        local accumulate = function(e)
-            result[#result + 1] = e
-        end
-        traverser.traverseScoped(
-            self._ast, accumulate,
-            util.identity, self:predicate():unpack())
-        return result
-    end
-
-    -- so you can write
-    -- for i in Q(ast) :where('Call') :iterator() do
-    -- end
-    function t:iterator()
-        return util.iter(self:list())
-    end
-
-    function t:foreach(func)
-        traverser.traverseScoped(
-            self._ast, func, util.identity,
-            self:predicate():unpack())
-    end
-
-
-    function t:map(func)
-        --TODO:
-
-        return self
-    end
-
-    function t:mapRemap(func)
-        --TODO:
-
-        return self
-    end
+    t._ast = astRoot
 
     -- predicates, predicate generators and predicate combinators
     function t.tag(tag)
@@ -206,6 +172,10 @@ function astQuery.treeQuery(ast, boxedPred)
             function(node, _, _, _)
                 return traverser.isNode(node) and node.tag == tag
         end)
+    end
+
+    function t.all()
+        return datatypes.Predicate(function(_, _, _, _) return true end)
     end
 
     function t.value(predOrValue)
@@ -317,6 +287,7 @@ function astQuery.treeQuery(ast, boxedPred)
                     traverser.seekTraverserState(t._ast, siblingsNode))
         end)
     end
+
     -- shortcuts
     t.fstSibling = util.bind(1, t.nthSibling)
     t.sndSibling = util.bind(2, t.nthSibling)
@@ -410,15 +381,15 @@ function astQuery.treeQuery(ast, boxedPred)
     t.thdChild = util.bind(3, t.nthChild)
 
     -- if you want to query for print(x + y)
-    -- local ast = +{print(x+y)}
+    -- local ast = +{ print(x+y) }
     -- local Q = astQuery.treeQuery
     -- Q(ast)
     --   :filter 'Call'
-    --   :filter(
-    --     t.firstChildsSatisfy(
-    --       t.hasTag'Id',
-    --       t.hasTag'Op' and t.firstChildsSatisfy(
-    --         t.has_value'add', t.hasTag'Id', t.hasTag'Id')))
+    --   :where(
+    --     t.firstChilds(
+    --       t.tag'Id',
+    --       t.tag'Op' & t.firstChildsSatisfy(
+    --         t.value'add', t.tag'Id', t.tag'Id')))
     function t.firstChilds(...)
         local predicates = table.pack(...)
         return datatypes.Predicate(
@@ -435,6 +406,57 @@ function astQuery.treeQuery(ast, boxedPred)
 
     function t.number(predicate)
         return t.tag'Number' & t.fstChild(predicate)
+    end
+
+    -- tests all nodes of the complete subtree
+    function t.forallChilds(predicate)
+        return datatypes.Predicate(
+            function(node, parentStack, siblingStack, scopeStack)
+                local result = true
+                local function terminator(_, _, _, _) return result == false end
+                local function preFunc(n, parStk, sibStk, scopeStk)
+                    result = result and predicate(n, parStk, sibStk, scopeStk)
+                end
+                if parentStack ~= nil then
+                    parentStack = parentStack:deepCopy()
+                end
+                if siblingStack ~= nil then
+                    siblingStack = siblingStack:deepCopy()
+                end
+                if scopeStack ~= nil then
+                    scopeStack = scopeStack:deepCopy()
+                end
+                traverser.traverseScoped(
+                    node, preFunc, util.identity,
+                    util.bind(true, util.identity), terminator,
+                    parentStack, siblingStack, scopeStack)
+                return result
+            end)
+    end
+
+    function t.existsChilds(predicate)
+        return datatypes.Predicate(
+            function(node, parentStack, siblingStack, scopeStack)
+                local result = false
+                local function terminator(_, _, _, _) return result == true end
+                local function preFunc(n, parStk, sibStk, scopeStk)
+                    result = result or predicate(n, parStk, sibStk, scopeStk)
+                end
+                if parentStack ~= nil then
+                    parentStack = parentStack:deepCopy()
+                end
+                if siblingStack ~= nil then
+                    siblingStack = siblingStack:deepCopy()
+                end
+                if scopeStack ~= nil then
+                    scopeStack = scopeStack:deepCopy()
+                end
+                traverser.traverseScoped(
+                    node, preFunc, util.identity,
+                    util.bind(true, util.identity), terminator,
+                    parentStack, siblingStack, scopeStack)
+                return result
+            end)
     end
 
     ----
@@ -480,6 +502,79 @@ function astQuery.treeQuery(ast, boxedPred)
     -- exists x in parentStack: predicate(x)
     t.oneOfParents = util.bind(
         false, util.bind(util.operator.logOr, t.foldParents))
+
+    return t
+end
+
+-- declarative tree query EDSL
+-- tailored to our AST format
+function astQuery.astQueryObj(astRoot, startingNode, combinators)
+    assert(astRoot and startingNode, 'no valid ast or starting given')
+    local t = {}
+    t._astRoot = astRoot
+    t._startingNode = startingNode
+    t._predicate = datatypes.Predicate(util.bind(true, util.identity))
+
+    -- getter
+    function t:astRoot() return self._astRoot end
+    function t:combinators() return self._combinators end
+    function t:startingNode() return self._startingNode end
+    function t:predicate() return self._predicate end
+    -- setter
+    function t:setPredicate(pred) self._predicate = pred; return self end
+    function t:setStartingNode(node) self._startingNode = node; return self end
+
+    function t:filter(tag)
+        assert(type(tag) == 'string', 'Not string!')
+        return astQuery.astQueryObj(
+            self:astRoot(), self:startingNode(), self:combinators())
+            :setPredicate(
+                datatypes.Predicate(
+                    util.predForall(self:predicate(), combinators.tag(tag))))
+    end
+
+    function t:where(predicate)
+        return astQuery.astQueryObj(
+            self:astRoot(), self:startingNode(), self:combinators())
+            :setPredicate(
+                datatypes.Predicate(
+                    util.predForall(self:predicate(), predicate)))
+    end
+
+    function t:list()
+        local result = {}
+        local accumulate = function(e)
+            result[#result + 1] = e
+        end
+        local _, parentStack, siblingStack, scopeStack =
+            traverser.seekTraverserState(self:astRoot(), self:startingNode())
+        traverser.traverseScoped(
+            self:startingNode(), accumulate, util.identity,
+            self:predicate():unpack(), util.bind(false, util.identity),
+            parentStack, siblingStack, scopeStack)
+        return result
+    end
+
+    function t:iterator()
+        return util.iter(self:list())
+    end
+
+    function t:foreach(func)
+        local _, parentStack, siblingStack, scopeStack =
+            traverser.seekTraverserState(self:astRoot(), self:startingNode())
+        traverser.traverseScoped(
+            self:startingNode(), func, util.identity,
+            self:predicate():unpack(), util.bind(false, util.identity),
+            parentStack, siblingStack, scopeStack)
+    end
+
+    function t:map(_) --TODO:
+        return self end
+
+    function t:mapRemap(_)
+        --TODO:
+        return self
+    end
 
     return t
 end

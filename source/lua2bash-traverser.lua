@@ -14,22 +14,16 @@ function traverser.traverseWorker(
     if terminator(node, parentStack, siblingNumberStack) then
         return abortRecursion
     end
---    if traverser.isNode(node) == false then
---        return continueNext
---    end
     -- Determine what functions to call
-    local preFuncs, postFuncs, count = {}, {}, 0
+    local preFuncs, postFuncs = {}, {}
     for tuple in util.iter(tuples) do
         local res = tuple:first()(node, parentStack, siblingNumberStack)
         if res then
             preFuncs[#preFuncs + 1] = tuple:elem(2)
             postFuncs[#postFuncs + 1] = tuple:elem(3)
-            count = count + 1
         end
     end
-    -- if count > 1 then
-    -- print('more than one functions will be run!: ' .. count) end
-    --
+
     -- function call before recursion.
     local noRecurSubtree = false
     for _, preFunc in ipairs(preFuncs) do
@@ -85,11 +79,13 @@ end
 -- otherwise the traversal of the subtree will not be done.
 -- After that, postFunc will be executed.
 -- Both, preFunc and postFunc get the same arguments as predicate
-function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
-    local defaultTerminator = terminator or util.bind(false, util.identity)
-    local initialParentStack = datastructs.Stack()
-    local initialSiblingStack = datastructs.Stack():push(1)
-    local scopeStack = datastructs.Stack()
+function traverser.traverseScoped(
+        ast, preFunc, postFunc, predicate, terminator,
+        initParentStack, initSiblingStack, initScopeStack) -- not mandatory
+    local initialParentStack = initParentStack or datastructs.Stack()
+    local initialSiblingStack = initSiblingStack or datastructs.Stack():push(1)
+    local scopeStack = initScopeStack or datastructs.Stack()
+    local defaultTerminator
     -- construct new predicate that contains scopeStack as upvalue
     local scopedPredicate = function(node, parentStack, siblingNumStack)
         return predicate(node, parentStack, siblingNumStack, scopeStack)
@@ -157,9 +153,11 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
             scopeStack:pop()
         elseif tag == 'Local' then
             local varNames = util.imap(node[1], util.bind(1, util.index))
+            --require'debugger'()
             scopeStack:top():addBindings(node, varNames)
         end
     end
+
     -- Since only one predicate in tuples (see below) can return true
     -- Call nodes are only considered expression nodes for this matter
     local stmtPred = function(node, _, _, _)
@@ -180,6 +178,13 @@ function traverser.traverseScoped(ast, preFunc, postFunc, predicate, terminator)
         datastructs.Tuple(blockPred, scopePush, scopePop),
         datastructs.Tuple(scopedPredicate, scopedPreFunc, scopedPostFunc)
     }
+    if terminator ~= nil then
+        defaultTerminator = function(node, parentStack, siblingStack)
+            return terminator(node, parentStack, siblingStack, scopeStack)
+        end
+    else
+        defaultTerminator = util.bind(false, util.identity)
+    end
     -- now call the regular traverser with the modified functions
     return traverser.traverseWorker(
         ast, tuples, initialParentStack,
