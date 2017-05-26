@@ -33,7 +33,8 @@ do
     do local y = x local f = y end -- some dummy code
     do
         local y = 4
-        f = function(x)
+        x, y, f = 2
+        g = function(x)
             if x == nil then return x + 1
             elseif x == 3 then return x + 3
             else
@@ -44,18 +45,39 @@ do
                 end
             end
         end
-        print(1+2) print(a+b)
-        print(8*4) print(a*z)
-        print(5+3) print(5*a)
     end
 end]]
 
 local scopeCodeSimple = [[do local x = 42 end]]
 
+local forallChildsCode = [[
+    do
+      print(x)
+      print(y+1)
+    end
+    do
+      local x = 1
+      local x = 2
+    end
+]]
+
 describe(
     "Ast Query test",
     function()
         randomize(true)
+
+        it("tests queries using the forallchilds predicate",
+           function()
+               local ast, _ = parser.parse(forallChildsCode)
+               local Q = astQuery(ast)
+               local count1 =
+                   #Q(ast):filter'Do':where(Q.forallChilds(Q.all())):list()
+               assert.True(count1 == 2)
+               local count2 =
+                   #Q(ast):filter'Do':where(Q.forallChilds(~Q.tag'Call')):list()
+               print(count2)
+               assert.True(count2 == 1)
+        end)
 
         it('tests queries using different starting points',
            function()
@@ -71,7 +93,40 @@ describe(
                assert.are.same(result, 'xyxfyy')
         end)
 
-        it('tests queries using different starting points',
+        it("tests the forall qualifier",
+           function()
+--               local assign, _ = parser.parse('f, g = 1, 2')
+ --              local aQ = astQuery(assign)
+
+               local ast, _ = parser.parse(scopeCode)
+               local Q = astQuery(ast)
+
+               for constant in Q(ast):filter'Local':where(
+                   Q.forall(
+                       Q.grandParent(Q.tag'NameList'),
+                       function(IDSTRING)
+                           print('INSIDE: ' ..IDSTRING)
+                           return Q.forallRightSiblings(
+                               Q.ifelse(
+                                   Q.tag'Set',
+                                   Q.fstChild(
+                                       Q.tag'VarList' & Q.forallChilds(
+                                           Q.fstChild(~Q.value( IDSTRING )))),
+                                   Q.tru())
+                               &
+                               Q.forallChilds(
+                                   Q.ifelse(
+                                       Q.tag'Set',
+                                       Q.fstChild(
+                                           Q.tag'VarList' & Q.forallChilds(
+                                               Q.fstChild(~Q.value( IDSTRING )))),
+                                       Q.tru()))) end))
+               :iterator() do
+                   print(ser(constant))
+               end
+        end)
+
+        it('tests manual forall qualification',
            function()
                local ast, _ = parser.parse(scopeCode)
                local Q = astQuery(ast)

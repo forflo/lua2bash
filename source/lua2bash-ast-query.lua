@@ -178,6 +178,16 @@ function astQuery.astQueryCombinators(astRoot)
         return datatypes.Predicate(function(_, _, _, _) return true end)
     end
 
+    function t.none()
+        return datatypes.Predicate(function(_, _, _, _) return false end)
+    end
+
+    -- aliases for t.all and none
+    t.accept = t.all
+    t.reject = t.none
+    t.tru = t.all
+    t.fls = t.none
+
     function t.value(predOrValue)
         if type(predOrValue) == 'function' then
             return t.valuePredicate(predOrValue)
@@ -236,13 +246,6 @@ function astQuery.astQueryCombinators(astRoot)
 
     function t.isTerminal()
         return t.hasChilds(0)
-    end
-
-    function t.isValidNode()
-        return datatypes.Predicate(
-            function(node, _, _, _)
-                return traverser.isNode(node) and node.tag ~= nil
-        end)
     end
 
     function t.isNthSibling(n)
@@ -372,7 +375,13 @@ function astQuery.astQueryCombinators(astRoot)
     function t.nthChild(n, predicate)
         return datatypes.Predicate(
             function(node, _, _, _)
-                return predicate(traverser.seekTraverserState(t._ast, node[n]))
+                local seekNode
+                if traverser.isNode(node) then
+                    seekNode = node[n]
+                else
+                    seekNode = nil
+                end
+                return predicate(traverser.seekTraverserState(t._ast, seekNode))
         end)
     end
 
@@ -404,18 +413,16 @@ function astQuery.astQueryCombinators(astRoot)
         end)
     end
 
-    function t.number(predicate)
-        return t.tag'Number' & t.fstChild(predicate)
-    end
-
-    -- tests all nodes of the complete subtree
-    function t.forallChilds(predicate)
+    -- helper function used by forall childs
+    function t.foldChilds(operation, startvalue, predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingStack, scopeStack)
                 local result = true
-                local function terminator(_, _, _, _) return result == false end
+                local function terminator(_, _, _, _)
+                    return result == startvalue end
                 local function preFunc(n, parStk, sibStk, scopeStk)
-                    result = result and predicate(n, parStk, sibStk, scopeStk)
+                    result = operation(
+                        result, predicate(n, parStk, sibStk, scopeStk))
                 end
                 if parentStack ~= nil then
                     parentStack = parentStack:deepCopy()
@@ -434,30 +441,8 @@ function astQuery.astQueryCombinators(astRoot)
             end)
     end
 
-    function t.existsChilds(predicate)
-        return datatypes.Predicate(
-            function(node, parentStack, siblingStack, scopeStack)
-                local result = false
-                local function terminator(_, _, _, _) return result == true end
-                local function preFunc(n, parStk, sibStk, scopeStk)
-                    result = result or predicate(n, parStk, sibStk, scopeStk)
-                end
-                if parentStack ~= nil then
-                    parentStack = parentStack:deepCopy()
-                end
-                if siblingStack ~= nil then
-                    siblingStack = siblingStack:deepCopy()
-                end
-                if scopeStack ~= nil then
-                    scopeStack = scopeStack:deepCopy()
-                end
-                traverser.traverseScoped(
-                    node, preFunc, util.identity,
-                    util.bind(true, util.identity), terminator,
-                    parentStack, siblingStack, scopeStack)
-                return result
-            end)
-    end
+    t.forallChilds = util.binder(t.foldChilds, {util.operator.logAnd, false})
+    t.existsChilds = util.binder(t.foldChilds, {util.operator.logOr, true})
 
     ----
     -- parent combinators
@@ -475,6 +460,7 @@ function astQuery.astQueryCombinators(astRoot)
     t.grandParent = util.bind(2, t.nthParent)
     t.greatGrandParent = util.bind(3, t.nthParent)
 
+    -- not intended to use publicly, use forallParents or oneOfParents!
     function t.foldParents(operation, startValue, predicate)
         return datatypes.Predicate(
             function(node, parentStack, siblingNumberStack, scopeStack)
@@ -502,6 +488,49 @@ function astQuery.astQueryCombinators(astRoot)
     -- exists x in parentStack: predicate(x)
     t.oneOfParents = util.bind(
         false, util.bind(util.operator.logOr, t.foldParents))
+
+    -- ifelse(ps(n), pT(n), pF(n)) ==
+    -- if ps(n) then return pT(n) else return pF(n)
+    -- Can be thought about as boolean multiplexer
+    -- mux(ps(n), pF(n), pT(n)); Muxer semantics are
+    -- if ps(n) == false => pF(n)
+    function t.ifelse(selector, predTrue, predFalse)
+        return (predTrue & selector) | (predFalse & (~selector))
+        -- alternatively:
+        -- return predTrue:land(selector):lor(predFalse:land(selector:negate()))
+    end
+
+    -- First matches the subtree at 'node' against setPredicate
+    -- and puts each of the resutlting nodes into the predicate
+    -- generator. The resulting predicates will be folded using
+    -- the and operation and start value true
+    function t.forall(setPredicate, predicateGenerator)
+        return datatypes.Predicate(
+            function(node, parentStack, siblingNumberStack, scopeStack)
+                local Q = astQuery.astQuery
+                local args = {node, parentStack, siblingNumberStack, scopeStack}
+                local predicates =
+                    util.imap(
+                        Q(t._ast):starting(node):where(setPredicate):list(),
+                        predicateGenerator)
+                local saturatedPredicates =
+                    util.imap(
+                        predicates,
+                        util.bind(args, util.flip(util.binder)))
+                return
+                    util.ifold(
+                        util.imap( -- evaluated predicates
+                            saturatedPredicates,
+                            util.call),
+                        util.operator.logAnd,
+                        true)
+            end)
+    end
+
+    -- AST structure related short cuts
+    function t.number(predicate)
+        return t.tag'Number' & t.fstChild(predicate)
+    end
 
     return t
 end

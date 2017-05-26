@@ -262,6 +262,11 @@ function util.bind(argument, func)
     end
 end
 
+-- util.binder(f, {a1, a2, ...}) == function() return f(a1, a2, ...) end
+function util.binder(func, arguments)
+    return util.ifold(arguments, util.bind, func)
+end
+
 -- special case of util.rotate where f only has two parameters
 function util.flip(func)
     return function(left, right)

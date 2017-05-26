@@ -56,6 +56,15 @@ describe(
                end
         end)
 
+        it("tests the function util.binder",
+           function()
+               local function testfunc(a, b, c) return a .. b .. c end
+               local args = {'foo', 'bar', 'baz'}
+               local boundfunc = util.binder(testfunc, args)
+               print(testfunc(table.unpack(args)))
+               assert.are.same(boundfunc(), util.join(args, ''))
+        end)
+
         it("test the function iterator",
            function()
                local succ = function(x) return x + 1 end

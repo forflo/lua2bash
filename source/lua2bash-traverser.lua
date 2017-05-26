@@ -196,7 +196,7 @@ end
 -- returns the parent stack, sibling stack and scope stack
 -- at the position when 'node' is reached
 function traverser.seekTraverserState(ast, node)
-    if node == nil then return nil, nil, nil, nil end
+    if node == nil or ast == nil then return nil, nil, nil, nil end
     local resultParentStack, resultSiblingStack, resultScopeStack
     local terminate = false
     local function terminator(_, _, _, _) return terminate end
