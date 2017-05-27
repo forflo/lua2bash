@@ -182,6 +182,10 @@ function util.filter(tbl, fun)
     return result
 end
 
+-- ifold :: { t } -> ((t, a) -> a) -> a -> a
+-- acc :: a
+-- func :: ((t, a) -> a)
+-- tbl :: { t }
 function util.ifold(tbl, fun, acc)
     for _, v in ipairs(tbl) do
         acc = fun(v, acc)
@@ -241,6 +245,10 @@ function util.imap(tbl, func)
         result[#result + 1] = func(v)
     end
     return result
+end
+
+function util.concat(tbl)
+
 end
 
 -- The identity function

@@ -197,7 +197,7 @@ end
 -- at the position when 'node' is reached
 function traverser.seekTraverserState(ast, node)
     if node == nil or ast == nil then return nil, nil, nil, nil end
-    local resultParentStack, resultSiblingStack, resultScopeStack
+    local resultNode, resultParentStack, resultSiblingStack, resultScopeStack
     local terminate = false
     local function terminator(_, _, _, _) return terminate end
     local function predicate(traversalNode)
@@ -208,13 +208,15 @@ function traverser.seekTraverserState(ast, node)
             return false
         end
     end
-    local function pre(_, parentStack, siblingStack, scopeStack)
+    local function pre(curNode, parentStack, siblingStack, scopeStack)
         resultParentStack = parentStack:deepCopy()
         resultSiblingStack = siblingStack:deepCopy()
         resultScopeStack = scopeStack:deepCopy()
+        resultNode = curNode
     end
     traverser.traverseScoped(ast, pre, util.identity, predicate, terminator)
-    return node, resultParentStack, resultSiblingStack, resultScopeStack
+--    if node ~= nil and resultScopeStack == nil then require'debugger'() end
+    return resultNode, resultParentStack, resultSiblingStack, resultScopeStack
 end
 
 -- depth first traversal

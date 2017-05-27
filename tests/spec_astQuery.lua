@@ -3,6 +3,7 @@ local Q = require("lua2bash-ast-query").treeQuery
 local util = require("lua2bash-util")
 local ser = require("lua2bash-serialize-ast")
 local parser = require("lua-parser.parser")
+local datatypes = require("lua2bash-datatypes")
 local pp = require'lua-parser.pp'
 local astQuery = require('lua2bash-ast-query').astQuery
 
@@ -95,9 +96,6 @@ describe(
 
         it("tests the forall qualifier",
            function()
---               local assign, _ = parser.parse('f, g = 1, 2')
- --              local aQ = astQuery(assign)
-
                local ast, _ = parser.parse(scopeCode)
                local Q = astQuery(ast)
 
@@ -105,7 +103,6 @@ describe(
                    Q.forall(
                        Q.grandParent(Q.tag'NameList'),
                        function(IDSTRING)
-                           print('INSIDE: ' ..IDSTRING)
                            return Q.forallRightSiblings(
                                Q.ifelse(
                                    Q.tag'Set',
@@ -126,34 +123,113 @@ describe(
                end
         end)
 
+local idQuery = [[
+do
+    local x = 3
+    do
+        local y = x
+        local f = y
+        local a, b, c = 1, 2, 3
+    end -- some dummy code
+end]]
+
+local scopeCodeF = [[
+do
+    local x = 3
+    do local y = x local f = y end -- some dummy code
+    do
+        local y = 4
+        x, y, f = 2
+        g = function(x)
+            if x == nil then return x + 1
+            elseif x == 3 then return x + 3
+            else
+                print(x+y)
+                g = function(m)
+                    print(please+dontfindme)
+                    print(6 + 6)
+                end
+            end
+        end
+    end
+end]]
+
         it('tests manual forall qualification',
            function()
-               local ast, _ = parser.parse(scopeCode)
+--               local ast, _ = parser.parse(idQuery)
+--               local Q = astQuery(ast)
+--               local result
+--
+--               result = Q(ast)
+--                   :filter'Local'
+--                   :selectMany(
+--                       function(binder)
+--                           return Q(binder)
+--                               :where(Q.grandParent(Q.tag('NameList')))
+--                               :list()
+--                              end)
+--                   :select(util.bind(1, util.identity))
+--                   :aggregate(util.operator.add, 0)
+--                   :index(1)
+--               assert.True(result == 6)
+--
+--               result = Q(ast)
+--                   :filter'Local'
+--                   :selectMany(
+--                       function(binder)
+--                           return Q(binder)
+--                               :where(Q.grandParent(Q.tag('NameList')))
+--                               :select(
+--                                   function(id)
+--                                       return {binder = binder, id = id}
+--                                      end)
+--                               :list()
+--                              end)
+--                   :select(util.bind(1, util.identity))
+--                   :aggregate(util.operator.add, 0)
+--                   :index(1)
+--               assert.True(result == 6)
+
+               local ast, _ = parser.parse(scopeCodeF)
                local Q = astQuery(ast)
 
-               for declaration in Q(ast):filter'Local':iterator() do
-                   for id in Q(declaration)
-                       :where(Q.parent(Q.tag'NameList'))
-                       :iterator()
-                   do
-                       local serId = ser(id)
-                       for constant in
-                           Q(declaration)
-                           :where(
-                               Q.forallRightSiblings(
-                                   (Q.tag'Set' & Q.fstChild(
-                                        Q.tag'VarList' & Q.existsChilds(
-                                            Q.fstChild(Q.value(serId))))):negate()
-                                       & Q.forallChilds(
-                                           ~(Q.tag'Set' & Q.fstChild(
-                                                Q.tag'VarList' & Q.existsChilds(
-                                                    Q.fstChild(Q.value(serId))))))))
-                           :iterator()
-                       do
-                           print(constant)
-                       end
-                   end
-               end
+               result = Q(ast)
+                   :filter'Local'
+                   :selectMany(
+                       function(binder)
+                           return
+                               Q(binder)
+                               :where(Q.grandParent(Q.tag('NameList')))
+                               :selectMany(
+                                   function(id)
+                                       print(id, ser(binder))
+                                       return
+                                           astQuery(ast)
+                                           :starting(binder)
+                                           :filter'Local'
+                                           :where(
+                                               Q.forallRightSiblings(
+                                                   Q.ifelse(
+                                                       Q.tag'Set',
+                                                       Q.fstChild(
+                                                           Q.tag'VarList' & Q.forallChilds(
+                                                               Q.fstChild(~Q.value( id )))),
+                                                       Q.tru())
+                                                       &
+                                                       Q.forallChilds(
+                                                           --Q.debug() &
+                                                           Q.ifelse(
+                                                               Q.tag'Set',
+                                                               Q.fstChild(
+                                                                   Q.tag'VarList' & Q.forallChilds(
+                                                                       Q.fstChild(~Q.value( id )))),
+                                                               Q.tru()))))
+                                           :list()
+                                          end)
+                               :list()
+                              end)
+                   :foreach(util.composeV(print, ser))
+                   :list()
         end)
 
 --        it("tests isTerminal predicate",

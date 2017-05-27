@@ -278,6 +278,15 @@ function astQuery.astQueryCombinators(astRoot)
             end)
     end
 
+    -- debug combinator
+    function t.debug()
+        return datatypes.Predicate(
+            function(node, parentStack, sibNumStack, scopeStack)
+                require'debugger'()
+                return true
+            end)
+    end
+
     -- sibling combinators
     function t.nthSibling(n, predicate)
         return datatypes.Predicate(
@@ -286,6 +295,9 @@ function astQuery.astQueryCombinators(astRoot)
                 if immediateParent then
                     siblingsNode = immediateParent[n]
                 end
+--                local a, b, c, d =
+ --                   traverser.seekTraverserState(t._ast, siblingsNode)
+  --              require'debugger'()
                 return predicate(
                     traverser.seekTraverserState(t._ast, siblingsNode))
         end)
@@ -527,6 +539,11 @@ function astQuery.astQueryCombinators(astRoot)
             end)
     end
 
+    -- scope predicates
+    function t.occurrenceOf(binder)
+
+    end
+
     -- AST structure related short cuts
     function t.number(predicate)
         return t.tag'Number' & t.fstChild(predicate)
@@ -543,15 +560,21 @@ function astQuery.astQueryObj(astRoot, startingNode, combinators)
     t._astRoot = astRoot
     t._startingNode = startingNode
     t._predicate = datatypes.Predicate(util.bind(true, util.identity))
+    t._listMonad = nil
 
     -- getter
     function t:astRoot() return self._astRoot end
     function t:combinators() return self._combinators end
     function t:startingNode() return self._startingNode end
     function t:predicate() return self._predicate end
+    function t:resultList() return self._listMonad end
     -- setter
     function t:setPredicate(pred) self._predicate = pred; return self end
     function t:setStartingNode(node) self._startingNode = node; return self end
+    function t:setResultList(list)
+        self._listMonad = datatypes.listMonad(list)
+        return self
+    end
 
     function t:filter(tag)
         assert(type(tag) == 'string', 'Not string!')
@@ -585,16 +608,23 @@ function astQuery.astQueryObj(astRoot, startingNode, combinators)
     end
 
     function t:iterator()
-        return util.iter(self:list())
+        return datatypes.listMonad(self:list()):iterator()
+    end
+
+    function t:select(func)
+        return datatypes.listMonad(self:list()):select(func)
     end
 
     function t:foreach(func)
-        local _, parentStack, siblingStack, scopeStack =
-            traverser.seekTraverserState(self:astRoot(), self:startingNode())
-        traverser.traverseScoped(
-            self:startingNode(), func, util.identity,
-            self:predicate():unpack(), util.bind(false, util.identity),
-            parentStack, siblingStack, scopeStack)
+        return datatypes.listMonad(self:list()):foreach(func)
+    end
+
+    function t:selectMany(func)
+        return datatypes.listMonad(self:list()):selectMany(func)
+    end
+
+    function t:aggregate(operation, acc)
+        return datatypes.listMonad(self:list()):aggregate(operation, acc)
     end
 
     function t:map(_) --TODO:
@@ -607,5 +637,6 @@ function astQuery.astQueryObj(astRoot, startingNode, combinators)
 
     return t
 end
+
 
 return astQuery

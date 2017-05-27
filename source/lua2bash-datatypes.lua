@@ -23,8 +23,8 @@ function datatypes.Tuple(...)
     t._elements = table.pack(...)
     local mtab = {}
     mtab.__tostring = function(tuple)
-        return '(' .. util.join(util.imap(
-                                    tuple._elements, util.tostring), ', ') .. ')'
+        return '(' .. util.join(
+            util.imap(tuple._elements, util.tostring), ', ') .. ')'
     end
     -- mtab.__newindex = function
     function t:arity()
@@ -41,6 +41,7 @@ function datatypes.Tuple(...)
     end
     function t:first() return self._elements[1] end
     function t:second() return self._elements[2] end
+
     setmetatable(t, mtab)
     return t
 end
@@ -125,6 +126,55 @@ function datatypes.BinderTable()
     return t
 end
 
+function datatypes.listMonad(list)
+    local t = {}
+    t._list = list
+
+    -- To enable more complex LINQ style monadic queries
+    -- func :: t -> t
+    -- select :: m t -> (t -> t) -> m c
+    function t:select(func)
+        return datatypes.listMonad(
+            util.imap(self:list(), func))
+    end
+
+    -- selectMany :: m t -> (t -> m t) -> m c
+    -- func :: t -> m t
+    function t:selectMany(func)
+        return datatypes.listMonad(
+            util.tableIConcat(
+                util.imap(self:list(), func)))
+    end
+
+    -- like map, but list does not get touched
+    function t:foreach(func)
+        util.imap(self:list(), func)
+        return datatypes.listMonad(self:list())
+    end
+
+    -- operation :: t -> u -> u
+    -- acc :: u
+    -- aggregate :: m t -> (t -> u -> u) -> u -> m u
+    function t:aggregate(operation, acc)
+        return datatypes.listMonad(
+            { util.ifold(self:list(), operation, acc) })
+    end
+
+    -- unboxing operations
+    function t:list()
+        return self._list
+    end
+
+    function t:index(n)
+        return self._list[n]
+    end
+
+    function t:iterator()
+        return util.iter(self._list)
+    end
+
+    return t
+end
 
 function datatypes.Predicate(pred)
     local t = {}
